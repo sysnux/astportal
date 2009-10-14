@@ -28,11 +28,11 @@ class Billing_form(TableForm):
    '''
 
    import datetime
-   dptms = [(d.dptm_id, d.display_name) 
+   dptms = [(d.dptm_id, d.comment) 
       for d in DBSession.query(Department).order_by(Department.name).all()]
    dptms.insert( 0, ('ALL',u'* - Tous les services') )
-   phones = [(p.phone_number, p.phone_number) 
-      for p in DBSession.query(Phone).order_by('phone_number').all()]
+   phones = [(p.number, p.number) 
+      for p in DBSession.query(Phone).order_by('number').all()]
    m = [ u'Janvier', u'Février', u'Mars', u'Avril', u'Mai', u'Juin', 
       u'Juillet', u'Août', u'Septembre', u'Octobre', u'Novembre', u'Décembre' ]
    month = [ ('', u' - - - - - - ') ]
@@ -75,11 +75,6 @@ class Billing_form(TableForm):
          name = 'phones',
          label_text = u'Téléphones',
          options = phones),
-#      TextField(
-#         attrs = {'size': 5, 'maxlength': 5},
-#         validator = validators.TimeConverter(format="%H:%M"),
-#         name = 'hour',
-#         label_text = u'Heure +/- ' + interval),
    ]
    submit_text = u'Valider...'
    action = 'result'
@@ -151,44 +146,16 @@ class Billing_ctrl:
       tmpl_context.form = new_billing_form
       return dict( title=u'Facturation', debug='',values='')
 
-   @expose(template="astportal2.templates.cdr")
-   def result(self, number=None, in_out=None, date=None, hour=None, limit_sel=paginate_limit):
+   @expose(template="astportal2.templates.flexigrid")
+   def result(self, month=None, end=None, begin=None, department='ALL', phones=None):
 
 #      if not predicates.in_group('admin'):
 #         flash(u'Accès interdit')
 #         redirect('/')
 
       filter = []
+# XXX
       cdrs = DBSession.query(CDR)
-      if number:
-         filter.append(u'numéro contient ' + number)
-         cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
-
-      if in_out=='Entrant':
-         filter.append(u'type entrant')
-         cdrs = cdrs.filter(CDR.dstchannel.like('SIP/poste%'))
-      elif in_out=='Sortant':
-         filter.append(u'type sortant')
-         cdrs = cdrs.filter(CDR.channel.like('SIP/poste%'))
-
-      if date:
-         filter.append(u'date ' + date)
-         cdrs = cdrs.filter("calldate::date='" + date[6:10] + date[3:5] + date[0:2] + "'")
-
-      if hour:
-         try:
-            (h,m) = re_hm.search(hour).groups()
-            h = int(h)
-            m = int(m)
-            if h<0 or h>23 or m<0 or m>59:
-               flash(u'Vérifiez le formulaire')
-            else:
-               filter.append(u'heure approximative ' + hour)
-               hour = '%d:%02d' % (h,m)
-               cdrs = cdrs.filter("'" + hour + "' - '" + interval + "'::interval <= calldate::time AND calldate::time <= '" + hour + "' + '" + interval + "'::interval")
-         except:
-            flash(u'Vérifiez le formulaire')
-
 
       grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
             sortname='calldate', sortorder='desc',
@@ -197,7 +164,6 @@ class Billing_ctrl:
                { 'display': u'Destination', 'name': 'dst', 'width': 80 },
                { 'display': u'\u00C9tat', 'name': 'disposition', 'width': 100 },
                { 'display': u'Durée', 'name': 'billsec', 'width': 60 },
-#               { 'display': u'\u00C9coute', 'width': 60, 'align':'center' },
                ],
             usepager=True,
             useRp=True,
@@ -212,7 +178,8 @@ class Billing_ctrl:
 
       global filtered_cdrs
       filtered_cdrs = cdrs
-      return dict( title=u'Facturation', debug='', form=search_form, grid=grid)
+      tmpl_context.grid = grid
+      return dict( title=u'Facturation', debug='', form='')
 
 
    @expose('json')
