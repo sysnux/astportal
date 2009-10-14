@@ -15,7 +15,6 @@ from astportal2.model import DBSession, metadata, User, Group, Phone, Department
 from astportal2.controllers.error import ErrorController
 from astportal2.controllers.secure import SecureController
 
-from astportal2.controllers.cdr import Display_CDR
 from sprox.tablebase import TableBase
 from sprox.fillerbase import TableFiller, EditFormFiller
 from sprox.formbase import AddRecordForm, EditableForm
@@ -23,6 +22,8 @@ from sprox.formbase import AddRecordForm, EditableForm
 __all__ = ['RootController']
 
 
+from astportal2.controllers.cdr import Display_CDR
+from astportal2.controllers.billing import Billing_ctrl
 from astportal2.controllers.user import User_ctrl
 from astportal2.controllers.phone import Phone_ctrl
 from astportal2.controllers.department import Dptm_ctrl
@@ -43,17 +44,15 @@ class RootController(BaseController):
     must be wrapped around with :class:`tg.controllers.WSGIAppController`.
     
     """
-    secc = SecureController()
  
+    cdr = Display_CDR()
+    billing = Billing_ctrl()
     users = User_ctrl()
     phones = Phone_ctrl()
     departments = Dptm_ctrl()
     groups = Group_ctrl()
 
-
     error = ErrorController()
-
-    cdr = Display_CDR()
 
     @expose('astportal2.templates.index')
     def index(self):
