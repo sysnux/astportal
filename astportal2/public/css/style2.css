@@ -1,0 +1,196 @@
+/*
+ * Quick mash-up of CSS for the TG quick start page.
+ */
+
+html, body {
+  color: black;
+  background-color: white;
+  font: x-small "Lucida Grande", "Lucida Sans Unicode", geneva, verdana, sans-serif;
+  margin: 2px;
+  padding: 0;
+/*  border-left: 1px solid red;
+  border-right: 1px solid red; */
+}
+
+td, th {padding:3px;border:none;}
+tr th {text-align:left;background-color:#f0f0f0;color:#333;}
+tr.odd td {background-color:#edf3fe;}
+tr.even td {background-color:#fff;}
+
+#header {
+  height: 60px;
+  padding: 10px 10px 10px 10px;
+/*  margin: 10px 10px 10px 10px; */
+/*  width: 800px; */
+/*  margin: 0 auto 0 auto; */
+  background: url('../images/header.png') no-repeat;
+  border-top: 1px solid #aaa;
+  border-left: 1px solid #aaa;
+  border-right: 1px solid #aaa;
+}
+
+a.link, a, a.active {
+  color: #369;
+}
+
+.menu {
+/*  background: #fff url(images/menuback.png) repeat-y; */
+ left: 10px;
+ padding-bottom: 0.5ex;
+ width: 30ex;
+ border: 1px solid #aaa;
+ position: absolute;
+ top: 100px;
+}
+/*
+[class="menu"]{
+        position: fixed;
+}
+*/
+.menulist {
+   padding-left: 10px;
+}
+
+.menuitem {
+   list-style-type: none;
+   height: 35px;
+   padding-left: 40px;
+   margin-top: 10px;
+}
+
+/* margin: top right bottom left */
+#main_content {
+  color: black;
+  font-size: 127%;
+  background-color: white; 
+/*  width: 757px; */
+  min-height: 450px;
+/* margin: top right bottom left; */
+/*  margin: 20px 20px 20px 180px; */
+  border-left: 1px solid #aaa;
+  border-right: 1px solid #aaa; 
+  padding: 10px 20px 20px 180px;
+}
+
+#sidebar {
+  border: 3px solid #aaa;
+  background-color: #eee;
+  margin: 0.5em;
+  padding: 1em;
+  float: right;
+  width: 200px;
+  font-size: 88%;
+}
+
+#sidebar h2 {
+  margin-top: 0;
+}
+
+#sidebar ul {
+  margin-left: 1.5em;
+  padding-left: 0;
+}
+
+h1,h2,h3,h4,h5,h6,#getting_started_steps {
+  font-family: "Century Schoolbook L", Georgia, serif;
+  font-weight: bold;
+  color: #999;
+}
+
+h2 {
+  font-size: 150%;
+}
+
+#getting_started_steps a {
+  text-decoration: none;
+}
+
+#getting_started_steps a:hover {
+  text-decoration: underline;
+}
+
+#getting_started_steps li {
+  font-size: 80%;
+  margin-bottom: 0.5em;
+}
+
+#getting_started_steps h2 {
+  font-size: 120%;
+}
+
+#getting_started_steps p {
+  font: 100% "Lucida Grande", "Lucida Sans Unicode", geneva, verdana, sans-serif;
+}
+
+#footer {
+  border-left: 1px solid #aaa;
+  border-bottom: 1px solid #aaa;
+  border-right: 1px solid #aaa; 
+  border-top: 1px solid #aaa;
+  color: #999;
+  background-color: white;
+  padding: 10px;
+  font-size: 90%;
+  text-align: center;
+/*  margin: 20px 20px 20px 20px; */
+  /* width: 757px;
+  margin: 0 auto 1em auto; */
+}
+
+.code {
+  font-family: monospace;
+}
+
+span.code {
+  font-weight: bold;
+  background: #eee;
+}
+
+#status_block {
+  margin: 0 auto 0.5em auto;
+  padding: 15px 10px 15px 55px;
+  background: #cec URL('../images/ok.png') left center no-repeat;
+  border: 1px solid #9c9;
+  width: 450px;
+  font-size: 120%;
+  font-weight: bolder;
+}
+
+.notice {
+  margin: 0.5em auto 0.5em auto;
+  padding: 15px 10px 15px 55px;
+  width: 450px;
+  background: #eef URL('../images/info.png') left center no-repeat;
+  border: 1px solid #cce;
+}
+
+.fielderror {
+    color: red;
+    font-weight: bold;
+}
+
+#flash, .notice {
+font-size:120%;
+font-weight:bolder;
+margin:0pt auto 0.5em;
+width:680px;
+}
+#flash div, .notice {
+padding:20px 15px 20px 65px;
+}
+#flash .ok {
+background:#d8ecd8 url(../images/ok.png) no-repeat scroll 10px center;
+}
+#flash .warning {
+background:#fff483 url(../images/warning.png) no-repeat scroll 10px center;
+}
+#flash .error {
+background:#f9c5c1 url(../images/error.png) no-repeat scroll 10px center;
+}
+#flash .alert,
+#flash .info {
+background:#EEEEFF url(../images/info.png) no-repeat scroll 10px center;
+}
+.notice {
+background:#EEEEFF url(../images/info.png) no-repeat scroll 10px center;
+}

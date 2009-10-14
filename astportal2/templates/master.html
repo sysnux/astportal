@@ -1,0 +1,65 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude"
+      py:strip="">
+
+<head py:match="head" py:attrs="select('@*')">
+    <meta content="text/html; charset=UTF-8" http-equiv="content-type" py:replace="''"/>
+    <title py:replace="''">Your title goes here</title>
+    <!--
+    <link py:for="css in tg_css" py:replace="ET(css.display())" />
+    <link py:for="js in tg_js_head" py:replace="ET(js.display())" />
+    -->
+    <meta py:replace="select('*')" />
+    <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/style2.css')}" />
+</head>
+<body py:match="body" py:attrs="select('@*')">
+
+   <!-- Entête -->
+   <div id="header">
+      <h1>&nbsp;</h1>
+      <!--
+      Utilisateur =${tg.request.identity.keys()}
+      <span py:for="k in tg.request.identity.keys()">
+         ${k}=${tg.request.identity[k]}<br/>
+      </span>
+      -->
+      <span py:if="tg.request.identity">
+           Connecté <b>${tg.request.identity['user']}</b><br/>
+            <a href="${tg.url('/logout_handler')}">Déconnexion</a>
+      </span>
+      <span py:if="not tg.request.identity">
+            <a href="${tg.url('/login')}">Connexion</a>
+      </span>
+   </div>
+
+   <!-- Contenu -->
+   <div id="main_content">
+      <py:with vars="flash=tg.flash_obj.render('flash', use_js=False)">
+         <div py:if="flash" py:content="XML(flash)" />
+      </py:with>
+      <div py:replace="select('*|text()')"/>
+   </div>
+
+   <!-- Pied -->
+   <div id="footer">
+      <p>Copyright &#169; 2007-2009 <a href="http://www.sysnux.pf">SysNux</a>, powered by:</p>
+      <img src="${tg.url('/images/under_the_hood_blue.png')}" alt="TurboGears under the hood" />
+   </div>
+
+   <!-- Menu -->
+   <div id="menu" class="menu">
+      <ul class="menulist">
+         <li class="menuitem" style="background: url('/images/home-mdk.png') left center no-repeat;"><br/><a href="/">Accueil</a></li>
+         <li class="menuitem" style="background: url('/images/databases_section.png') left center no-repeat;"><br/><a href="/cdr/">Appels</a></li>
+         <li class="menuitem" style="background: url('/images/ktimetracker.png') left center no-repeat;"><br/><a href="/billing/">Facturation</a></li>
+         <li class="menuitem" style="background: url('/images/preferences-desktop-user.png') left center no-repeat;"><br/><a href="/users/">Utilisateurs</a></li>
+         <li class="menuitem" style="background: url('/images/internet-telephony.png') left center no-repeat;"><br/><a href="/phones/">Téléphones</a></li>
+         <li class="menuitem" style="background: url('/images/kdf.png') left center no-repeat;"><br/><a href="/departments/">Services</a></li>
+         <li class="menuitem" style="background: url('/images/system-users.png') left center no-repeat;"><br/><a href="/groups/">Groupes</a></li>
+      </ul>
+   </div>
+</body>
+</html>
