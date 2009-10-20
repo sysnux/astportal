@@ -6,6 +6,7 @@ from tg.decorators import allow_only
 from repoze.what import predicates
 from pylons import tmpl_context
 from pylons import request
+from sqlalchemy import func
 
 import logging
 log = logging.getLogger("astportal.controllers.cdr")
@@ -16,13 +17,6 @@ from tw.forms.datagrid import DataGrid, Column
 from tw.jquery import FlexiGrid
 
 
-from genshi import Markup
-from os import path
-from re import compile
-
-re_sip = compile('^SIP/poste\d-.*')
-re_hm = compile('^\s*(\d\d?)\D(\d\d?)\s*$')
-
 class Billing_form(TableForm):
    '''
    '''
@@ -31,8 +25,6 @@ class Billing_form(TableForm):
    dptms = [(d.dptm_id, d.comment) 
       for d in DBSession.query(Department).order_by(Department.name).all()]
    dptms.insert( 0, ('ALL',u'* - Tous les services') )
-   phones = [(p.number, p.number) 
-      for p in DBSession.query(Phone).order_by('number').all()]
    m = [ u'Janvier', u'Février', u'Mars', u'Avril', u'Mai', u'Juin', 
       u'Juillet', u'Août', u'Septembre', u'Octobre', u'Novembre', u'Décembre' ]
    month = [ ('', u' - - - - - - ') ]
@@ -50,23 +42,28 @@ class Billing_form(TableForm):
    name = 'search_form'
    fields = [
       Label( text = u'Sélectionnez un ou plusieurs critères'),
-#      TextField( attrs = {'size': 10, 'maxlength': 20},
-#         name = 'number',
-#         label_text = u'Numéro'),
       SingleSelectField(
          name = 'month',
          label_text = u'Mois',
          options = month),
       CalendarDatePicker(
-         name = 'end',
-         label_text = u'Date fin',
-         date_format =  '%d/%m/%Y',
-         picker_shows_time = False ),
-      CalendarDatePicker(
-         name = 'begin',
+         id = 'begin',
          label_text = u'Date début',
          date_format =  '%d/%m/%Y',
+         calendar_lang = 'fr',
+         not_empty = False,
          picker_shows_time = False ),
+      CalendarDatePicker(
+         id = 'end',
+         label_text = u'Date fin',
+         date_format =  '%d/%m/%Y',
+         calendar_lang = 'fr',
+         not_empty = False,
+         picker_shows_time = False ),
+      SingleSelectField(
+         name = 'report_type',
+         label_text = u'Type de rapport',
+         options = [('group',u'Récapitulatif'), ('detail', u'Détail')]),
       SingleSelectField(
          name = 'department',
          label_text = u'Service',
@@ -74,44 +71,14 @@ class Billing_form(TableForm):
       MultipleSelectField(
          name = 'phones',
          label_text = u'Téléphones',
-         options = phones),
+         options = [(p.number, p.number + ' ' + p.user.display_name) 
+            for p in DBSession.query(Phone)]),
    ]
    submit_text = u'Valider...'
    action = 'result'
    hover_help = True
 new_billing_form = Billing_form('new_billing_form')
 
-
-def rec_link(row):
-   '''Create link to download recording if file exists'''
-   if row.disposition != 'ANSWERED':
-      return ''
-
-   dir = '/var/spool/asterisk/monitor/' + row.calldate.strftime('%Y/%m/%d/')
-   ts = row.calldate.strftime('-%Y%m%d-%H%M%S')
-
-   if re_sip.search(row.channel):
-      if len(dst)>4: dst = dst[1:]
-      file1 = 'out-' + row.channel[4:10] + '-' + row.dst + '-' + row.uniqueid + '.wav'
-      file2 = 'out-' + row.channel[4:10] + '-' + row.dst + ts +'.wav'
-   elif re_sip.search(row.dstchannel):
-      file1 = 'in-' + row.dstchannel[4:10] + '-' + row.src + '-' + row.uniqueid + '.wav'
-      file2 = 'in-' + row.dstchannel[4:10] + '-' + row.src + ts + '.wav'
-   else:
-      file1 = file2 = None
-#      return ''
-
-   if file1 and path.exists(dir + file1): 
-      file = file1
-   elif file2 and path.exists(dir + file2):
-      file = file2
-   else:
-      file = None
-#      return ''
-
-   file = dir + 'XXX'
-   link = Markup('<a href="#" title="&Eacute;coute" onclick="ecoute(\'' + file + '\')"><img src="/images/sound_section.png" border="0" alt="&Eacute;coute" /></a>')
-   return link
 
 
 def f_bill(billsec):
@@ -123,14 +90,17 @@ def f_bill(billsec):
    return '%d:%02d:%02d' % (h, m, s)
 
 
-def f_disp(disposition):
-   '''Formatted disposition'''
-   disp=disposition
-   if disposition=='ANSWERED': disp = u'Communication'
-   elif disposition=='BUSY': disp = u'Occupé'
-   elif disposition=='FAILED': disp = u'Echec'
-   elif disposition=='NO ANSWER': disp = u'Pas de réponse'
-   return disp
+# Number to user / department conversion
+def user(dict,n):
+   if dict.has_key(n[-4:]):
+      return dict[n[-4:]][0]
+   else:
+      return ''
+def dptm(dict,n):
+   if dict.has_key(n[-4:]):
+      return dict[n[-4:]][1]
+   else:
+      return ''
 
 
 class Billing_ctrl:
@@ -138,32 +108,72 @@ class Billing_ctrl:
    #allow_only = predicates.not_anonymous('NOT ANONYMOUS')
    paginate_limit = 25
    filtered_cdrs = None
+   phones_dict= None
 
    @expose(template="astportal2.templates.form_new")
    def index(self):
       '''Formulaire facturation
       '''
       tmpl_context.form = new_billing_form
-      return dict( title=u'Facturation', debug='',values='')
+      return dict( title=u'Facturation', debug='', values={'begin': None, 'end': None})
 
    @expose(template="astportal2.templates.flexigrid")
-   def result(self, month=None, end=None, begin=None, department='ALL', phones=None):
+   def result(self, month=None, end=None, begin=None, report_type='group', 
+         department='ALL', phones=None):
 
 #      if not predicates.in_group('admin'):
 #         flash(u'Accès interdit')
 #         redirect('/')
 
       filter = []
-# XXX
-      cdrs = DBSession.query(CDR)
+      if report_type=='detail':
+         cdrs = DBSession.query( CDR.calldate, CDR.src, CDR.dst, CDR.billsec, CDR.ht, CDR.ttc)
+      else: # report_type=='group':
+         cdrs = DBSession.query( CDR.src,
+               func.sum(CDR.billsec).label('billsec'),
+               func.sum(CDR.ht).label('ht'),
+               func.sum(CDR.ttc).label('ttc'))
+
+      # Outgoing calls go through Dahdi/g0
+      cdrs = cdrs.filter("lastdata ILIKE 'Dahdi/g0/%'")
+      cdrs = cdrs.filter(CDR.billsec>0)
+
+      # month is prioritary on begin / end
+      if month:
+         filter.append(u'month='+str(month))
+         cdrs = cdrs.filter("'%s'<=calldate::date" % month)
+         cdrs = cdrs.filter("calldate::date<('%s'::date + interval '1 month')" % month)
+      else:
+         if begin:
+            filter.append(u'begin='+begin)
+            cdrs = cdrs.filter("'%s%s%s'<=calldate::date" % (begin[6:10], begin[3:5], begin[0:2]))
+         if end:
+            filter.append(u'end='+end)
+            cdrs = cdrs.filter("calldate::date<='%s%s%s'" % (end[6:10], end[3:5], end[0:2]))
+
+      # department is prioritary on phones
+      if department!='ALL':
+         filter.append(u'department='+str(department))
+         phones = DBSession.query(Phone.number).filter(Phone.department_id==department).all()
+         cdrs = cdrs.filter(CDR.src.in_(['47'+p.number for p in phones]))
+      else:
+         if phones:
+            if type(phones)!=type([]):
+               phones = ['47'+phones]
+            else:
+               phones = ['47'+p for p in phones]
+            filter.append(u'phones='+', '.join(phones))
+            cdrs = cdrs.filter(CDR.src.in_(phones))
 
       grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
-            sortname='calldate', sortorder='desc',
-            colModel = [ { 'display': u'Date / heure', 'name': 'calldate', 'width': 140 },
+            sortname='src', sortorder='asc',
+            colModel = [
                { 'display': u'Source', 'name': 'src', 'width': 80 },
-               { 'display': u'Destination', 'name': 'dst', 'width': 80 },
-               { 'display': u'\u00C9tat', 'name': 'disposition', 'width': 100 },
-               { 'display': u'Durée', 'name': 'billsec', 'width': 60 },
+               { 'display': u'Nom', 'width': 80 },
+               { 'display': u'Service', 'width': 80 },
+               { 'display': u'Durée', 'width': 60, 'align': 'right' },
+               { 'display': u'CFP HT', 'width': 60, 'align': 'right' },
+               { 'display': u'CFP TTC', 'width': 60, 'align': 'right' },
                ],
             usepager=True,
             useRp=True,
@@ -173,25 +183,36 @@ class Billing_ctrl:
 
       if len(filter):
          if len(filter)>1: m = u'Critères: '
-         else: m = u'Critere: '
+         else: m = u'Critère: '
          flash( m + ', et '.join(filter) + '.')
+
+      if report_type!='detail':
+         cdrs = cdrs.group_by(CDR.src)
 
       global filtered_cdrs
       filtered_cdrs = cdrs
+      # phones['number'] = ('user_display_name','department_comment')
+      global phones_dict
+      phones_dict= dict([(p.number, (p.user.display_name,p.department.comment))
+         for p in DBSession.query(Phone)])
       tmpl_context.grid = grid
       return dict( title=u'Facturation', debug='', form='')
 
 
    @expose('json')
-   def fetch(self, page=1, rp=25, sortname='calldate', sortorder='desc', qtype=None, query=None):
+   def fetch(self, page=1, rp=25, sortname='src', sortorder='desc', qtype=None, query=None):
 
       try:
-         offset = (int(page)-1) * int(rp)
+         page = int(page)
+         offset = (page-1) * int(rp)
       except:
          offset = 0
          page = 1
          rp = 25
 
+      global phones_dict
+      #phones_dict= dict([(p.number, (p.user.display_name,p.department.comment))
+      #   for p in DBSession.query(Phone)])
       global filtered_cdrs
       cdrs = filtered_cdrs
       total = cdrs.count()
@@ -199,37 +220,17 @@ class Billing_ctrl:
       cdrs = cdrs.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
       rows = [
             {
-               'id'  : cdr.acctid,
+               'id'  : cdr.src,
                'cell': [
-                  cdr.calldate, cdr.src, cdr.dst,
-                  f_disp(cdr.disposition),
-                  f_bill(cdr.billsec)# , rec_link(cdr)
+                  cdr.src,
+                  user(phones_dict,cdr.src),
+                  dptm(phones_dict,cdr.src),
+                  f_bill(cdr.billsec),
+                  cdr.ht,
+                  cdr.ttc,
                   ]
                } for cdr in cdrs
             ]
 
       return dict(page=page, total=total, rows=rows)
-
-
-   @expose(content_type='audio/wav')
-   @allow_only(predicates.not_anonymous())
-   def ecoute(self, date=None, file=None):
-
-      import paste.fileapp
-      f = paste.fileapp.FileApp('/usr/share/games/extremetuxracer/music/start1-jt.ogg')
-      f.content_type = 'audio/ogg'
-      f.content_disposition = 'attachment'
-      f.filename = file
-      from tg import use_wsgi_app
-      return use_wsgi_app(f)
-
-      if not predicates.in_group('TDM'):
-         flash(u'Accès interdit')
-         redirect('/')
-
-      if not path.exists(file): 
-         flash(u'Enregistrement introuvable: ' + file)
-         redirect('/cdr/')
-
-      return serve_file(path=dir + file, contentType='audio/wav', disposition='attachment', name=file)
 
