@@ -4,15 +4,13 @@ from tg import expose, flash, redirect, tmpl_context, validate
 from astportal2.model import CDR, DBSession
 from tg.decorators import allow_only
 from repoze.what import predicates
-from pylons import tmpl_context
-from pylons import request
 
 import logging
 log = logging.getLogger("astportal.controllers.cdr")
 
 from tw.api import WidgetsList
 from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSelectField, TextField, TextArea
-from tw.forms.validators import Int, Empty, NotEmpty, DateConverter, TimeConverter
+from tw.forms.validators import Int, DateConverter, TimeConverter
 from tw.jquery import FlexiGrid
 
 import sqlalchemy

@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, response
+from tg import expose, flash, redirect, tmpl_context, response, validate
 from astportal2.model import DBSession, CDR, Department, Phone, User
 from tg.decorators import allow_only
 from tg.controllers import CUSTOM_CONTENT_TYPE
 from repoze.what import predicates
-#from pylons import tmpl_context
-#from pylons import request
 from sqlalchemy import func
 
 import logging
 log = logging.getLogger("astportal.controllers.cdr")
 
 from tw.api import WidgetsList
-from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSelectField, TextField, TextArea, MultipleSelectField
-from tw.forms.datagrid import DataGrid, Column
+from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSelectField, TextField, TextArea, MultipleSelectField, Spacer
+from tw.forms.validators import DateConverter
 from tw.jquery import FlexiGrid
 
 import datetime
@@ -42,7 +40,7 @@ class Billing_form(TableForm):
    interval = '30 min'
    name = 'search_form'
    fields = [
-      Label( text = u'Sélectionnez un ou plusieurs critères'),
+      Label( text = u'1. Choisissez un mois, ou des dates de début / fin'),
       SingleSelectField(
          name = 'month',
          label_text = u'Mois',
@@ -53,6 +51,7 @@ class Billing_form(TableForm):
          date_format =  '%d/%m/%Y',
          calendar_lang = 'fr',
          not_empty = False,
+         validator = DateConverter(month_style='dd/mm/yyyy'),
          picker_shows_time = False ),
       CalendarDatePicker(
          id = 'end',
@@ -60,20 +59,27 @@ class Billing_form(TableForm):
          date_format =  '%d/%m/%Y',
          calendar_lang = 'fr',
          not_empty = False,
+         validator = DateConverter(month_style='dd/mm/yyyy'),
          picker_shows_time = False ),
+      Spacer(),
+      Label( text = u'2. Choisissez le type de rapport, récapitulatif ou détail par poste'),
       SingleSelectField(
          name = 'report_type',
-         label_text = u'Type de rapport',
+         label_text = u'Type',
          options = [('group',u'Récapitulatif'), ('detail', u'Détail')]),
+      Spacer(),
+      Label( text = u'3. Choisissez un service, ou un ou plusieurs téléphones'),
       SingleSelectField(
          name = 'department',
          label_text = u'Service',
          options = dptms),
       MultipleSelectField(
+         help_text = u'Maintenez la touche "Ctrl" appuyée pour sélectionner plusieurs téléphones',
          name = 'phones',
          label_text = u'Téléphones',
          options = [(p.number, p.number + ' ' + p.user.display_name) 
-            for p in DBSession.query(Phone)]),
+            for p in DBSession.query(Phone).order_by(Phone.number)]),
+      Spacer(),
    ]
    submit_text = u'Valider...'
    action = 'result'
@@ -119,13 +125,16 @@ class Billing_ctrl:
    filtered_cdrs = None
    phones_dict= None
 
+
    @expose(template="astportal2.templates.form_new")
-   def index(self):
+   def index(self, **kw):
       '''Formulaire facturation
       '''
       tmpl_context.form = new_billing_form
       return dict( title=u'Facturation', debug='', values={'begin': None, 'end': None})
 
+
+   @validate(new_billing_form, error_handler=index)
    @expose(template="astportal2.templates.flexigrid")
    def result(self, month=None, end=None, begin=None, report_type='group', 
          department='ALL', phones=None):
@@ -227,20 +236,60 @@ class Billing_ctrl:
       cdrs = filtered_cdrs
       total = cdrs.count()
       column = getattr(CDR, sortname)
-      cdrs = cdrs.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
-      rows = [
-            {
-               'id'  : cdr.src,
+      cdrs = cdrs.order_by(CDR.src).offset(offset).limit(rp)
+      #cdrs = cdrs.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
+
+      # Group by department
+      by_dptm = {}
+      for cdr in cdrs.all():
+         d = dptm(phones_dict,cdr.src)
+         if d=='':
+            d = 'Inconnu ***'
+         if not by_dptm.has_key(d):
+            by_dptm[d] = []
+         by_dptm[d].append({
+            'src': cdr.src,
+            'billsec': cdr.billsec,
+            'ht': cdr.ht,
+            'ttc': cdr.ttc
+               })
+
+      dptms = by_dptm.keys()
+      dptms.sort()
+      rows = []
+      for d in dptms:
+         old = d
+         sec_tot = ht_tot = ttc_tot = 0
+         for r in by_dptm[d]:
+            sec_tot += r['billsec']
+            ht_tot += r['ht'] or 0
+            ttc_tot += r['ttc'] or 0
+            rows.append({
+               'id':  r['src'],
                'cell': [
-                  cdr.src,
-                  user(phones_dict,cdr.src),
-                  dptm(phones_dict,cdr.src),
-                  f_bill(cdr.billsec),
-                  cdr.ht,
-                  cdr.ttc,
+                  old,
+                  r['src'],
+                  user(phones_dict,r['src']),
+                  f_bill(r['billsec']),
+                  r['ht'],
+                  r['ttc']
                   ]
-               } for cdr in cdrs
-            ]
+               })
+            old = ''
+
+         # Sub total per department
+         rows.append({
+            'id': '',
+            'cell': [
+                  '',
+                  '',
+                  u'Totaux service',
+                  f_bill(sec_tot),
+                  ht_tot,
+                  ttc_tot
+               ]
+            })
+
 
       return dict(page=page, total=total, rows=rows)
 
