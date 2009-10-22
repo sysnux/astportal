@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context
+from tg import expose, flash, redirect, tmpl_context, validate
 from astportal2.model import CDR, DBSession
 from tg.decorators import allow_only
 from repoze.what import predicates
@@ -12,16 +12,13 @@ log = logging.getLogger("astportal.controllers.cdr")
 
 from tw.api import WidgetsList
 from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSelectField, TextField, TextArea
-from tw.forms.datagrid import DataGrid, Column
+from tw.forms.validators import Int, Empty, NotEmpty, DateConverter, TimeConverter
 from tw.jquery import FlexiGrid
 
+import sqlalchemy
 
 from genshi import Markup
 from os import path
-from re import compile
-
-re_sip = compile('^SIP/poste\d-.*')
-re_hm = compile('^\s*(\d\d?)\D(\d\d?)\s*$')
 
 def rec_link(row):
    '''Create link to download recording if file exists'''
@@ -74,91 +71,32 @@ def f_disp(disposition):
    return disp
 
 
-class Display_CDR:
+interval = '30 min'
+class Search_CDR(TableForm):
+   name = 'search_form'
+   submit_text = u'Valider...'
+   fields = [
+      Label(text = u'Sélectionnez un ou plusieurs critères'),
+      TextField( 'number',
+         attrs = {'size': 20, 'maxlength': 20},
+         validator = Int(not_empty=False),
+         label_text = u'Numéro'),
+      SingleSelectField('in_out',
+         label_text = u'Type',
+         options = [ ('',u'Indifférent'), ('in',u'Entrant'), ('out',u'Sortant') ]),
+      CalendarDatePicker('date',
+                  date_format =  '%d/%m/%Y',
+                  not_empty = False,
+                  validator = DateConverter(month_style='dd/mm/yyyy'),
+                  picker_shows_time = False ),
+      TextField('hour',
+         attrs = {'size': 5, 'maxlength': 5},
+         validator = TimeConverter(),
+         label_text = u'Heure +/- ' + interval),
+      ]
+search_form = Search_CDR('search_cdr_form', action='index2')
 
-   #allow_only = predicates.not_anonymous('NOT ANONYMOUS')
-   paginate_limit = 25
-   filtered_cdrs = None
-
-   @expose(template="astportal2.templates.cdr")
-   def index(self, limit_val=paginate_limit, number=None, in_out=None, date=None, hour=None, limit_sel=paginate_limit):
-
-#      if not predicates.in_group('admin'):
-#         flash(u'Accès interdit')
-#         redirect('/')
-
-      interval = '30 min'
-      search_form = TableForm(
-         name = 'search_form',
-         fields = [
-               HiddenField(name='limit_val', 
-                  default = limit_val
-                  ),
-               Label( text = u'Sélectionnez un ou plusieurs critères'),
-               TextField(
-               attrs = {'size': 10, 'maxlength': 20},
-                  default = number,
-                  name = 'number',
-                  label_text = u'Numéro'),
-               SingleSelectField(
-                  name = 'in_out',
-                  label_text = u'Type',
-                  default = in_out,
-                  options = [ u'Indifférent', u'Entrant', u'Sortant' ]),
-               CalendarDatePicker(
-                  id = 'date', date_format =  '%d/%m/%Y', picker_shows_time = False ),
-#                  attrs = {'readonly': True, 'size': 8},
-#                  default = date or '',
-#                  format = '%d/%m/%Y',
-#                  validator = validators.DateTimeConverter(format="%d/%m/%Y"),
-#                  name = 'date',
-#                  button_text=u'Choisir...'),
-               TextField(
-                  attrs = {'size': 5, 'maxlength': 5},
-                  default = hour,
-#                  validator = validators.TimeConverter(format="%H:%M"),
-                  name = 'hour',
-                  label_text = u'Heure +/- ' + interval),
-               SingleSelectField(
-                  name = 'limit_sel',
-                  label_text = u'Lignes par page',
-                  default = limit_sel or limit_val,
-                  options = [ 10, 25, 50, 100, 500 ])
-  		],
-      	)
-
-      filter = []
-      cdrs = DBSession.query(CDR)
-      if number:
-         filter.append(u'numéro contient ' + number)
-         cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
-
-      if in_out=='Entrant':
-         filter.append(u'type entrant')
-         cdrs = cdrs.filter(CDR.dstchannel.like('SIP/poste%'))
-      elif in_out=='Sortant':
-         filter.append(u'type sortant')
-         cdrs = cdrs.filter(CDR.channel.like('SIP/poste%'))
-
-      if date:
-         filter.append(u'date ' + date)
-         cdrs = cdrs.filter("calldate::date='" + date[6:10] + date[3:5] + date[0:2] + "'")
-
-      if hour:
-         try:
-            (h,m) = re_hm.search(hour).groups()
-            h = int(h)
-            m = int(m)
-            if h<0 or h>23 or m<0 or m>59:
-               flash(u'Vérifiez le formulaire')
-            else:
-               filter.append(u'heure approximative ' + hour)
-               hour = '%d:%02d' % (h,m)
-               cdrs = cdrs.filter("'" + hour + "' - '" + interval + "'::interval <= calldate::time AND calldate::time <= '" + hour + "' + '" + interval + "'::interval")
-         except:
-            flash(u'Vérifiez le formulaire')
-
-      grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
+cdr_grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
             sortname='calldate', sortorder='desc',
             colModel = [ { 'display': u'Date / heure', 'name': 'calldate', 'width': 140 },
                { 'display': u'Source', 'name': 'src', 'width': 80 },
@@ -173,6 +111,60 @@ class Display_CDR:
             resizable=False,
             )
 
+class Display_CDR:
+
+   #allow_only = predicates.not_anonymous('NOT ANONYMOUS')
+   paginate_limit = 25
+   filtered_cdrs = None
+
+
+   @expose(template="astportal2.templates.cdr")
+   def index(self, **kw):
+
+      cdrs = DBSession.query(CDR)
+
+      #if not predicates.in_group('admin'):
+      #   cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
+
+      global filtered_cdrs
+      filtered_cdrs = cdrs
+      tmpl_context.form = search_form
+      tmpl_context.grid = cdr_grid
+      return dict( title=u'Journal des appels', debug='', values={})
+
+   @validate(search_form, error_handler=index)
+   @expose(template="astportal2.templates.cdr")
+   def index2(self, number=None, in_out=None, date=None, hour=None):
+
+      #if not predicates.in_group('admin'):
+      #   cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
+
+      filter = []
+      cdrs = DBSession.query(CDR)
+      if number:
+         number = str(number)
+         filter.append(u'numéro contient ' + number)
+         cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
+
+      if in_out=='in':
+         filter.append(u'type entrant')
+         cdrs = cdrs.filter(sqlalchemy.not_(CDR.lastdata.ilike('Dahdi/g0/%')))
+      elif in_out=='out':
+         filter.append(u'type sortant')
+         cdrs = cdrs.filter(CDR.lastdata.ilike('Dahdi/g0/%'))
+
+      if date:
+         filter.append(date.strftime('date %d/%m/%Y'))
+         cdrs = cdrs.filter(sqlalchemy.sql.cast(CDR.calldate, sqlalchemy.types.DATE)==date)
+
+      if hour:
+         hour = '%d:%02d' % (hour[0], hour[1])
+         filter.append(u'heure approximative ' + hour)
+         # XXX import datetime
+         #time = datetime.time(h,m)
+         #cdrs = cdrs.filter(sqlalchemy.sql.cast(CDR.calldate, sqlalchemy.types.TIME)==time)
+         cdrs = cdrs.filter("'" + hour + "' - '" + interval + "'::interval <= calldate::time AND calldate::time <= '" + hour + "' + '" + interval + "'::interval")
+
       if len(filter):
          if len(filter)>1: m = u'Critères: '
          else: m = u'Critere: '
@@ -180,14 +172,21 @@ class Display_CDR:
 
       global filtered_cdrs
       filtered_cdrs = cdrs
-      return dict( title=u'Appels traités', debug='', form=search_form, grid=grid)
+      tmpl_context.form = search_form
+      tmpl_context.grid = cdr_grid
+      values = {'in_out': in_out, 'date': date, 'number': number, 'hour': hour}
+      return dict( title=u'Journal des appels', debug='', values=values)
 
 
    @expose('json')
    def fetch(self, page=1, rp=25, sortname='calldate', sortorder='desc', qtype=None, query=None):
 
+      #if not predicates.in_group('admin'):
+      #   cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
+
       try:
-         offset = (int(page)-1) * int(rp)
+         page = int(page)
+         offset = (page-1) * int(rp)
       except:
          offset = 0
          page = 1
@@ -212,25 +211,23 @@ class Display_CDR:
       return dict(page=page, total=total, rows=rows)
 
 
-   @expose(content_type='audio/wav')
+   @expose()
    @allow_only(predicates.not_anonymous())
    def ecoute(self, date=None, file=None):
 
+# XXX
+#      if not predicates.in_group('TDM'):
+#         flash(u'Accès interdit')
+#         redirect('/')
+#
+#      if not path.exists(file): 
+#         flash(u'Enregistrement introuvable: ' + file)
+#         redirect('/cdr/')
+
+      # Now really serve file
       import paste.fileapp
-      f = paste.fileapp.FileApp('/usr/share/games/extremetuxracer/music/start1-jt.ogg')
-      f.content_type = 'audio/ogg'
-      f.content_disposition = 'attachment'
-      f.filename = file
+      f = paste.fileapp.FileApp('/usr/share/games/xmoto/Textures/Musics/speeditup.ogg',
+            **{'Content-Disposition': 'attachment; filename=' + 'test.ogg'})
       from tg import use_wsgi_app
       return use_wsgi_app(f)
-
-      if not predicates.in_group('TDM'):
-         flash(u'Accès interdit')
-         redirect('/')
-
-      if not path.exists(file): 
-         flash(u'Enregistrement introuvable: ' + file)
-         redirect('/cdr/')
-
-      return serve_file(path=dir + file, contentType='audio/wav', disposition='attachment', name=file)
 

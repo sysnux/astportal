@@ -29,14 +29,14 @@ function ecoute(f) {
 <body>
       <h1 py:content="title">Paginate Data Grid</h1>
       <span py:replace="debug"/><br />
-      <div id="search_form" py:content="form.display()" style="display: none"></div>
+      <div id="search_form" py:content="tmpl_context.form(values)" style="display: none"></div>
       <p><a id="show_search_form" href="#" onclick="toggle()" 
          title="Formulaire de recherche">Recherche</a></p>
 
 
       <!-- JQuery FlexiGrid
          -->
-      ${grid()}
+      ${tmpl_context.grid()}
 
       <form name="ecoute_form" action="ecoute" method="post">
          <input type="hidden" name="file" />

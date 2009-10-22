@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context
+from tg import expose, flash, redirect, tmpl_context, response
 from astportal2.model import DBSession, CDR, Department, Phone, User
 from tg.decorators import allow_only
+from tg.controllers import CUSTOM_CONTENT_TYPE
 from repoze.what import predicates
-from pylons import tmpl_context
-from pylons import request
+#from pylons import tmpl_context
+#from pylons import request
 from sqlalchemy import func
 
 import logging
@@ -16,12 +17,12 @@ from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSe
 from tw.forms.datagrid import DataGrid, Column
 from tw.jquery import FlexiGrid
 
+import datetime
 
 class Billing_form(TableForm):
    '''
    '''
 
-   import datetime
    dptms = [(d.dptm_id, d.comment) 
       for d in DBSession.query(Department).order_by(Department.name).all()]
    dptms.insert( 0, ('ALL',u'* - Tous les services') )
@@ -82,7 +83,8 @@ new_billing_form = Billing_form('new_billing_form')
 
 
 def f_bill(billsec):
-   '''Formatted billing'''
+   '''Formatted billing
+   '''
    h = billsec/3600
    s = billsec-3600*h
    m = s/60
@@ -90,13 +92,18 @@ def f_bill(billsec):
    return '%d:%02d:%02d' % (h, m, s)
 
 
-# Number to user / department conversion
 def user(dict,n):
+   '''Number => user
+   '''
    if dict.has_key(n[-4:]):
       return dict[n[-4:]][0]
    else:
       return ''
+
+
 def dptm(dict,n):
+   '''Number => department
+   '''
    if dict.has_key(n[-4:]):
       return dict[n[-4:]][1]
    else:
@@ -104,6 +111,8 @@ def dptm(dict,n):
 
 
 class Billing_ctrl:
+   '''Billing controller
+   '''
 
    #allow_only = predicates.not_anonymous('NOT ANONYMOUS')
    paginate_limit = 25
@@ -169,8 +178,8 @@ class Billing_ctrl:
             sortname='src', sortorder='asc',
             colModel = [
                { 'display': u'Source', 'name': 'src', 'width': 80 },
-               { 'display': u'Nom', 'width': 80 },
-               { 'display': u'Service', 'width': 80 },
+               { 'display': u'Nom', 'name': '', 'width': 120 },
+               { 'display': u'Service', 'width': 160 },
                { 'display': u'Durée', 'width': 60, 'align': 'right' },
                { 'display': u'CFP HT', 'width': 60, 'align': 'right' },
                { 'display': u'CFP TTC', 'width': 60, 'align': 'right' },
@@ -191,11 +200,14 @@ class Billing_ctrl:
 
       global filtered_cdrs
       filtered_cdrs = cdrs
+
       # phones['number'] = ('user_display_name','department_comment')
       global phones_dict
       phones_dict= dict([(p.number, (p.user.display_name,p.department.comment))
          for p in DBSession.query(Phone)])
+
       tmpl_context.grid = grid
+      
       return dict( title=u'Facturation', debug='', form='')
 
 
@@ -211,8 +223,6 @@ class Billing_ctrl:
          rp = 25
 
       global phones_dict
-      #phones_dict= dict([(p.number, (p.user.display_name,p.department.comment))
-      #   for p in DBSession.query(Phone)])
       global filtered_cdrs
       cdrs = filtered_cdrs
       total = cdrs.count()
@@ -233,4 +243,26 @@ class Billing_ctrl:
             ]
 
       return dict(page=page, total=total, rows=rows)
+
+
+   @expose(content_type=CUSTOM_CONTENT_TYPE)
+   def csv(self):
+
+      today = datetime.datetime.today()
+      filename = 'telephone-' + today.strftime("%Y%m%d") + '.csv'
+      import StringIO
+      import csv
+      csvdata = StringIO.StringIO()
+      writer = csv.writer(csvdata)
+      writer.writerow(['Service', 'Nom', 'Numéro', 'Durée', 'CFP HT', 'CFP TTC'])
+      writer.writerow(['XXX', 'Xxx xxxx', '123654', '12:34', 123, 456])
+      writer.writerow(['XYZ', 'Zorro xxxx', '546321', '1:34', 12, 45])
+
+      rh = response.headers
+      rh['Content-Type'] = 'text/csv; charset=utf-8'
+      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Pragma'] = 'public' # for IE
+      rh['Cache-control'] = 'max-age=0' #for IE
+
+      return csvdata.getvalue()
 
