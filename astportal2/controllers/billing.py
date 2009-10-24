@@ -17,6 +17,13 @@ from tw.jquery import FlexiGrid
 
 import datetime
 
+def phone_user_display_name(p):
+   if p.user:
+      return ' ' + p.user.display_name
+   else:
+      return ''
+
+
 class Billing_form(TableForm):
    '''
    '''
@@ -77,7 +84,7 @@ class Billing_form(TableForm):
          help_text = u'Maintenez la touche "Ctrl" appuyée pour sélectionner plusieurs téléphones',
          name = 'phones',
          label_text = u'Téléphones',
-         options = [(p.number, p.number + ' ' + p.user.display_name) 
+         options = [(p.number, p.number + phone_user_display_name(p)) 
             for p in DBSession.query(Phone).order_by(Phone.number)]),
       Spacer(),
    ]
@@ -85,8 +92,6 @@ class Billing_form(TableForm):
    action = 'result'
    hover_help = True
 new_billing_form = Billing_form('new_billing_form')
-
-
 
 def f_bill(billsec):
    '''Formatted billing

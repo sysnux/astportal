@@ -223,7 +223,7 @@ class User_ctrl(RestController):
       fn = u.display_name.split(' ')[1:]
       if type(fn)==type([]):
          fn = ' '.join(fn)
-      if u.phone: phone = u.phone[0]
+      if u.phone: phone = u.phone[0].phone_id
       else: phone=None
 
       v = {'user_id': u.user_id, 
