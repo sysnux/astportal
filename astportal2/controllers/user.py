@@ -217,7 +217,7 @@ class User_ctrl(RestController):
       if not id: id=kw['user_id']
       if not in_group('admin') and request.identity['user'].user_id != id:
          flash(u'Accès interdit !', 'error')
-         redirect('/welcome')
+         redirect('/')
       u = DBSession.query(User).get(id)
       ln = u.display_name.split(' ')[0]
       fn = u.display_name.split(' ')[1:]
@@ -244,7 +244,7 @@ class User_ctrl(RestController):
       '''
       if not in_group('admin') and request.identity['user'].user_id != kw['user_id']:
          flash(u'Accès interdit !', 'error')
-         redirect('/welcome')
+         redirect('/')
       u = DBSession.query(User).get(kw['user_id'])
       u.display_name = kw['lastname'] + ' ' + kw['firstname']
       u.email_address = kw['email_address']

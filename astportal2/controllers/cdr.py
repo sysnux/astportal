@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, validate
-from astportal2.model import CDR, DBSession
+from tg import expose, flash, redirect, tmpl_context, validate, request
+from astportal2.model import DBSession, CDR, Phone
 from tg.decorators import allow_only
-from repoze.what import predicates
+from repoze.what.predicates import not_anonymous, in_group, in_any_group
 
 import logging
 log = logging.getLogger("astportal.controllers.cdr")
@@ -18,36 +18,67 @@ import sqlalchemy
 from genshi import Markup
 from os import path
 
-def rec_link(row):
-   '''Create link to download recording if file exists'''
-   if row.disposition != 'ANSWERED':
-      return ''
-
-   dir = '/var/spool/asterisk/monitor/' + row.calldate.strftime('%Y/%m/%d/')
-   ts = row.calldate.strftime('-%Y%m%d-%H%M%S')
-
-   if re_sip.search(row.channel):
-      if len(dst)>4: dst = dst[1:]
-      file1 = 'out-' + row.channel[4:10] + '-' + row.dst + '-' + row.uniqueid + '.wav'
-      file2 = 'out-' + row.channel[4:10] + '-' + row.dst + ts +'.wav'
-   elif re_sip.search(row.dstchannel):
-      file1 = 'in-' + row.dstchannel[4:10] + '-' + row.src + '-' + row.uniqueid + '.wav'
-      file2 = 'in-' + row.dstchannel[4:10] + '-' + row.src + ts + '.wav'
-   else:
-      file1 = file2 = None
+#def rec_link(row):
+#   '''Create link to download recording if file exists'''
+#   if row.disposition != 'ANSWERED':
 #      return ''
+#
+#   dir = '/var/spool/asterisk/monitor/' + row.calldate.strftime('%Y/%m/%d/')
+#   ts = row.calldate.strftime('-%Y%m%d-%H%M%S')
+#
+#   if re_sip.search(row.channel):
+#      if len(dst)>4: dst = dst[1:]
+#      file1 = 'out-' + row.channel[4:10] + '-' + row.dst + '-' + row.uniqueid + '.wav'
+#      file2 = 'out-' + row.channel[4:10] + '-' + row.dst + ts +'.wav'
+#   elif re_sip.search(row.dstchannel):
+#      file1 = 'in-' + row.dstchannel[4:10] + '-' + row.src + '-' + row.uniqueid + '.wav'
+#      file2 = 'in-' + row.dstchannel[4:10] + '-' + row.src + ts + '.wav'
+#   else:
+#      file1 = file2 = None
+##      return ''
+#
+#   if file1 and path.exists(dir + file1): 
+#      file = file1
+#   elif file2 and path.exists(dir + file2):
+#      file = file2
+#   else:
+#      file = None
+##      return ''
+#
+#   file = dir + 'XXX'
+#   link = Markup('<a href="#" title="&Eacute;coute" onclick="ecoute(\'' + file + '\')"><img src="/images/sound_section.png" border="0" alt="&Eacute;coute" /></a>')
+#   return link
 
-   if file1 and path.exists(dir + file1): 
-      file = file1
-   elif file2 and path.exists(dir + file2):
-      file = file2
+
+def check_access():
+   '''Check access rights / group: admin=full access, boss=users from same department, user.
+   Returns SA Query object for selected CDRs
+   '''
+
+   if in_group('admin'):
+      cdrs = DBSession.query(CDR)
+
+   elif in_group('chefs'):
+      # Find list of phones from the user's list of phones
+      # user_phones -> departments -> phones
+      phones = []
+      for d in [d.department for d in request.identity['user'].phone]:
+         for p in d.phones:
+            phones.append(p)
+      src = ['068947' + p.number for p in phones]
+      dst = [p.number for p in phones]
+      cdrs = DBSession.query(CDR).filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
+
+   elif in_group('utilisateurs'):
+      src = ['068947' + p.number for p in request.identity['user'].phone]
+      dst = [p.number for p in request.identity['user'].phone]
+      cdrs = DBSession.query(CDR).filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
+
    else:
-      file = None
-#      return ''
+      flash(u'Accès interdit')
+      redirect('/')
 
-   file = dir + 'XXX'
-   link = Markup('<a href="#" title="&Eacute;coute" onclick="ecoute(\'' + file + '\')"><img src="/images/sound_section.png" border="0" alt="&Eacute;coute" /></a>')
-   return link
+   return cdrs
 
 
 def f_bill(billsec):
@@ -111,7 +142,7 @@ cdr_grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
 
 class Display_CDR:
 
-   #allow_only = predicates.not_anonymous('NOT ANONYMOUS')
+   allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
    paginate_limit = 25
    filtered_cdrs = None
 
@@ -119,26 +150,19 @@ class Display_CDR:
    @expose(template="astportal2.templates.cdr")
    def index(self, **kw):
 
-      cdrs = DBSession.query(CDR)
-
-      #if not predicates.in_group('admin'):
-      #   cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
-
       global filtered_cdrs
-      filtered_cdrs = cdrs
+      filtered_cdrs =  check_access()
       tmpl_context.form = search_form
       tmpl_context.grid = cdr_grid
       return dict( title=u'Journal des appels', debug='', values={})
+
 
    @validate(search_form, error_handler=index)
    @expose(template="astportal2.templates.cdr")
    def index2(self, number=None, in_out=None, date=None, hour=None):
 
-      #if not predicates.in_group('admin'):
-      #   cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
-
+      cdrs = check_access()
       filter = []
-      cdrs = DBSession.query(CDR)
       if number:
          number = str(number)
          filter.append(u'numéro contient ' + number)
@@ -178,10 +202,14 @@ class Display_CDR:
 
    @expose('json')
    def fetch(self, page=1, rp=25, sortname='calldate', sortorder='desc', qtype=None, query=None):
+      ''' Called by FlexiGrid JavaScript component
+      '''
 
-      #if not predicates.in_group('admin'):
-      #   cdrs = cdrs.filter((CDR.src.like('%' + number + '%')) | (CDR.dst.like('%' + number + '%')))
+      if not in_any_group('admin', 'chefs', 'utilisateurs'):
+         flash(u'Accès interdit')
+         redirect('/')
 
+      filter = []
       try:
          page = int(page)
          offset = (page-1) * int(rp)
@@ -199,7 +227,7 @@ class Display_CDR:
             {
                'id'  : cdr.acctid,
                'cell': [
-                  cdr.calldate, cdr.src, cdr.dst,
+                  cdr.calldate, cdr.src[4:], cdr.dst,
                   f_disp(cdr.disposition),
                   f_bill(cdr.billsec)# , rec_link(cdr)
                   ]
@@ -209,23 +237,13 @@ class Display_CDR:
       return dict(page=page, total=total, rows=rows)
 
 
-   @expose()
-   @allow_only(predicates.not_anonymous())
-   def ecoute(self, date=None, file=None):
-
-# XXX
-#      if not predicates.in_group('TDM'):
-#         flash(u'Accès interdit')
-#         redirect('/')
+#   @expose()
+#   def ecoute(self, date=None, file=None):
 #
-#      if not path.exists(file): 
-#         flash(u'Enregistrement introuvable: ' + file)
-#         redirect('/cdr/')
-
-      # Now really serve file
-      import paste.fileapp
-      f = paste.fileapp.FileApp('/usr/share/games/xmoto/Textures/Musics/speeditup.ogg',
-            **{'Content-Disposition': 'attachment; filename=' + 'test.ogg'})
-      from tg import use_wsgi_app
-      return use_wsgi_app(f)
+#      # Now really serve file
+#      import paste.fileapp
+#      f = paste.fileapp.FileApp('/usr/share/games/xmoto/Textures/Musics/speeditup.ogg',
+#            **{'Content-Disposition': 'attachment; filename=' + 'test.ogg'})
+#      from tg import use_wsgi_app
+#      return use_wsgi_app(f)
 
