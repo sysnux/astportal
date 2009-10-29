@@ -137,7 +137,7 @@ class Dptm_ctrl(RestController):
       d = Department()
       d.name = kw['name']
       d.comment = kw['comment']
-      DBSession.add(p)
+      DBSession.add(d)
       flash(u'Nouveau service "%s" créé' % (kw['name']))
       redirect('/departments/')
 

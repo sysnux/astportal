@@ -170,9 +170,10 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
       global filtered_cdrs
       cdrs = filtered_cdrs
       total = cdrs.count()
-      column = getattr(CDR, sortname)
-      cdrs = cdrs.order_by(CDR.src).offset(offset).limit(rp)
-      #cdrs = cdrs.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
+      if report_type=='detail':
+         cdrs = cdrs.order_by(Department.name).order_by(Phone.number).order_by(CDR.calldate.desc()).offset(offset).limit(rp)
+      else:
+         cdrs = cdrs.order_by(Department.name).order_by(Phone.number).offset(offset).limit(rp)
 
       # Group by department
       by_dptm = {}
@@ -256,13 +257,16 @@ class Billing_ctrl:
 
       filter = []
       if report_type=='detail':
-         cdrs = DBSession.query( CDR.calldate, CDR.src, CDR.dst, CDR.billsec, CDR.ht, CDR.ttc)
+         #cdrs = DBSession.query( CDR.calldate, CDR.src, CDR.dst, CDR.billsec, CDR.ht, CDR.ttc)
+         cdrs = DBSession.query(CDR.calldate, CDR.src, CDR.dst, CDR.billsec, CDR.ht, CDR.ttc, Phone.number, Department.name).filter(CDR.src=='068947'+Phone.number).filter(Phone.department_id==Department.dptm_id)
       else: # elif report_type=='group':
          # report_type 'group' is default
          cdrs = DBSession.query( CDR.src,
                func.sum(CDR.billsec).label('billsec'),
                func.sum(CDR.ht).label('ht'),
-               func.sum(CDR.ttc).label('ttc'))
+               func.sum(CDR.ttc).label('ttc'),
+               Phone.number,
+               Department.name).filter(CDR.src=='068947'+Phone.number).filter(Phone.department_id==Department.dptm_id)
 
       cdrs = check_access(cdrs)
 
@@ -335,7 +339,7 @@ class Billing_ctrl:
          flash( m + ', et '.join(filter) + '.')
 
       if report_type!='detail':
-         cdrs = cdrs.group_by(CDR.src)
+         cdrs = cdrs.group_by(CDR.src).group_by(Phone.number).group_by(Department.name)
 
       global filtered_cdrs
       filtered_cdrs = cdrs
