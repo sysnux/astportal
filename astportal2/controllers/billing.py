@@ -50,9 +50,20 @@ def check_access(cdrs):
 
 def phone_user_display_name(p):
    if p.user:
-      return ' ' + p.user.display_name
+      return p.user.display_name
    else:
       return ''
+
+
+class CSV_form(TableForm):
+   name = 'csv_form'
+   fields = [
+         HiddenField('report_type'),
+         HiddenField('message'),
+         ]
+   submit_text = u'Export CSV...'
+   action = 'csv'
+new_csv_form = CSV_form('new_csv_form')
 
 
 class Billing_form(TableForm):
@@ -115,7 +126,7 @@ class Billing_form(TableForm):
          help_text = u'Maintenez la touche "Ctrl" appuyée pour sélectionner plusieurs téléphones',
          name = 'phones',
          label_text = u'Téléphones',
-         options = [(p.number, p.number + phone_user_display_name(p)) 
+         options = [(p.number, p.number + ' ' + phone_user_display_name(p)) 
             for p in DBSession.query(Phone).order_by(Phone.number)]),
       Spacer(),
    ]
@@ -175,61 +186,49 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
       else:
          cdrs = cdrs.order_by(Department.name).order_by(Phone.number).offset(offset).limit(rp)
 
-      # Group by department
-      by_dptm = {}
+      old = None
+      sec_tot = ht_tot = ttc_tot = 0
+      rows = []
       for cdr in cdrs.all():
-         d = dptm(phones_dict,cdr.src)
-         if d=='':
-            d = 'Inconnu ***'
-         if not by_dptm.has_key(d):
-            by_dptm[d] = []
-         by_dptm[d].append({
-            'src': cdr.src[4:],
-            'billsec': cdr.billsec,
-            'ht': cdr.ht,
-            'ttc': cdr.ttc,
+
+         d = dptm(phones_dict,cdr.src) or u'Inconnu ***'
+
+         if d!=old:
+            # New departement
+            if old:
+               # Add sub total per department
+               rows.append({
+                  'id':  'total_' + d,
+                  'cell': [None, u'TOTAL SERVICE', '',
+                     f_bill(sec_tot), ht_tot, ttc_tot ]})
+            old=d
+            sec_tot = ht_tot = ttc_tot = 0
+            # Department header
+            rows.append({
+               'id':  d,
+               'cell': [old, None, None, None, None, None]
+               })
+
+         sec_tot += cdr.billsec
+         ht_tot += cdr.ht or 0
+         ttc_tot += cdr.ttc or 0
+
+         rows.append({
+               'id':  cdr.src,
+               'cell': [None,
+               user(phones_dict,cdr.src[4:]),
+               cdr.src[4:],
+               f_bill(cdr.billsec),
+               cdr.ht,
+               cdr.ttc ]
                })
          if report_type=='detail':
-            by_dptm[d][-1]['dst'] = cdr.dst
+            rows[-1]['cell'].insert(3, cdr.dst)
 
-      dptms = by_dptm.keys()
-      dptms.sort()
-      rows = []
-      for d in dptms:
-         old = d
-         sec_tot = ht_tot = ttc_tot = 0
-         for r in by_dptm[d]:
-            sec_tot += r['billsec']
-            ht_tot += r['ht'] or 0
-            ttc_tot += r['ttc'] or 0
-            rows.append({
-               'id':  r['src'],
-               'cell': [
-                  old,
-                  user(phones_dict,r['src']),
-                  r['src'],
-                  f_bill(r['billsec']),
-                  r['ht'],
-                  r['ttc']
-                  ]
-               })
-            if report_type=='detail':
-               rows[-1]['cell'].insert(3, r['dst'])
-            old = ''
-
-         # Sub total per department
-         rows.append({
-            'id': '',
-            'cell': [
-                  '',
-                  '',
-                  u'Totaux service',
-                  f_bill(sec_tot),
-                  ht_tot,
-                  ttc_tot
-               ]
-            })
-
+      rows.append({
+         'id':  'total_' + old,
+         'cell': [None, u'TOTAL SERVICE', '',
+            f_bill(sec_tot), ht_tot, ttc_tot ]})
       return dict(page=page, total=total, rows=rows)
 
 
@@ -291,7 +290,7 @@ class Billing_ctrl:
       if department!='ALL':
          filter.append(u'service='+str(department))
          phones = DBSession.query(Phone.number).filter(Phone.department_id==department).all()
-         cdrs = cdrs.filter(CDR.src.in_(['47'+p.number for p in phones]))
+         cdrs = cdrs.filter(CDR.src.in_(['068947'+p.number for p in phones]))
       else:
          if phones:
             if type(phones)!=type([]):
@@ -301,27 +300,20 @@ class Billing_ctrl:
             filter.append(u'phones='+', '.join(phones))
             cdrs = cdrs.filter(CDR.src.in_(phones))
 
+      colModel = [
+            { 'display': u'Service', 'width': 200 },
+            { 'display': u'Nom', 'name': '', 'width': 200 },
+            { 'display': u'Appelant', 'name': 'src', 'width': 60 },
+            { 'display': u'Durée', 'width': 60, 'align': 'right' },
+            { 'display': u'CFP HT', 'width': 60, 'align': 'right' },
+            { 'display': u'CFP TTC', 'width': 60, 'align': 'right' },
+         ]
       if report_type=='detail':
          fetchURL = 'fetch_detail'
-         colModel = [
-               { 'display': u'Service', 'width': 160 },
-               { 'display': u'Nom', 'name': '', 'width': 120 },
-               { 'display': u'Appelant', 'name': 'src', 'width': 80 },
-               { 'display': u'Appelé', 'name': 'src', 'width': 80 },
-               { 'display': u'Durée', 'width': 60, 'align': 'right' },
-               { 'display': u'CFP HT', 'width': 60, 'align': 'right' },
-               { 'display': u'CFP TTC', 'width': 60, 'align': 'right' },
-               ]
+         colModel.insert(3 , { 'display': u'Appelé', 'name': 'src', 'width': 60 })
       else:
          fetchURL = 'fetch_group'
-         colModel = [
-               { 'display': u'Service', 'width': 160 },
-               { 'display': u'Nom', 'name': '', 'width': 120 },
-               { 'display': u'Appelant', 'name': 'src', 'width': 80 },
-               { 'display': u'Durée', 'width': 60, 'align': 'right' },
-               { 'display': u'CFP HT', 'width': 60, 'align': 'right' },
-               { 'display': u'CFP TTC', 'width': 60, 'align': 'right' },
-               ]
+
       grid = FlexiGrid( id='flexi', fetchURL=fetchURL, title=None,
             sortname='src', sortorder='asc',
             colModel = colModel,
@@ -333,10 +325,12 @@ class Billing_ctrl:
             out_of=u'sur'
             )
 
+      msg = ''
       if len(filter):
-         if len(filter)>1: m = u'Critères: '
-         else: m = u'Critère: '
-         flash( m + ', et '.join(filter) + '.')
+         if len(filter)>1: msg = u'Critères: '
+         else: msg = u'Critère: '
+         msg += ', et '.join(filter) + '.'
+         flash(msg)
 
       if report_type!='detail':
          cdrs = cdrs.group_by(CDR.src).group_by(Phone.number).group_by(Department.name)
@@ -350,8 +344,10 @@ class Billing_ctrl:
          for p in DBSession.query(Phone)])
 
       tmpl_context.grid = grid
+      tmpl_context.form = new_csv_form
       
-      return dict( title=u'Facturation', debug='', form='')
+      return dict( title=u'Facturation', debug='',
+            values={'report_type': report_type, 'message': msg})
 
 
    @expose('json')
@@ -368,14 +364,14 @@ class Billing_ctrl:
       return fetch('group', page, rp, sortname, sortorder, qtype, query)
 
    @expose(content_type=CUSTOM_CONTENT_TYPE)
-   def csv(self, report_type='group'):
+   def csv(self, report_type='group', message=None):
 
       if not in_any_group('admin', 'chefs', 'utilisateurs'):
          flash(u'Accès interdit')
          redirect('/')
 
       today = datetime.datetime.today()
-      filename = 'telephone-' + today.strftime("%Y%m%d") + '.csv'
+      filename = 'telephone-' + today.strftime('%Y%m%d') + '.csv'
       import StringIO
       import csv
       csvdata = StringIO.StringIO()
@@ -384,61 +380,55 @@ class Billing_ctrl:
       global phones_dict
       global filtered_cdrs
       cdrs = filtered_cdrs
-      total = cdrs.count()
-      cdrs = cdrs.order_by(CDR.src).offset(0).limit(10000)
+      cdrs = cdrs.order_by(CDR.src).offset(0).limit(1000000)
 
-      # Group by department
-      by_dptm = {}
+      # Global header
+      if report_type=='detail': rt = 'détaillé'
+      else: rt = 'récapitulatif par poste'
+      writer.writerow(['Consommation téléphonique'])
+      writer.writerow(['Date', today.strftime('%d/%m/%Y')])
+      writer.writerow(['Type de rapport', rt])
+      if message: writer.writerow([unicode(message).encode('utf-8')])
+      writer.writerow([])
+      row = ['Service','Nom','Appelant','Durée','CFP HT','CFP TTC']
+      if report_type=='detail':
+         row.insert(3, 'Appelé')
+      writer.writerow(row)
+
+      old = None
+      sec_tot = ht_tot = ttc_tot = 0
       for cdr in cdrs.all():
-         d = dptm(phones_dict,cdr.src)
-         if d=='':
-            d = 'Inconnu ***'
-         if not by_dptm.has_key(d):
-            by_dptm[d] = []
-         by_dptm[d].append({
-            'src': cdr.src[4:],
-            'billsec': cdr.billsec,
-            'ht': cdr.ht,
-            'ttc': cdr.ttc,
-               })
-         if report_type=='detail':
-            by_dptm[d][-1]['dst'] = cdr.dst
 
-      dptms = by_dptm.keys()
-      dptms.sort()
-      rows = []
-      for d in dptms:
-         old = d
-         sec_tot = ht_tot = ttc_tot = 0
-         for r in by_dptm[d]:
-            sec_tot += r['billsec']
-            ht_tot += r['ht'] or 0
-            ttc_tot += r['ttc'] or 0
-            row = [
-                  old,
-                  user(phones_dict,r['src']),
-                  r['src'],
-                  f_bill(r['billsec']),
-                  r['ht'],
-                  r['ttc']
-                  ]
-            if report_type=='detail':
-               row.insert(3, r['dst'])
-            writer.writerow(row)
-            old = ''
+         d = dptm(phones_dict,cdr.src) or u'Inconnu ***'
 
-         # Sub total per department
-         row = [
-                  '',
-                  '',
-                  u'Totaux service',
-                  f_bill(sec_tot),
-                  ht_tot,
-                  ttc_tot
-               ]
+         if d!=old:
+            # New departement
+            if old:
+               # Add sub total per department
+               writer.writerow([ '', u'TOTAL SERVICE', '',
+                  f_bill(sec_tot), ht_tot, ttc_tot ])
+            old=d
+            sec_tot = ht_tot = ttc_tot = 0
+            # Department header
+            writer.writerow([unicode(old).encode('utf-8'),'','','','',''])
+
+         sec_tot += cdr.billsec
+         ht_tot += cdr.ht or 0
+         ttc_tot += cdr.ttc or 0
+
+         row = [ None,
+               unicode(user(phones_dict,cdr.src[4:])).encode('utf-8'),
+               cdr.src[4:],
+               f_bill(cdr.billsec),
+               cdr.ht,
+               cdr.ttc ]
          if report_type=='detail':
-            row.insert(3, r['dst'])
+            row.insert(3, cdr.dst)
          writer.writerow(row)
+
+      # Add sub total per department
+      writer.writerow([ '', u'TOTAL SERVICE', '',
+         f_bill(sec_tot), ht_tot, ttc_tot ])
 
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
