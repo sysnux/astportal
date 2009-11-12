@@ -25,10 +25,13 @@
       <h1 py:content="title">Paginate Data Grid</h1>
       <span py:replace="debug"/><br />
 
-      ${tmpl_context.form(values)}
+      <!-- Form -->
+      <span py:if="tmpl_context.form">
+         ${tmpl_context.form(values)}
+      </span>
+
+      <!-- Query FlexiGrid -->
       ${tmpl_context.grid()}
-      <!--
-      <div py:replace="tmpl_context.grid()">JQuery FlexiGrid</div>
-      -->
+
    </body>
 </html>

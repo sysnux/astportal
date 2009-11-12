@@ -129,11 +129,13 @@ class Billing_form(TableForm):
          options = [(p.number, p.number + ' ' + phone_user_display_name(p)) 
             for p in DBSession.query(Phone).order_by(Phone.number)]),
       Spacer(),
-   ]
+      ]
+
    submit_text = u'Valider...'
    action = 'result'
    hover_help = True
 new_billing_form = Billing_form('new_billing_form')
+
 
 def f_bill(billsec):
    '''Formatted billing
@@ -143,6 +145,15 @@ def f_bill(billsec):
    m = s/60
    s = s%60
    return '%d:%02d:%02d' % (h, m, s)
+
+
+from math import ceil
+import locale
+locale.setlocale(locale.LC_ALL, 'fr_FR.UTF-8')
+def f_cost(x):
+   ''' Formatted cost
+   '''
+   return locale.format('%d', ceil(x/100), grouping=True)
 
 
 def user(dict,n):
@@ -200,7 +211,9 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
                rows.append({
                   'id':  'total_' + d,
                   'cell': [None, u'TOTAL SERVICE', '',
-                     f_bill(sec_tot), ht_tot, ttc_tot ]})
+                     f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ]})
+               if report_type=='detail':
+                  rows[-1]['cell'].insert(3, None)
             old=d
             sec_tot = ht_tot = ttc_tot = 0
             # Department header
@@ -208,6 +221,8 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
                'id':  d,
                'cell': [old, None, None, None, None, None]
                })
+            if report_type=='detail':
+               rows[-1]['cell'].insert(6, None)
 
          sec_tot += cdr.billsec
          ht_tot += cdr.ht or 0
@@ -219,8 +234,8 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
                user(phones_dict,cdr.src[4:]),
                cdr.src[4:],
                f_bill(cdr.billsec),
-               cdr.ht,
-               cdr.ttc ]
+               f_cost(cdr.ht),
+               f_cost(cdr.ttc) ]
                })
          if report_type=='detail':
             rows[-1]['cell'].insert(3, cdr.dst)
@@ -228,7 +243,9 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
       rows.append({
          'id':  'total_' + old,
          'cell': [None, u'TOTAL SERVICE', '',
-            f_bill(sec_tot), ht_tot, ttc_tot ]})
+            f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ]})
+      if report_type=='detail':
+         rows[-1]['cell'].insert(3, None)
       return dict(page=page, total=total, rows=rows)
 
 
@@ -245,6 +262,7 @@ class Billing_ctrl:
       '''Formulaire facturation
       '''
       tmpl_context.form = new_billing_form
+
       return dict( title=u'Facturation', debug='', values={'begin': None, 'end': None})
 
 
@@ -406,7 +424,7 @@ class Billing_ctrl:
             if old:
                # Add sub total per department
                writer.writerow([ '', u'TOTAL SERVICE', '',
-                  f_bill(sec_tot), ht_tot, ttc_tot ])
+                  f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ])
             old=d
             sec_tot = ht_tot = ttc_tot = 0
             # Department header
@@ -420,15 +438,15 @@ class Billing_ctrl:
                unicode(user(phones_dict,cdr.src[4:])).encode('utf-8'),
                cdr.src[4:],
                f_bill(cdr.billsec),
-               cdr.ht,
-               cdr.ttc ]
+               f_cost(cdr.ht),
+               f_cost(cdr.ttc) ]
          if report_type=='detail':
             row.insert(3, cdr.dst)
          writer.writerow(row)
 
       # Add sub total per department
       writer.writerow([ '', u'TOTAL SERVICE', '',
-         f_bill(sec_tot), ht_tot, ttc_tot ])
+         f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ])
 
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Phone CReate / Update / Delete RESTful controller
+# User CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, require
@@ -215,7 +215,7 @@ class User_ctrl(RestController):
       ''' Display edit user form
       '''
       if not id: id=kw['user_id']
-      if not in_group('admin') and request.identity['user'].user_id != id:
+      if not in_group('admin') and request.identity['user'].user_id != int(id):
          flash(u'Accès interdit !', 'error')
          redirect('/')
       u = DBSession.query(User).get(id)

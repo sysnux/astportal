@@ -68,8 +68,8 @@ def row(g):
 
 class Group_ctrl(RestController):
    
-#   allow_only = in_group('admin', 
-#         msg=u'Vous devez appartenir au groupe "admin" pour gérer les groupes')
+   allow_only = in_group('admin', 
+         msg=u'Vous devez appartenir au groupe "admin" pour gérer les groupes')
 
    @expose(template="astportal2.templates.flexigrid")
    def get_all(self):
@@ -90,7 +90,7 @@ class Group_ctrl(RestController):
             resizable=False,
             )
       tmpl_context.grid = grid
-      return dict( title=u'Liste des groupes', debug='', form='')
+      return dict( title=u'Liste des groupes', debug='', form='', values=None)
 
 
    @expose('json')
