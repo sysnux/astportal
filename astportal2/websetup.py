@@ -21,25 +21,28 @@ def setup_app(command, conf, vars):
     print "Creating tables"
     model.metadata.create_all(bind=config['pylons.app_globals'].sa_engine)
 
-    manager = model.User()
-    manager.user_id = -1
-    manager.user_name = u'admin'
-    manager.display_name = u'Administrateur'
-    manager.email_address = u'admin@somedomain.com'
-    manager.password = u'0000'
+    u = model.User()
+    u.user_id = -1
+    u.user_name = u'admin'
+    u.display_name = u'Administrateur'
+    u.email_address = u'admin@somedomain.com'
+    u.password = u'0000'
+    model.DBSession.add(u)
 
-    model.DBSession.add(manager)
+    g = model.Group()
+    g.group_id = -1
+    g.group_name = u'admin'
+    g.display_name = u'Groupe des administrateurs'
+    g.users.append(u)
+    model.DBSession.add(g)
 
-    group = model.Group()
-    group.group_id = -1
-    group.group_name = u'Admin'
-    group.display_name = u'Groupe des dministrateurs'
-
-    group.users.append(manager)
-
-    model.DBSession.add(group)
+    d = model.Department()
+    d.dptm_id = -1
+    d.name = u'Divers'
+    d.comment = u'Téléphones divers'
+    model.DBSession.add(d)
 
     model.DBSession.flush()
-
     transaction.commit()
+
     print "Successfully setup"

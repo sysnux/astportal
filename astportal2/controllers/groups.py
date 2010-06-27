@@ -60,7 +60,7 @@ def row(g):
    html += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
    html += u'&nbsp;&nbsp;&nbsp;'
    html += u'<a href="#" onclick="del(\''+ str(g.group_id) + \
-         u'\',\'Suppression du groupe ' + str(g.group_name) + u'\')" title="Supprimer">'
+         u'\',\'Suppression du groupe ' + g.group_name + u'\')" title="Supprimer">'
    html += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    return [Markup(html), g.group_name, g.display_name , users]

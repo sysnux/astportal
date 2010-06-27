@@ -32,12 +32,12 @@ def check_access(cdrs):
       for d in [d.department for d in request.identity['user'].phone]:
          for p in d.phones:
             phones.append(p)
-      src = ['068947' + p.number for p in phones]
+      src = ['0689' + p.number for p in phones]
       dst = [p.number for p in phones]
       cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
 
    elif in_group('utilisateurs'):
-      src = ['068947' + p.number for p in request.identity['user'].phone]
+      src = ['0689' + p.number for p in request.identity['user'].phone]
       dst = [p.number for p in request.identity['user'].phone]
       cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
 
@@ -77,8 +77,8 @@ class Billing_form(TableForm):
       u'Juillet', u'Août', u'Septembre', u'Octobre', u'Novembre', u'Décembre' ]
    month = [ ('', u' - - - - - - ') ]
    today = datetime.datetime.now()
-   for i in range(0,12):
-      j = today.month-i-2
+   for i in range(0,18):
+      j = today.month-i-1
       if j<0:
          y = today.year-1
          j += 12
@@ -153,14 +153,15 @@ locale.setlocale(locale.LC_ALL, 'fr_FR.UTF-8')
 def f_cost(x):
    ''' Formatted cost
    '''
+   if not x: x=0
    return locale.format('%d', ceil(x/100), grouping=True)
 
 
 def user(dict,n):
    '''Number => user
    '''
-   if dict.has_key(n[-4:]):
-      return dict[n[-4:]][0]
+   if dict.has_key(n[4:]):
+      return dict[n[4:]][0]
    else:
       return ''
 
@@ -168,8 +169,8 @@ def user(dict,n):
 def dptm(dict,n):
    '''Number => department
    '''
-   if dict.has_key(n[-4:]):
-      return dict[n[-4:]][1]
+   if dict.has_key(n[4:]):
+      return dict[n[4:]][1]
    else:
       return ''
 
@@ -193,20 +194,26 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
       cdrs = filtered_cdrs
       total = cdrs.count()
       if report_type=='detail':
-         cdrs = cdrs.order_by(Department.name).order_by(Phone.number).order_by(CDR.calldate.desc()).offset(offset).limit(rp)
+         cdrs = cdrs.order_by(Department.name).order_by(Phone.number)
+         cdrs = cdrs.order_by(CDR.calldate.desc()).offset(offset).limit(rp)
       else:
-         cdrs = cdrs.order_by(Department.name).order_by(Phone.number).offset(offset).limit(rp)
+         cdrs = cdrs.order_by(Department.name).order_by(Phone.number)
+         cdrs = cdrs.offset(offset).limit(rp)
 
-      old = None
+      old_u = old_d = ''
       sec_tot = ht_tot = ttc_tot = 0
       rows = []
       for cdr in cdrs.all():
 
          d = dptm(phones_dict,cdr.src) or u'Inconnu ***'
+         u = user(phones_dict,cdr.src)
+         if u==old_u: u=''
+         else: old_u=u
+         print ' *' * 10, cdr.src[4:], d, u
 
-         if d!=old:
+         if d!=old_d:
             # New departement
-            if old:
+            if old_d:
                # Add sub total per department
                rows.append({
                   'id':  'total_' + d,
@@ -214,12 +221,12 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
                      f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ]})
                if report_type=='detail':
                   rows[-1]['cell'].insert(3, None)
-            old=d
+            old_d=d
             sec_tot = ht_tot = ttc_tot = 0
             # Department header
             rows.append({
                'id':  d,
-               'cell': [old, None, None, None, None, None]
+               'cell': [old_d, None, None, None, None, None]
                })
             if report_type=='detail':
                rows[-1]['cell'].insert(6, None)
@@ -231,7 +238,7 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
          rows.append({
                'id':  cdr.src,
                'cell': [None,
-               user(phones_dict,cdr.src[4:]),
+               u, # user(phones_dict,cdr.src),
                cdr.src[4:],
                f_bill(cdr.billsec),
                f_cost(cdr.ht),
@@ -241,8 +248,8 @@ def fetch(report_type, page, rp, sortname, sortorder, qtype, query):
             rows[-1]['cell'].insert(3, cdr.dst)
 
       rows.append({
-         'id':  'total_' + old,
-         'cell': [None, u'TOTAL SERVICE', '',
+         'id':  'total_' + old_d,
+         'cell': [None, u'TOTAL', '',
             f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ]})
       if report_type=='detail':
          rows[-1]['cell'].insert(3, None)
@@ -275,7 +282,8 @@ class Billing_ctrl:
       filter = []
       if report_type=='detail':
          #cdrs = DBSession.query( CDR.calldate, CDR.src, CDR.dst, CDR.billsec, CDR.ht, CDR.ttc)
-         cdrs = DBSession.query(CDR.calldate, CDR.src, CDR.dst, CDR.billsec, CDR.ht, CDR.ttc, Phone.number, Department.name).filter(CDR.src=='068947'+Phone.number).filter(Phone.department_id==Department.dptm_id)
+         cdrs = DBSession.query(CDR.calldate, CDR.src, CDR.dst, 
+               CDR.billsec, CDR.ht, CDR.ttc, Phone.number, Department.name)
       else: # elif report_type=='group':
          # report_type 'group' is default
          cdrs = DBSession.query( CDR.src,
@@ -283,12 +291,17 @@ class Billing_ctrl:
                func.sum(CDR.ht).label('ht'),
                func.sum(CDR.ttc).label('ttc'),
                Phone.number,
-               Department.name).filter(CDR.src=='068947'+Phone.number).filter(Phone.department_id==Department.dptm_id)
+               Department.name)
 
+      cdrs = cdrs.filter(CDR.src=='0689'+Phone.number)
+      cdrs = cdrs.filter(Phone.department_id==Department.dptm_id)
       cdrs = check_access(cdrs)
 
-      # Outgoing calls go through Dahdi/g0
-      cdrs = cdrs.filter("lastdata ILIKE 'Dahdi/g0/%'")
+      # Outgoing calls go through:
+#      OPT: dstchannel ~ E'Zap/(\\d|1\\d)-1'
+#      Tikiphone: dstchannel LIKE 'SIP/gsm%' 
+#      TelIAX: dstchannel LIKE 'IAX2/teliax%'
+      cdrs = cdrs.filter(''' (dstchannel ~ E'Zap/1?\\\\d-1' OR dstchannel LIKE 'SIP/gsm%' OR dstchannel LIKE 'IAX2/teliax%')''')
       cdrs = cdrs.filter(CDR.billsec>0)
 
       # month is prioritary on begin / end
@@ -308,15 +321,16 @@ class Billing_ctrl:
       if department!='ALL':
          filter.append(u'service='+str(department))
          phones = DBSession.query(Phone.number).filter(Phone.department_id==department).all()
-         cdrs = cdrs.filter(CDR.src.in_(['068947'+p.number for p in phones]))
-      else:
-         if phones:
+         cdrs = cdrs.filter(CDR.src.in_(['0689'+p.number for p in phones]))
+      elif phones:
             if type(phones)!=type([]):
-               phones = ['068947'+phones]
+               phones = ['0689'+phones]
             else:
-               phones = ['068947'+p for p in phones]
+               phones = ['0689'+p for p in phones]
             filter.append(u'phones='+', '.join(phones))
             cdrs = cdrs.filter(CDR.src.in_(phones))
+      else:
+         cdrs = cdrs.filter(CDR.src=='0689'+Phone.number)
 
       colModel = [
             { 'display': u'Service', 'width': 200 },
@@ -435,7 +449,7 @@ class Billing_ctrl:
          ttc_tot += cdr.ttc or 0
 
          row = [ None,
-               unicode(user(phones_dict,cdr.src[4:])).encode('utf-8'),
+               unicode(user(phones_dict,cdr.src)).encode('utf-8'),
                cdr.src[4:],
                f_bill(cdr.billsec),
                f_cost(cdr.ht),

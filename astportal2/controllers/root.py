@@ -69,7 +69,7 @@ class RootController(BaseController):
         """Start the user login."""
         login_counter = request.environ['repoze.who.logins']
         if login_counter > 0:
-            flash(_('Wrong credentials'), 'warning')
+            flash(_("Erreur d'authentification"), 'warning')
         return dict(page='login', login_counter=str(login_counter),
                     came_from=came_from)
     

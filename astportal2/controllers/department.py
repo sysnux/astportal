@@ -60,7 +60,7 @@ def row(d):
    html += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
    html += u'&nbsp;&nbsp;&nbsp;'
    html += u'<a href="#" onclick="del(\''+ str(d.dptm_id) + \
-         u'\',\'Suppression du service ' + str(d.name) + u'\')" title="Supprimer">'
+         u'\',\'Suppression du service ' + d.name + u'\')" title="Supprimer">'
    html += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    return [Markup(html), d.name, d.comment , phones]

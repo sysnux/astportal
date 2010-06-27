@@ -170,10 +170,12 @@ class Display_CDR:
 
       if in_out=='in':
          filter.append(u'type entrant')
-         cdrs = cdrs.filter(sqlalchemy.not_(CDR.lastdata.ilike('Dahdi/g0/%')))
+         cdrs = cdrs.filter('''NOT (dstchannel ~ E'Zap/1?\\\\d-1' OR dstchannel LIKE 'SIP/gsm%' OR dstchannel LIKE 'IAX2/teliax%')''')
+         #cdrs = cdrs.filter(sqlalchemy.not_(CDR.lastdata.ilike('Dahdi/g0/%')))
       elif in_out=='out':
          filter.append(u'type sortant')
-         cdrs = cdrs.filter(CDR.lastdata.ilike('Dahdi/g0/%'))
+         cdrs = cdrs.filter(''' (dstchannel ~ E'Zap/1?\\\\d-1' OR dstchannel LIKE 'SIP/gsm%' OR dstchannel LIKE 'IAX2/teliax%')''')
+         #cdrs = cdrs.filter(CDR.lastdata.ilike('Dahdi/g0/%'))
 
       if date:
          filter.append(date.strftime('date %d/%m/%Y'))

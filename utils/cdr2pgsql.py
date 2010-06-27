@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /opt/Python-2.5.5/bin/python
 # -*- coding: utf-8 -*-
 #
 # Simple script to process asterisk CDR logs
@@ -30,33 +30,36 @@ import psycopg2
 #  17. user field: A user-defined field, maximum 255 characters 
 
 # Open database connection
-conn = psycopg2.connect('dbname=druid user=druid password=OqEibl4gbM')
+conn = psycopg2.connect('dbname=astportal2 user=postgres')
 curs = conn.cursor()
 
 #print verbose, begin, end, file
 old_date  = ''
 calls = calls_answ = call_max = call_mean = 0
-insert = """
+insert = '''
 INSERT INTO 
 cdr	(calldate, clid, src, dst, dcontext, channel, dstchannel, lastapp, 
-	lastdata, duration, billsec, disposition, amaflags, accountcode,
-	uniqueid, userfield) 
+	lastdata, duration, billsec, disposition)
 VALUES 	( '%s',  '%s','%s','%s',     '%s',    '%s',        '%s',   '%s',
-	    '%s',       %d,      %d,        '%s',        3,          '',
-	    '%s',      '') """
+	    '%s',       %d,      %d,        '%s' )'''
+
 # Loop over CDR data
-for line in sys.stdin:
-	line = line.replace( '"', '' )
+import csv
+#data = csv.reader(open(args.csv_file,'rb'), delimiter=',')
+for line in csv.reader(sys.stdin, delimiter=','):
+
 	# Extract data
 	try:
 		( accountcode, src, dst, dcontext, clid, channel, dstchannel, lastapp, lastdata, start,
-		answer, end, duration, billsec, disposition, amaflags, uniqueid, cr ) = line.split(',')
+		answer, end, duration, billsec, disposition, amaflags ) = line
 		# Format data
 		date, time = start.split( ' ' )
 		billsec  = int( billsec )
 		duration = int( duration )
-		curs.execute( insert % (  start,  clid, src,  dst, dcontext, channel,  dstchannel, lastapp, lastdata, duration, billsec, disposition, uniqueid)) # , userfield) )
+		curs.execute( insert % (  start,  clid, src,  dst, dcontext, channel,  
+         dstchannel, lastapp, lastdata, duration, billsec, disposition))
 	except:
-		print 'ERREUR:',  line.split(',')
+		print 'ERREUR:', sys.exc_info()[0]
+		print 'Données:', start,  clid, src,  dst, dcontext, channel,  dstchannel, lastapp, lastdata, duration, billsec, disposition
 
 conn.commit()
