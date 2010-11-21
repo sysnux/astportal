@@ -10,11 +10,14 @@ from repoze.what.predicates import in_group
 from tw.jquery import FlexiGrid
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
-from tw.forms.validators import NotEmpty
+from tw.forms.validators import NotEmpty, Int
 
 from genshi import Markup
 
 from astportal2.model import DBSession, Department, Phone
+
+import logging
+log = logging.getLogger(__name__)
 
 
 class New_dtpm_form(TableForm):
@@ -38,8 +41,8 @@ class Edit_dptm_form(TableForm):
    fields = [
          TextField('comment', validator=NotEmpty,
             label_text=u'Nom complet', help_text=u'Entrez le nom complet du service'),
-         HiddenField('_method'), # Needed by RestController
-         HiddenField('dptm_id'),
+         HiddenField('_method', validator=None), # Needed by RestController
+         HiddenField('dptm_id', validator=Int),
          ]
    submit_text = u'Valider...'
    action = '/departments/'
@@ -90,7 +93,8 @@ class Dptm_ctrl(RestController):
             resizable=False,
             )
       tmpl_context.grid = grid
-      return dict( title=u'Liste des services', debug='', form='')
+      tmpl_context.form = None
+      return dict( title=u'Liste des services', debug='')
 
 
    @expose('json')
@@ -143,22 +147,24 @@ class Dptm_ctrl(RestController):
 
 
    @expose(template="astportal2.templates.form_new")
-   def edit(self, id, **kw):
+   def edit(self, id=None, **kw):
       ''' Display edit department form
       '''
+      if not id: id = kw['dptm_id']
       d = DBSession.query(Department).get(id)
       v = {'dptm_id': d.dptm_id, 'comment': d.comment, '_method': 'PUT'}
       tmpl_context.form = edit_dptm_form
       return dict(title = u'Modification service ' + d.name, debug='', values=v)
 
 
-   @validate(edit_dptm_form, error_handler=new)
+   @validate(edit_dptm_form, error_handler=edit)
    @expose()
-   def put(self, **kw):
+   def put(self, dptm_id, comment):
       ''' Update department in DB
       '''
-      d = DBSession.query(Department).get(kw['dptm_id'])
-      d.comment = kw['comment']
+      log.info('update %d' % dptm_id)
+      d = DBSession.query(Department).get(dptm_id)
+      d.comment = comment
       flash(u'Service modifié')
       redirect('/departments/')
 
@@ -167,7 +173,8 @@ class Dptm_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete department from DB
       '''
-      DBSession.delete(DBSession.query(Department).get(id))
+      log.info('delete ' + kw['_id'])
+      DBSession.delete(DBSession.query(Department).get(kw['_id']))
       flash(u'Service supprimé', 'notice')
       redirect('/departments/')
 

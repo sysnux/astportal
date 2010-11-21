@@ -10,11 +10,14 @@ from repoze.what.predicates import in_group
 from tw.jquery import FlexiGrid
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
-from tw.forms.validators import NotEmpty
+from tw.forms.validators import NotEmpty, Int
 
 from genshi import Markup
 
 from astportal2.model import DBSession, Phone, Department, User
+
+import logging
+log = logging.getLogger(__name__)
 
 
 class New_phone_form(TableForm):
@@ -45,14 +48,17 @@ class Edit_phone_form(TableForm):
          SingleSelectField('dptm_id', 
             options= DBSession.query(Department.dptm_id, 
                Department.comment).order_by(Department.comment),
-            label_text=u'Service', help_text=u'Service facturé'
+            label_text=u'Service', help_text=u'Service facturé',
+            valdator=Int
             ),
          SingleSelectField('user_id',
             options=DBSession.query(User.user_id, User.display_name).
             order_by(User.display_name),
-            label_text=u'Utilisateur', help_text=u'Utilisateur du téléphone'),
-         HiddenField('_method'), # Needed by RestController
-         HiddenField('phone_id'),
+            label_text=u'Utilisateur', help_text=u'Utilisateur du téléphone',
+            validator=Int
+            ),
+         HiddenField('_method', validator=None), # Needed by RestController
+         HiddenField('phone_id', validator=Int),
          ]
    submit_text = u'Valider...'
    action = '/phones/'
@@ -103,7 +109,8 @@ class Phone_ctrl(RestController):
             resizable=False,
             )
       tmpl_context.grid = grid
-      return dict( title=u'Liste des téléphones', debug='', form='')
+      tmpl_context.form = None
+      return dict( title=u'Liste des téléphones', debug='')
 
 
    @expose('json')
@@ -157,9 +164,10 @@ class Phone_ctrl(RestController):
 
 
    @expose(template="astportal2.templates.form_new")
-   def edit(self, id, **kw):
+   def edit(self, id=None, **kw):
       ''' Display edit phone form
       '''
+      if not id: id=kw['phone_id']
       p = DBSession.query(Phone).get(id)
       v = {'phone_id': p.phone_id, 'dptm_id': p.department_id, 'user_id': p.user_id, '_method': 'PUT'}
       tmpl_context.form = edit_phone_form
@@ -168,12 +176,13 @@ class Phone_ctrl(RestController):
 
    @validate(edit_phone_form, error_handler=new)
    @expose()
-   def put(self, **kw):
+   def put(self, phone_id, dptm_id, user_id):
       ''' Update phone in DB
       '''
-      p = DBSession.query(Phone).get(kw['phone_id'])
-      p.department_id = kw['dptm_id']
-      p.user_id = kw['user_id']
+      log.info('update %d' % phone_id)
+      p = DBSession.query(Phone).get(phone_id)
+      p.department_id = dptm_id
+      p.user_id = user_id
       flash(u'Téléphone modifié')
       redirect('/phones/')
 
@@ -182,7 +191,8 @@ class Phone_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete phone from DB
       '''
-      DBSession.delete(DBSession.query(Phone).get(id))
+      log.info('delete ' + kw['_id'])
+      DBSession.delete(DBSession.query(Phone).get(kw['_id']))
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')
 

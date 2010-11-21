@@ -15,10 +15,6 @@ from astportal2.model import DBSession, metadata, User, Group, Phone, Department
 from astportal2.controllers.error import ErrorController
 from astportal2.controllers.secure import SecureController
 
-from sprox.tablebase import TableBase
-from sprox.fillerbase import TableFiller, EditFormFiller
-from sprox.formbase import AddRecordForm, EditableForm
-
 __all__ = ['RootController']
 
 
@@ -74,7 +70,7 @@ class RootController(BaseController):
                     came_from=came_from)
     
     @expose()
-    def post_login(self, came_from=url('/')):
+    def post_login(self, came_from='/'):
         """
         Redirect the user to the initially requested page on successful
         authentication or redirect her back to the login page if login failed.
@@ -82,7 +78,7 @@ class RootController(BaseController):
         """
         if not request.identity:
             login_counter = request.environ['repoze.who.logins'] + 1
-            redirect(url('/login', came_from=came_from, __logins=login_counter))
+            redirect('/login', came_from=came_from, __logins=login_counter)
         userid = request.identity['repoze.who.userid']
         flash(u'Bienvenue, %s !' % userid)
         redirect(came_from)

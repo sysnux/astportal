@@ -10,12 +10,14 @@ from repoze.what.predicates import in_group
 from tw.jquery import FlexiGrid
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
-from tw.forms.validators import NotEmpty
+from tw.forms.validators import NotEmpty, Int
 
 from genshi import Markup
 
 from astportal2.model import DBSession, Group, User
 
+import logging
+log = logging.getLogger(__name__)
 
 class New_group_form(TableForm):
    ''' New group form
@@ -38,11 +40,12 @@ class Edit_group_form(TableForm):
    fields = [
          TextField('display_name', validator=NotEmpty,
             label_text='Descriptif', help_text=u'Entrez un descriptif du groupe'),
-         HiddenField('_method'), # Needed by RestController
-         HiddenField('group_id'),
+         HiddenField('_method', validator=None), # Needed by RestController
+         HiddenField('group_id', validator=Int),
          ]
    submit_text = u'Valider...'
-   action = '/groups/'
+   action = '/groups'
+   method = 'POST'
    hover_help = True
 edit_group_form = Edit_group_form('edit_group_form')
 
@@ -71,6 +74,7 @@ class Group_ctrl(RestController):
    allow_only = in_group('admin', 
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les groupes')
 
+
    @expose(template="astportal2.templates.flexigrid")
    def get_all(self):
       ''' List all groups
@@ -90,7 +94,8 @@ class Group_ctrl(RestController):
             resizable=False,
             )
       tmpl_context.grid = grid
-      return dict( title=u'Liste des groupes', debug='', form='', values=None)
+      tmpl_context.form = None
+      return dict( title=u'Liste des groupes', debug='', values=None)
 
 
    @expose('json')
@@ -99,7 +104,6 @@ class Group_ctrl(RestController):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
-
       try:
          page = int(page)
          offset = (page-1) * int(rp)
@@ -143,22 +147,24 @@ class Group_ctrl(RestController):
 
 
    @expose(template="astportal2.templates.form_new")
-   def edit(self, id, **kw):
+   def edit(self, id=None, **kw):
       ''' Display edit group form
       '''
+      if not id: id = kw['group_id']
       g = DBSession.query(Group).get(id)
       v = {'group_id': g.group_id, 'display_name': g.display_name, '_method': 'PUT'}
       tmpl_context.form = edit_group_form
       return dict(title = u'Modification groupe ' + g.group_name, debug='', values=v)
 
 
-   @validate(edit_group_form, error_handler=new)
+   @validate(edit_group_form, error_handler=edit)
    @expose()
-   def put(self, **kw):
+   def put(self, display_name, group_id):
       ''' Update group in DB
       '''
-      g = DBSession.query(Group).get(kw['group_id'])
-      g.display_name = kw['display_name']
+      log.info('update %d' % group_id)
+      g = DBSession.query(Group).get(group_id)
+      g.display_name = display_name
       flash(u'Groupe modifié')
       redirect('/groups/')
 
@@ -167,7 +173,8 @@ class Group_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete group from DB
       '''
-      DBSession.delete(DBSession.query(Group).get(id))
+      log.info('delete ' + kw['_id'])
+      DBSession.delete(DBSession.query(Group).get(kw['_id']))
       flash(u'Groupe supprimé', 'notice')
       redirect('/groups/')
 

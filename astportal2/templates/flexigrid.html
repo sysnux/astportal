@@ -14,9 +14,13 @@
       function add(x) {
          location = 'new'
       }
-      function del(id,msg) {
-         if (confirm(msg))
-            location = id + '/delete'
+      function del(xid,msg) {
+         if (confirm(msg)) {
+            with (document.form_delete) {
+               _id.value = xid;
+               submit();
+            }
+         }
       }
    </script>
 </head>
@@ -32,6 +36,12 @@
 
       <!-- Query FlexiGrid -->
       ${tmpl_context.grid()}
+
+      <!-- -->
+      <form name="form_delete" action="delete" method="POST">
+         <input type="hidden" name="_id" />
+         <input type="hidden" name="_method" value="DELETE" />
+      </form>
 
    </body>
 </html>

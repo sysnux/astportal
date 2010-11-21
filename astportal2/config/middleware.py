@@ -36,7 +36,12 @@ def make_app(global_conf, full_stack=True, **app_conf):
     
     # Wrap your base TurboGears 2 application with custom middleware here
     
-    from test import test
-    test()
+    # Start Asterisk manager thread(s)
+    import astportal2.manager.manager_thread
+    mt1 = astportal2.manager.manager_thread.manager_thread('asterisk.sysnux.pf', 'cel', 'cel')
+    mt1.start()
+#    mt2 = astportal2.manager.manager_thread.manager_thread('asterisk.sysnux.pf', 'astmaster', 'astman')
+#    mt2.start()
+
 
     return app

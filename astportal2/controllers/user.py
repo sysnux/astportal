@@ -16,6 +16,9 @@ from genshi import Markup
 
 from astportal2.model import DBSession, User, Phone, Group, Department
 
+import logging
+log = logging.getLogger(__name__)
+
 
 class New_user_form(TableForm):
    ''' New user form
@@ -60,7 +63,7 @@ class Edit_user_form(TableForm):
    ''' Edit user form
    '''
    fields = [
-         TextField('firstname',
+         TextField('firstname', validator=NotEmpty,
             label_text=u'Prénom',
             help_text=u'Entrez le prénom de l\'utilisateur'),
          TextField('lastname', validator=NotEmpty,
@@ -85,7 +88,7 @@ class Edit_user_form(TableForm):
                Group.group_name).order_by(Group.group_name),
             label_text=u'Groupes', 
             help_text=u'Cochez les groupes auxquels appartient l\'utilisateur'),
-         HiddenField('_method'), # Needed by RestController
+         HiddenField('_method', validator=None), # Needed by RestController
          HiddenField('user_id', validator=Int),
          ]
    submit_text = u'Valider...'
@@ -151,7 +154,8 @@ class User_ctrl(RestController):
             resizable=False,
             )
       tmpl_context.grid = grid
-      return dict( title=u'Liste des utilisateurs', debug='', form='')
+      tmpl_context.form = None
+      return dict( title=u'Liste des utilisateurs', debug='')
 
 
    @expose('json')
@@ -199,6 +203,7 @@ class User_ctrl(RestController):
    def create(self, **kw):
       ''' Add new user to DB
       '''
+      log.info('new ' + kw['user_name'])
       u = User()
       u.user_name = kw['user_name']
       u.display_name = kw['lastname'] + ' ' + kw['firstname']
@@ -239,19 +244,21 @@ class User_ctrl(RestController):
 
    @validate(edit_user_form, error_handler=edit)
    @expose()
-   def put(self, **kw):
+   def put(self, user_id, lastname, firstname, pwd1, pwd2, 
+         email_address=None, groups=None, phone_id=None ):
       ''' Update user in DB
       '''
       if not in_group('admin') and request.identity['user'].user_id != kw['user_id']:
          flash(u'Accès interdit !', 'error')
          redirect('/')
-      u = DBSession.query(User).get(kw['user_id'])
-      u.display_name = kw['lastname'] + ' ' + kw['firstname']
-      u.email_address = kw['email_address']
-      if kw['pwd1']: u.password = kw['pwd1']
-      p = DBSession.query(Phone).get(kw['phone_id'])
+      log.info('update %d' % user_id)
+      u = DBSession.query(User).get(user_id)
+      u.display_name = lastname + ' ' + firstname
+      u.email_address = email_address
+      if pwd1: u.password = pwd1
+      p = DBSession.query(Phone).get(phone_id)
       u.phone = [p]
-      u.groups = DBSession.query(Group).filter(Group.group_id.in_(kw['groups'])).all()
+      u.groups = DBSession.query(Group).filter(Group.group_id.in_(groups)).all()
       flash(u'Utilisateur modifié')
       redirect('/users/')
 
@@ -262,7 +269,8 @@ class User_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete user from DB
       '''
-      DBSession.delete(DBSession.query(User).get(id))
+      log.info('delete ' + kw['_id'])
+      DBSession.delete(DBSession.query(User).get(kw['_id']))
       flash(u'Utilisateur supprimé', 'notice')
       redirect('/users/')
 

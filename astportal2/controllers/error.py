@@ -3,6 +3,8 @@
 
 from tg import request, expose
 
+import inspect
+
 __all__ = ['ErrorController']
 
 
