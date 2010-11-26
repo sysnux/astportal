@@ -13,26 +13,58 @@
     <link py:for="js in tg_js_head" py:replace="ET(js.display())" />
     -->
     <meta py:replace="select('*')" />
-    <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/style2.css')}" />
+    <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/style.css')}" />
+    <script type="text/javascript">
+var menu_status=1;
+function menu_toggle() {
+   if (menu_status) {
+      $('#menu').hide();
+      $('#main_content').css('padding-left', '10px');
+      $('#menu_toggle_link').text('Montrer');
+      menu_status=0;
+   } else {
+      $('#menu').show();
+      $('#main_content').css('padding-left', '180px');
+      $('#menu_toggle_link').text('Cacher');
+      menu_status=1;
+   }
+}
+    </script>
 </head>
 <body py:match="body" py:attrs="select('@*')">
 
    <!-- Entête -->
    <div id="header">
-      <h1>&nbsp;</h1>
       <!--
+      <h1>&nbsp;</h1>
       Utilisateur =${tg.request.identity.keys()}
       <span py:for="k in tg.request.identity.keys()">
          ${k}=${tg.request.identity[k]}<br/>
       </span>
       -->
-      <span py:if="tg.request.identity">
+      <div id="toolbox">
+         <span py:if="tg.request.identity">
            Connecté <b>${tg.request.identity['user']}</b><br/>
             <a href="${tg.url('/logout_handler')}">Déconnexion</a>
-      </span>
-      <span py:if="not tg.request.identity">
+         </span>
+         <span py:if="not tg.request.identity">
             <a href="${tg.url('/login')}">Connexion</a>
-      </span>
+         </span><br />
+         <a href="#" onclick="menu_toggle();" id="menu_toggle_link">Cacher</a> le menu
+      </div>
+   </div>
+
+   <!-- Menu -->
+   <div id="menu" class="menu">
+      <ul class="menulist">
+         <li class="menuitem" style="background: url('/images/home-mdk.png') left center no-repeat;"><br/><a href="/">Accueil</a></li>
+         <li class="menuitem" style="background: url('/images/databases_section.png') left center no-repeat;"><br/><a href="/cdr/">Journal des appels</a></li>
+         <li class="menuitem" style="background: url('/images/ktimetracker.png') left center no-repeat;"><br/><a href="/billing/">Facturation</a></li>
+         <li class="menuitem" style="background: url('/images/preferences-desktop-user.png') left center no-repeat;"><br/><a href="/users/">Utilisateurs</a></li>
+         <li class="menuitem" style="background: url('/images/internet-telephony.png') left center no-repeat;"><br/><a href="/phones/">Téléphones</a></li>
+         <li class="menuitem" style="background: url('/images/kdf.png') left center no-repeat;"><br/><a href="/departments/">Services</a></li>
+         <li class="menuitem" style="background: url('/images/system-users.png') left center no-repeat;"><br/><a href="/groups/">Groupes</a></li>
+      </ul>
    </div>
 
    <!-- Contenu -->
@@ -49,17 +81,5 @@
       <img src="${tg.url('/images/under_the_hood_blue.png')}" alt="TurboGears under the hood" />
    </div>
 
-   <!-- Menu -->
-   <div id="menu" class="menu">
-      <ul class="menulist">
-         <li class="menuitem" style="background: url('/images/home-mdk.png') left center no-repeat;"><br/><a href="/">Accueil</a></li>
-         <li class="menuitem" style="background: url('/images/databases_section.png') left center no-repeat;"><br/><a href="/cdr/">Journal des appels</a></li>
-         <li class="menuitem" style="background: url('/images/ktimetracker.png') left center no-repeat;"><br/><a href="/billing/">Facturation</a></li>
-         <li class="menuitem" style="background: url('/images/preferences-desktop-user.png') left center no-repeat;"><br/><a href="/users/">Utilisateurs</a></li>
-         <li class="menuitem" style="background: url('/images/internet-telephony.png') left center no-repeat;"><br/><a href="/phones/">Téléphones</a></li>
-         <li class="menuitem" style="background: url('/images/kdf.png') left center no-repeat;"><br/><a href="/departments/">Services</a></li>
-         <li class="menuitem" style="background: url('/images/system-users.png') left center no-repeat;"><br/><a href="/groups/">Groupes</a></li>
-      </ul>
-   </div>
 </body>
 </html>

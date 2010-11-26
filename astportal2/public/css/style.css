@@ -1,235 +1,102 @@
-html {
-	background: #555555 url('../images/pagebg.png') top left repeat-x;
-	text-align: center;
-	margin: 0;
-	padding: 0;
-}
+/*
+ * Quick mash-up of CSS for the TG quick start page.
+ */
 
 body {
-	text-align: left;
-	width: 960px;
-	margin: 0 auto;
-	padding: 0;
-	font-size: 12px;
-	font-family:"Lucida Grande","Lucida Sans Unicode",geneva,verdana,sans-serif;
+  color: black;
+  background-color: white;
+  font: x-small "Lucida Grande", "Lucida Sans Unicode", geneva, verdana, sans-serif;
+  margin: 2px;
+  padding: 0;
+/*  border: 1px solid red; */
+/*  border-right: 1px solid red; */
 }
 
-a {
-	color: #286571;
-}
+td, th {padding:3px;border:none;}
+tr th {text-align:left;background-color:#f0f0f0;color:#333;}
+tr.odd td {background-color:#edf3fe;}
+tr.even td {background-color:#fff;}
 
 #header {
-	height: 132px;
-	margin: 10px 10px 0 10px;
-	background: url('../images/headerbg.png') top left no-repeat;
+  height: 36px;
+  padding: 10px 10px 10px 10px;
+  background: url('../images/header.png') no-repeat;
 }
 
-#header h1 {
-	padding: 0;
-	margin: 0;
-	padding-top: 30px;
-	padding-left: 180px;
-	color: #fff;
-	position: relative;
-	font-size: 36px;
+a.link, a, a.active {
+  color: #369;
 }
 
-#header h1 .subtitle {
-	font-size: 60%;
-	position: absolute;
-	left: 240px;
-	top: 70px;
+#toolbox {
+   float: right;
+   clear: both;
 }
 
-ul#mainmenu {
-	margin: 0;
-	padding: 0 10px;
-	background: url('../images/menubg.png') top left no-repeat;
-	height: 38px;
+.menu {
+/*  background: #fff url(images/menuback.png) repeat-y; */
+ left: 10px;
+ padding-bottom: 0.5ex;
+ width:  150px;
+ border: 1px solid green; /* #aaa; */
+ /* position: absolute; */
+ float: left;
+ margin-top: 40px;
+ margin-left: 10px;
+}
+/*
+[class="menu"]{
+        position: fixed;
+}
+*/
+.menulist {
+   padding-left: 10px;
 }
 
-ul#mainmenu li {
-	list-style-type: none;
-	margin: 0;
-	padding: 0;
-	position: relative;
-	display: inline;
-	float: left;
+.menuitem {
+   list-style-type: none;
+   height: 35px;
+   padding-left: 40px;
+   margin-top: 10px;
 }
 
-ul#mainmenu li a {
-	color: #fff;
-	float: left;
-	height: 31px;
-	display: block;
-	line-height: 30px;
-	vertical-align: middle;
-	padding: 0 10px;
-	font-size: 12px;
-	text-decoration: none;
-	background: url('../images/menu-item-border.png') left top no-repeat;
+/* margin: top right bottom left */
+#main_content {
+  color: black;
+  font-size: 127%;
+  background-color: white; 
+  min-height: 450px;
+  padding: 10px 20px 20px 180px;
+  border-right: 1px solid #aaa;
+  border-left: 1px solid #aaa;
 }
 
-ul#mainmenu li a:hover, ul#mainmenu li a.active {
-	background: url('../images/menu-item-actibg.png') left top no-repeat;
-}
-
-ul#mainmenu li.first a {
-	background: none;
-}
-
-ul#mainmenu li.first a:hover, ul#mainmenu li.first a.active {
-	background: url('../images/menu-item-actibg-first.png') left top no-repeat;
-}
-
-ul#mainmenu li.loginlogout
-{
-    float: right;
-    right: 10px;
-}
-
-ul#mainmenu li.loginlogout a:hover
-{
-    background: url('../images/menu-item-border.png') left top no-repeat;
-}
-
-#content {
-	background: #fff url('../images/contentbg.png') left bottom no-repeat;
-	margin : 0 10px 10px 10px;
-	padding: 0 10px;
-	overflow: hidden;
-}
-
-#content .currentpage {
-	margin-top: 0;
-}
-
-/* Login form*/
-
-#loginform
-{
-    text-align: center;
-}
-
-form.loginfields
-{
-    text-align: left;
-    width: 270px;
-    background: url('../images/loginbg.png') top left no-repeat;
-    padding: 0;
-    margin: 0 auto;
-    border: 0;
-}
-
-form.loginfields h2
-{
-    font-size: 16px;
-    float: left;
-    padding: 0;
-    margin: 5px;
-    margin-top: 0;
-    background: url('../images/loginheader-left.png') top left no-repeat;
-}
-
-* html form.loginfields h2
-{
-    margin-left: 3px;
-    width: 80px;
-    text-align: center;
-}
-
-form.loginfields h2 span
-{
-    background: url('../images/loginheader-right.png') right top no-repeat;
-    height: 30px;
-    line-height: 30px;
-    display: block;
-    font-size: 100%;
-    font-weight: normal;
-    color: #fff;
-    padding: 0 10px;
-}
-
-*+html form.loginfields h2 span
-{
-    padding: 0 20px;
-}
-
-form.loginfields label
-{
-    clear: left;
-    float: left;
-    margin-top: 5px;
-    margin-left: 10px;
-    width: 65px;
-    line-height: 31px;
-    vertical-align: middle;
-}
-
-form.loginfields input.text
-{
-    float: left;
-    margin-left: 10px;
-    margin-top: 5px;
-    width: 165px;
-    height: 21px;
-    padding: 5px;
-    border: 0;
-    background: url('../images/inputbg.png') top left no-repeat;
-    color: #fff;
-}
-
-form.loginfields input#submit
-{
-    background: url('../images/loginbottombg.png') bottom left no-repeat;
-    width: 270px;
-    height: 61px;
-    border: 0;
-    margin-top: 10px;
-    color: #fff;
-    padding: 10px 140px 20px 10px;
-}
-
-* html form.loginfields input#submit
-{
-    clear: both;
-    margin-left: -10px;
-}
-
-/* Sidebar */
-.sidebar {
-  border: 1px solid #cce;
+#sidebar {
+  border: 3px solid #aaa;
   background-color: #eee;
   margin: 0.5em;
-  margin-left: 1.5em;
   padding: 1em;
   float: right;
   width: 200px;
   font-size: 88%;
 }
 
-.sidebar h2 {
+#sidebar h2 {
   margin-top: 0;
-  color: black;
 }
 
-.sidebar ul {
+#sidebar ul {
   margin-left: 1.5em;
   padding-left: 0;
 }
 
-
-
-#sb_top {
-  clear: right;
+h1,h2,h3,h4,h5,h6,#getting_started_steps {
+  font-family: "Century Schoolbook L", Georgia, serif;
+  font-weight: bold;
+  color: #999;
 }
 
-#sb_bottom {
-  clear: right;
-}
-
-#getting_started {
-  margin-left: 20px;
+h2 {
+  font-size: 150%;
 }
 
 #getting_started_steps a {
@@ -241,34 +108,62 @@ form.loginfields input#submit
 }
 
 #getting_started_steps li {
+  font-size: 80%;
   margin-bottom: 0.5em;
 }
 
-/* Other and footer */
+#getting_started_steps h2 {
+  font-size: 120%;
+}
+
+#getting_started_steps p {
+  font: 100% "Lucida Grande", "Lucida Sans Unicode", geneva, verdana, sans-serif;
+}
+
 #footer {
-	background: #fff;
-	padding: 10px;
-	color:#888888;
-	font-size:90%;
+  border: 1px solid #aaa;
+  color: #999;
+  background-color: white;
+  padding: 10px;
+  font-size: 90%;
+  text-align: center;
+/*  margin: 20px 20px 20px 20px; */
+  /* width: 757px;
+  margin: 0 auto 1em auto; */
 }
-.flogo {
-	float:left;
-	margin-bottom:0px;
-	padding-left:20px;
-	padding-right:20px;
-	padding-top:0px;
-}
-.foottext p {
-	margin: 0; padding: 0;
-}
+
 .code {
-font-family:monospace;
-font-size:127%;
+  font-family: monospace;
 }
+
 span.code {
-background:#EEEEEE none repeat scroll 0% 0%;
-font-weight:bold;
+  font-weight: bold;
+  background: #eee;
 }
+
+#status_block {
+  margin: 0 auto 0.5em auto;
+  padding: 15px 10px 15px 55px;
+  background: #cec URL('../images/ok.png') left center no-repeat;
+  border: 1px solid #9c9;
+  width: 450px;
+  font-size: 120%;
+  font-weight: bolder;
+}
+
+.notice {
+  margin: 0.5em auto 0.5em auto;
+  padding: 15px 10px 15px 55px;
+  width: 450px;
+  background: #eef URL('../images/info.png') left center no-repeat;
+  border: 1px solid #cce;
+}
+
+.fielderror {
+    color: red;
+    font-weight: bold;
+}
+
 #flash, .notice {
 font-size:120%;
 font-weight:bolder;
@@ -293,11 +188,4 @@ background:#EEEEFF url(../images/info.png) no-repeat scroll 10px center;
 }
 .notice {
 background:#EEEEFF url(../images/info.png) no-repeat scroll 10px center;
-}
-.fielderror {
-color:red;
-font-weight:bold;
-}
-div.clearingdiv {
-clear:both;
 }

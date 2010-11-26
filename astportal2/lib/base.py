@@ -9,6 +9,8 @@ from pylons.i18n import _, ungettext, N_
 from tw.api import WidgetBunch
 import astportal2.model as model
 
+from tw.jquery import jquery_js
+
 __all__ = ['Controller', 'BaseController']
 
 
@@ -29,4 +31,5 @@ class BaseController(TGController):
 
         request.identity = request.environ.get('repoze.who.identity')
         tmpl_context.identity = request.identity
+        jquery_js.inject()
         return TGController.__call__(self, environ, start_response)
