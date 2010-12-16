@@ -20,6 +20,7 @@ from astportal2.controllers.user import User_ctrl
 from astportal2.controllers.phone import Phone_ctrl
 from astportal2.controllers.department import Dptm_ctrl
 from astportal2.controllers.groups import Group_ctrl
+from astportal2.controllers.db_schema import DB_schema
 
 
 class RootController(BaseController):
@@ -43,6 +44,8 @@ class RootController(BaseController):
    phones = Phone_ctrl()
    departments = Dptm_ctrl()
    groups = Group_ctrl()
+
+   db_schema = DB_schema()
 
    error = ErrorController()
 
