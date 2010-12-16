@@ -4,6 +4,10 @@
 from astportal2.config.app_cfg import base_config
 from astportal2.config.environment import load_environment
 
+from tg import config
+import logging
+log = logging.getLogger(__name__)
+
 
 __all__ = ['make_app']
 
@@ -38,10 +42,14 @@ def make_app(global_conf, full_stack=True, **app_conf):
     
     # Start Asterisk manager thread(s)
     import astportal2.manager.manager_thread
-    mt1 = astportal2.manager.manager_thread.manager_thread('asterisk.sysnux.pf', 'cel', 'cel')
-    mt1.start()
-#    mt2 = astportal2.manager.manager_thread.manager_thread('asterisk.sysnux.pf', 'astmaster', 'astman')
-#    mt2.start()
+    try:
+       man = eval(config.get('asterisk.manager'))
+       for m in man:
+          mt = astportal2.manager.manager_thread.manager_thread(m[0], m[1], m[2])
+          mt.start()
+          log.info('Connected to Asterisk manager on "%s"' % m[0])
+    except:
+       log.error('Configuration error, manager thread NOT STARTED (check asterisk.manager)')
 
 
     return app
