@@ -8,20 +8,30 @@
 
 <head>
    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
-   <title py:content="title">Jquery FlexiGrid</title>
+   <title py:content="title">Jquery Grid</title>
 
    <script language="javascript">
-      function add(x) {
-         location = 'new'
+//<![CDATA[
+      
+$(document).ready(function() {
+   $(window).bind('resize', function() {
+      $('#grid').setGridWidth($('#data').width()-10, true);
+   });
+});
+
+function add(x) {
+   location = 'new'
+}
+
+function del(xid,msg) {
+   if (confirm(msg)) {
+      with (document.form_delete) {
+         _id.value = xid;
+         submit();
       }
-      function del(xid,msg) {
-         if (confirm(msg)) {
-            with (document.form_delete) {
-               _id.value = xid;
-               submit();
-            }
-         }
-      }
+   }
+}
+//]]>
    </script>
 </head>
 
@@ -34,8 +44,10 @@
          ${tmpl_context.form(values)}
       </span>
 
-      <!-- Query FlexiGrid -->
-      ${tmpl_context.grid()}
+      <div id="data">
+         <!-- JQuery Grid -->
+         ${tmpl_context.grid()}
+      </div>
 
       <!-- -->
       <form name="form_delete" action="delete" method="POST">

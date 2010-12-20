@@ -7,7 +7,6 @@ from tg.controllers import RestController
 
 from repoze.what.predicates import in_group, not_anonymous
 
-from tw.jquery import FlexiGrid
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, CheckBoxList, PasswordField, HiddenField
 from tw.forms.validators import NotEmpty, Email, Int
@@ -15,6 +14,7 @@ from tw.forms.validators import NotEmpty, Email, Int
 from genshi import Markup
 
 from astportal2.model import DBSession, User, Phone, Group, Department
+from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
 log = logging.getLogger(__name__)
@@ -126,32 +126,30 @@ def row(u):
 
 
 class User_ctrl(RestController):
-   
+
    allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
 
-   @expose(template="astportal2.templates.flexigrid")
+   @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List all users
       '''
       if not in_group('admin'):
          redirect( str(request.identity['user'].user_id) + '/edit')
 
-      grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
-            sortname='user_name', sortorder='asc',
+      grid = MyJqGrid( id='grid', url='fetch', caption=u'Utilisateurs',
+            colNames = [u'Action', u'Compte', u'Nom', u'email', u'Téléphone', u'Groupes'],
             colModel = [
-               { 'display': u'Action', 'width': 80, 'align': 'center' },
-               { 'display': u'Compte', 'name': 'user_name', 'width': 80 },
-               { 'display': u'Nom', 'name': 'display_name', 'width': 120 },
-               { 'display': u'email', 'name': 'email_address', 'width': 180 },
-               { 'display': u'Téléphone', 'width': 60 },
-               { 'display': u'Groupes', 'width': 160 } ],
-            searchitems = [{'display': u'Nom', 'name': 'user_name'} ],
-            buttons = [  {'name': u'Ajouter', 'bclass': 'add', 'onpress': js_callback('add')},
-               {'separator': True} ],
-            usepager=True,
-            useRp=True,
-            rp=10,
-            resizable=False,
+               { 'sortable': False, 'search': False, 'width': 80, 'align': 'center' },
+               { 'name': 'user_name', 'width': 80 },
+               { 'name': 'display_name', 'width': 120 },
+               { 'name': 'email_address', 'width': 180 },
+               { 'name': 'phone', 'width': 60, 'sortable': False, 'search': False },
+               { 'name': 'groups', 'width': 160, 'sortable': False, 'search': False } ],
+            sortname = 'user_name',
+            navbuttons_options = {'view': False, 'edit': False, 'add': True,
+               'del': False, 'search': True, 'refresh': True, 
+               'addfunc': js_callback('add'),
+               }
             )
       tmpl_context.grid = grid
       tmpl_context.form = None
@@ -161,32 +159,65 @@ class User_ctrl(RestController):
    @expose('json')
    @require(in_group('admin',
       msg=u'Seul un membre du groupe administrateur peut afficher la liste des utilisateurs'))
-   def fetch(self, page=1, rp=25, sortname='user_name', sortorder='asc',
-         qtype=None, query=None):
+   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+          searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
 
       try:
          page = int(page)
-         offset = (page-1) * int(rp)
+         rows = int(rows)
+         offset = (page-1) * rows
       except:
          offset = 0
          page = 1
-         rp = 25
+         rows = 25
 
-      if (query):
-         d = {str(qtype): query}
-         users = DBSession.query(User).filter_by(**d)
-      else:
-         users = DBSession.query(User)
+      users = DBSession.query(User)
+      if  searchOper and searchField and searchString:
+         log.debug('fetch query <%s> <%s> <%s>' % \
+            (searchField, searchOper, searchString))
+         try:
+            field = eval('User.' + searchField)
+         except:
+            field = None
+            log.error('eval: User.' + searchField)
+         if field and searchOper=='eq': 
+            users = users.filter(field==searchString)
+         elif field and searchOper=='ne':
+            users = users.filter(field!=searchString)
+         elif field and searchOper=='le':
+            users = users.filter(field<=searchString)
+         elif field and searchOper=='lt':
+            users = users.filter(field<searchString)
+         elif field and searchOper=='ge':
+            users = users.filter(field>=searchString)
+         elif field and searchOper=='gt':
+            users = users.filter(field>searchString)
+         elif field and searchOper=='bw':
+            users = users.filter(field.ilike(searchString + '%'))
+         elif field and searchOper=='bn':
+            users = users.filter(~field.ilike(searchString + '%'))
+         elif field and searchOper=='ew':
+            users = users.filter(field.ilike('%' + searchString))
+         elif field and searchOper=='en':
+            users = users.filter(~field.ilike('%' + searchString))
+         elif field and searchOper=='cn':
+            users = users.filter(field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='nc':
+            users = users.filter(~field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='in':
+            users = users.filter(field.in_(str(searchString.split(' '))))
+         elif field and searchOper=='ni':
+            users = users.filter(~field.in_(str(searchString.split(' '))))
 
-      total = users.count()
-      column = getattr(User, sortname)
-      users = users.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
-      rows = [ { 'id'  : u.user_id, 'cell': row(u) } for u in users ]
+      total = users.count()/rows + 1
+      column = getattr(User, sidx)
+      users = users.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      data = [ { 'id'  : u.user_id, 'cell': row(u) } for u in users ]
 
-      return dict(page=page, total=total, rows=rows)
+      return dict(page=page, total=total, rows=data)
 
 
    @expose(template="astportal2.templates.form_new")

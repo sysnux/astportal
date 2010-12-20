@@ -69,7 +69,7 @@ class RootController(BaseController):
           flash(_("Erreur d'authentification"), 'warning')
       return dict(page='login', login_counter=str(login_counter),
           came_from=came_from)
-    
+ 
    @expose()
    def post_login(self, came_from='/'):
       """
@@ -93,3 +93,12 @@ class RootController(BaseController):
       """
       flash(u'A bientôt')
       redirect('/login')
+
+   @expose('astportal2.templates.tabs')
+   def tabs(self):
+      from tw.jquery.ui import ui_tabs_js, jquery_ui_all_js
+      from tw.uitheme import uilightness_css
+      jquery_ui_all_js.inject()
+      uilightness_css.inject()
+      return dict(title='Test tabs', debug=None)
+

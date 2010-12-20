@@ -2,12 +2,11 @@
 # Phone CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate
+from tg import expose, flash, redirect, tmpl_context, validate, require
 from tg.controllers import RestController
 
 from repoze.what.predicates import in_group
 
-from tw.jquery import FlexiGrid
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int
@@ -15,6 +14,7 @@ from tw.forms.validators import NotEmpty, Int
 from genshi import Markup
 
 from astportal2.model import DBSession, Phone, Department, User
+from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
 log = logging.getLogger(__name__)
@@ -90,23 +90,22 @@ class Phone_ctrl(RestController):
    allow_only = in_group('admin', 
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les téléphones')
 
-   @expose(template="astportal2.templates.flexigrid")
+   @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List all phones
       '''
-      grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
-            sortname='number', sortorder='asc',
-            colModel = [ { 'display': u'Action', 'width': 80, 'align': 'center' },
-               { 'display': u'Numéro', 'name': 'number', 'width': 80 },
-               { 'display': u'Utilisateur', 'name': 'user_id', 'width': 160 },
-               { 'display': u'Service', 'name': 'department_id', 'width': 160 } ],
-            searchitems = [{'display': u'Numéro', 'name': 'number'} ],
-            buttons = [  {'name': u'Ajouter', 'bclass': 'add', 'onpress': js_callback('add')},
-               {'separator': True} ],
-            usepager=True,
-            useRp=True,
-            rp=10,
-            resizable=False,
+      grid = MyJqGrid( id='grid', url='fetch', caption=u'Téléphones',
+            sortname='number',
+            colNames = [u'Action', u'Numéro', u'Utilisateur', u'Service'],
+            colModel = [ 
+               { 'display': u'Action', 'width': 80, 'align': 'center', 'search': False },
+               { 'name': 'number', 'width': 80 },
+               { 'name': 'user_id', 'width': 160, 'search': False },
+               { 'name': 'department_id', 'width': 160, 'search': False } ],
+            navbuttons_options = {'view': False, 'edit': False, 'add': True,
+               'del': False, 'search': True, 'refresh': True, 
+               'addfunc': js_callback('add'),
+               }
             )
       tmpl_context.grid = grid
       tmpl_context.form = None
@@ -114,32 +113,67 @@ class Phone_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rp=25, sortname='number', sortorder='asc',
-         qtype=None, query=None):
+   @require(in_group('admin',
+      msg=u'Seul un membre du groupe administrateur peut afficher la liste des utilisateurs'))
+   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+          searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
 
       try:
          page = int(page)
-         offset = (page-1) * int(rp)
+         rows = int(rows)
+         offset = (page-1) * rows
       except:
          offset = 0
          page = 1
-         rp = 25
+         rows = 25
 
-      if (query):
-         d = {str(qtype): query}
-         phones = DBSession.query(Phone).filter_by(**d)
-      else:
-         phones = DBSession.query(Phone)
+      phones = DBSession.query(Phone)
+      if  searchOper and searchField and searchString:
+         log.debug('fetch query <%s> <%s> <%s>' % \
+            (searchField, searchOper, searchString))
+         try:
+            field = eval('Phone.' + searchField)
+         except:
+            field = None
+            log.error('eval: Phone.' + searchField)
+         if field and searchOper=='eq': 
+            phones = phones.filter(field==searchString)
+         elif field and searchOper=='ne':
+            phones = phones.filter(field!=searchString)
+         elif field and searchOper=='le':
+            phones = phones.filter(field<=searchString)
+         elif field and searchOper=='lt':
+            phones = phones.filter(field<searchString)
+         elif field and searchOper=='ge':
+            phones = phones.filter(field>=searchString)
+         elif field and searchOper=='gt':
+            phones = phones.filter(field>searchString)
+         elif field and searchOper=='bw':
+            phones = phones.filter(field.ilike(searchString + '%'))
+         elif field and searchOper=='bn':
+            phones = phones.filter(~field.ilike(searchString + '%'))
+         elif field and searchOper=='ew':
+            phones = phones.filter(field.ilike('%' + searchString))
+         elif field and searchOper=='en':
+            phones = phones.filter(~field.ilike('%' + searchString))
+         elif field and searchOper=='cn':
+            phones = phones.filter(field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='nc':
+            phones = phones.filter(~field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='in':
+            phones = phones.filter(field.in_(str(searchString.split(' '))))
+         elif field and searchOper=='ni':
+            phones = phones.filter(~field.in_(str(searchString.split(' '))))
 
-      total = phones.count()
-      column = getattr(Phone, sortname)
-      phones = phones.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
-      rows = [ { 'id'  : p.phone_id, 'cell': row(p) } for p in phones ]
+      total = phones.count()/rows + 1
+      column = getattr(Phone, sidx)
+      phones = phones.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      data = [ { 'id'  : p.phone_id, 'cell': row(p) } for p in phones ]
 
-      return dict(page=page, total=total, rows=rows)
+      return dict(page=page, total=total, rows=data)
 
 
    @expose(template="astportal2.templates.form_new")

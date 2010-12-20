@@ -2,6 +2,8 @@
  * Quick mash-up of CSS for the TG quick start page.
  */
 
+/* top right bottom left */
+
 body {
   color: black;
   background-color: white;
@@ -21,6 +23,10 @@ tr.even td {background-color:#fff;}
   height: 36px;
   padding: 10px 10px 10px 10px;
   background: url('../images/header.png') no-repeat;
+/*  position: fixed;
+  width: 100%;
+  z-index: 1000;
+  margin: 2px 2px 0px 2px; */
 }
 
 a.link, a, a.active {
@@ -34,15 +40,18 @@ a.link, a, a.active {
 
 .menu {
 /*  background: #fff url(images/menuback.png) repeat-y; */
+ background: #fff;
  left: 10px;
  padding-bottom: 0.5ex;
  width:  150px;
- border: 1px solid green; /* #aaa; */
+ border: 1px solid #aaa;
  /* position: absolute; */
+ position: fixed;
  float: left;
  margin-top: 40px;
- margin-left: 10px;
+ margin-left: 0px;
 }
+
 /*
 [class="menu"]{
         position: fixed;
@@ -68,6 +77,7 @@ a.link, a, a.active {
   padding: 10px 20px 20px 180px;
   border-right: 1px solid #aaa;
   border-left: 1px solid #aaa;
+  z-index: 0;
 }
 
 #sidebar {

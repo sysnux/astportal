@@ -15,12 +15,13 @@
     <meta py:replace="select('*')" />
     <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/style.css')}" />
     <script type="text/javascript">
+//<![CDATA[
 var menu_status=1;
 function menu_toggle() {
    if (menu_status) {
       $('#menu').hide();
       $('#main_content').css('padding-left', '10px');
-      $('#menu_toggle_link').text('Montrer');
+      $('#menu_toggle_link').text('Afficher');
       menu_status=0;
    } else {
       $('#menu').show();
@@ -28,7 +29,10 @@ function menu_toggle() {
       $('#menu_toggle_link').text('Cacher');
       menu_status=1;
    }
+   if (typeof($('#grid').setGridWidth)=='function')
+      $('#grid').setGridWidth($('#data').width()-10, true); // XXX $('#grid').parent()
 }
+//]]>
     </script>
 </head>
 <body py:match="body" py:attrs="select('@*')">

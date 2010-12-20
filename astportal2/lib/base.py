@@ -32,4 +32,8 @@ class BaseController(TGController):
         request.identity = request.environ.get('repoze.who.identity')
         tmpl_context.identity = request.identity
         jquery_js.inject()
+#        from tw.jquery.ui import ui_tabs_js, jquery_ui_all_js
+#        from tw.uitheme import uilightness_css
+#        jquery_ui_all_js.inject()
+#        uilightness_css.inject()
         return TGController.__call__(self, environ, start_response)

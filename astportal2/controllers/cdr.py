@@ -1,53 +1,60 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, validate, request
-from astportal2.model import DBSession, CDR, Phone
+from tg import expose, flash, redirect, tmpl_context, validate, request, response
+from tg.controllers import CUSTOM_CONTENT_TYPE, WSGIAppController
+import paste.fileapp
 from tg.decorators import allow_only
 from repoze.what.predicates import not_anonymous, in_group, in_any_group
+
+from astportal2.model import DBSession, CDR, Phone
+from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
 log = logging.getLogger("astportal.controllers.cdr")
 
 from tw.api import WidgetsList
+from tw.api import js_callback
 from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSelectField, TextField, TextArea
 from tw.forms.validators import Int, DateConverter, TimeConverter
-from tw.jquery import FlexiGrid
 
 import sqlalchemy
 
 from genshi import Markup
 from os import path
 
-#def rec_link(row):
-#   '''Create link to download recording if file exists'''
-#   if row.disposition != 'ANSWERED':
-#      return ''
-#
-#   dir = '/var/spool/asterisk/monitor/' + row.calldate.strftime('%Y/%m/%d/')
-#   ts = row.calldate.strftime('-%Y%m%d-%H%M%S')
-#
-#   if re_sip.search(row.channel):
-#      if len(dst)>4: dst = dst[1:]
-#      file1 = 'out-' + row.channel[4:10] + '-' + row.dst + '-' + row.uniqueid + '.wav'
-#      file2 = 'out-' + row.channel[4:10] + '-' + row.dst + ts +'.wav'
-#   elif re_sip.search(row.dstchannel):
-#      file1 = 'in-' + row.dstchannel[4:10] + '-' + row.src + '-' + row.uniqueid + '.wav'
-#      file2 = 'in-' + row.dstchannel[4:10] + '-' + row.src + ts + '.wav'
-#   else:
-#      file1 = file2 = None
-##      return ''
-#
-#   if file1 and path.exists(dir + file1): 
-#      file = file1
-#   elif file2 and path.exists(dir + file2):
-#      file = file2
-#   else:
-#      file = None
-##      return ''
-#
-#   file = dir + 'XXX'
-#   link = Markup('<a href="#" title="&Eacute;coute" onclick="ecoute(\'' + file + '\')"><img src="/images/sound_section.png" border="0" alt="&Eacute;coute" /></a>')
-#   return link
+import re
+re_sip = re.compile('^SIP/poste\d-.*')
+
+def rec_link(row):
+   '''Create link to download recording if file exists'''
+   if row.disposition != 'ANSWERED':
+      return ''
+
+   dir = '/var/spool/asterisk/monitor/' + row.calldate.strftime('%Y/%m/%d/')
+   ts = row.calldate.strftime('-%Y%m%d-%H%M%S')
+
+   if re_sip.search(row.channel):
+      if len(dst)>4: dst = dst[1:]
+      file1 = 'out-' + row.channel[4:10] + '-' + row.dst + '-' + row.uniqueid + '.wav'
+      file2 = 'out-' + row.channel[4:10] + '-' + row.dst + ts +'.wav'
+   elif row.dstchannel and re_sip.search(row.dstchannel):
+      file1 = 'in-' + row.dstchannel[4:10] + '-' + row.src + '-' + row.uniqueid + '.wav'
+      file2 = 'in-' + row.dstchannel[4:10] + '-' + row.src + ts + '.wav'
+   else:
+      file1 = file2 = None
+#XXX      return '' 
+
+   if file1 and path.exists(dir + file1): 
+      file = file1
+   elif file2 and path.exists(dir + file2):
+      file = file2
+   else:
+      file = None
+#XXX      return ''
+
+   file = dir + 'XXX'
+   link = Markup('<a href="#" title="&Eacute;coute" onclick="ecoute(\'' + file + '\')"><img src="/images/sound_section.png" border="0" alt="&Eacute;coute" /></a>')
+   return link
 
 
 def check_access():
@@ -125,20 +132,23 @@ class Search_CDR(TableForm):
       ]
 search_form = Search_CDR('search_cdr_form', action='index2')
 
-cdr_grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
-            sortname='calldate', sortorder='desc',
-            colModel = [ { 'display': u'Date / heure', 'name': 'calldate', 'width': 140 },
-               { 'display': u'Source', 'name': 'src', 'width': 80 },
-               { 'display': u'Destination', 'name': 'dst', 'width': 80 },
-               { 'display': u'\u00C9tat', 'name': 'disposition', 'width': 100 },
-               { 'display': u'Durée', 'name': 'billsec', 'width': 60 },
-#               { 'display': u'\u00C9coute', 'width': 60, 'align':'center' },
-               ],
-            usepager=True,
-            useRp=True,
-            rp=10,
-            resizable=False,
-            )
+
+cdr_grid = MyJqGrid(
+   caption = u'Appels',
+   id = 'grid',
+   url = 'fetch',
+   colNames = [u'Date / heure', u'Source', u'Destination', u'\u00C9tat', u'Durée', u'\u00C9coute'],
+   colModel = [
+      { 'name': 'calldate', 'width': 100 },
+      { 'name': 'src', 'width': 70 },
+      { 'name': 'dst', 'width': 70 },
+      { 'name': 'disposition', 'width': 80 },
+      { 'name': 'billsec', 'width': 40 },
+      { 'sortable': False, 'search': False, 'width': 40, 'align':'center' },
+      ],
+   sortname = 'calldate',
+   sortorder = 'desc',
+   )
 
 class Display_CDR:
 
@@ -199,53 +209,59 @@ class Display_CDR:
       tmpl_context.form = search_form
       tmpl_context.grid = cdr_grid
       values = {'in_out': in_out, 'date': date, 'number': number, 'hour': hour}
+      from tw.jquery.ui import ui_tabs_js #, jquery_ui_all_js
+      ui_tabs_js.inject()
       return dict( title=u'Journal des appels', debug='', values=values)
 
 
    @expose('json')
-   def fetch(self, page=1, rp=25, sortname='calldate', sortorder='desc', qtype=None, query=None):
-      ''' Called by FlexiGrid JavaScript component
+   def fetch(self, page=1, rows=25, sidx='calldate', sord='desc', _search='false',
+          searchOper=None, searchField=None, searchString=None, **kw):
+      ''' Called by Grid JavaScript component
       '''
 
       if not in_any_group('admin', 'chefs', 'utilisateurs'):
          flash(u'Accès interdit')
          redirect('/')
 
-      filter = []
       try:
          page = int(page)
-         offset = (page-1) * int(rp)
+         rows = int(rows)
+         offset = (page-1) * rows
       except:
          offset = 0
          page = 1
-         rp = 25
+         rows = 25
 
       global filtered_cdrs
       cdrs = filtered_cdrs
-      total = cdrs.count()
-      column = getattr(CDR, sortname)
-      cdrs = cdrs.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
-      rows = [
+      total = cdrs.count()/rows + 1
+      column = getattr(CDR, sidx)
+      cdrs = cdrs.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      data = [
             {
                'id'  : cdr.acctid,
                'cell': [
-                  cdr.calldate, cdr.src[4:], cdr.dst,
+                  cdr.calldate, cdr.src, cdr.dst,
                   f_disp(cdr.disposition),
-                  f_bill(cdr.billsec)# , rec_link(cdr)
+                  f_bill(cdr.billsec), rec_link(cdr)
                   ]
-               } for cdr in cdrs
+               } for cdr in cdrs.all()
             ]
 
-      return dict(page=page, total=total, rows=rows)
+      return dict(page=page, total=total, rows=data)
 
 
-#   @expose()
-#   def ecoute(self, date=None, file=None):
-#
-#      # Now really serve file
-#      import paste.fileapp
-#      f = paste.fileapp.FileApp('/usr/share/games/xmoto/Textures/Musics/speeditup.ogg',
-#            **{'Content-Disposition': 'attachment; filename=' + 'test.ogg'})
-#      from tg import use_wsgi_app
-#      return use_wsgi_app(f)
+   @expose()
+   def ecoute(self, date=None, file=None):
+      ''' Send recorded file
+      '''
+
+      filename = 'test.ogg'
+      rec = '/usr/share/games/xmoto/Textures/Musics/speeditup.ogg' # XXX
+      f = paste.fileapp.FileApp(rec,
+            **{'Content-Type': 'audio/ogg',
+            'Content-Disposition': 'attachment; filename=' + filename})
+
+      return WSGIAppController(f)._default()
 

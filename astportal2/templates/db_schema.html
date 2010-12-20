@@ -148,12 +148,12 @@ function canvas_join(c2d, offset, src, tgt) {
 
    // Line end: on left or right side of table ?
    if (tgt.offset.left+tgt.width()>=src.offset.left) {
-      var tgt_left = tgt.offset.left-offset.left;
+      var tgt_left = tgt.offset.left-offset.left-4;
       var tgt_top = tgt.offset.top-offset.top;
       var tgt_arrow = tgt_left-8;
       var tgt_corner = tgt_left-15;
    } else {
-      var tgt_left = tgt.offset.left+tgt.width()-offset.left;
+      var tgt_left = tgt.offset.left+tgt.width()-offset.left+4;
       var tgt_top = tgt.offset.top-offset.top;
       var tgt_arrow = tgt_left+8;
       var tgt_corner = tgt_left+15;

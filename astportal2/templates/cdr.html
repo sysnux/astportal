@@ -9,14 +9,18 @@
 <head>
    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
    <title py:content="title">Paginate Data Grid</title>
+
    <script language="javascript">
-function toggle() {
-   e = document.getElementById('search_form')
-   if (e.style.display=='none') {
-      e.style.display='block';
-      document.getElementById('show_search_form').style.display='none';
-   }
-}
+//<![CDATA[
+
+$(document).ready(function() {
+   $("#tabs").tabs();
+   $('#grid').setGridWidth($('#data').width()-10, true);
+   $(window).bind('resize', function() {
+      $('#grid').setGridWidth($('#data').width()-10, true);
+   });
+
+});
 
 function ecoute(f) {
    with(document.ecoute_form) {
@@ -24,19 +28,30 @@ function ecoute(f) {
       submit()
    }
 }
+//]]>
    </script>
 </head>
 <body>
       <h1 py:content="title">Paginate Data Grid</h1>
-      <span py:replace="debug"/><br />
-      <div id="search_form" py:content="tmpl_context.form(values)" style="display: none"></div>
-      <p><a id="show_search_form" href="#" onclick="toggle()" 
-         title="Formulaire de recherche">Recherche</a></p>
+      <span py:replace="debug" /><br />
 
+      <div id="tabs">
+         <ul>
+            <li><a href="#data">Données</a></li>
+            <li><a href="#search_form">Recherche</a></li>
+         </ul>
 
-      <!-- JQuery FlexiGrid
-         -->
-      ${tmpl_context.grid()}
+         <div id="data">
+            <!-- JQuery Grid 
+            -->
+            ${tmpl_context.grid()}
+
+         </div>
+
+         <div id="search_form" py:content="tmpl_context.form(values)">
+         </div>
+
+      </div>
 
       <form name="ecoute_form" action="ecoute" method="post">
          <input type="hidden" name="file" />

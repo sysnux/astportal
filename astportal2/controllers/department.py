@@ -7,7 +7,6 @@ from tg.controllers import RestController
 
 from repoze.what.predicates import in_group
 
-from tw.jquery import FlexiGrid
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int
@@ -15,6 +14,7 @@ from tw.forms.validators import NotEmpty, Int
 from genshi import Markup
 
 from astportal2.model import DBSession, Department, Phone
+from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
 log = logging.getLogger(__name__)
@@ -74,23 +74,24 @@ class Dptm_ctrl(RestController):
    allow_only = in_group('admin', 
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les services')
 
-   @expose(template="astportal2.templates.flexigrid")
+   @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List all departments
       '''
-      grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
-            sortname='name', sortorder='asc',
-            colModel = [ { 'display': u'Action', 'width': 80, 'align': 'center' },
+      grid = MyJqGrid( 
+            id='grid', url='fetch', caption=u'Services',
+            colNames = [u'Action', u'Nom court', u'Nom complet', u'Téléphones',],
+            colModel = [ 
+               { 'width': 80, 'align': 'center', 'sortable': False, 'search': False },
                { 'display': u'Nom court', 'name': 'name', 'width': 80 },
                { 'display': u'Nom complet', 'name': 'comment', 'width': 160 },
-               { 'display': u'Téléphones', 'width': 160 } ],
-            searchitems = [{'display': u'Nom', 'name': 'name'} ],
-            buttons = [  {'name': u'Ajouter', 'bclass': 'add', 'onpress': js_callback('add')},
-               {'separator': True} ],
-            usepager=True,
-            useRp=True,
-            rp=10,
-            resizable=False,
+               { 'display': u'Téléphones', 'width': 500, 'sortable': False, 'search': False }
+            ],
+            sortname = 'name',
+            navbuttons_options = {'view': False, 'edit': False, 'add': True,
+               'del': False, 'search': True, 'refresh': True, 
+               'addfunc': js_callback('add'),
+               }
             )
       tmpl_context.grid = grid
       tmpl_context.form = None
@@ -98,32 +99,65 @@ class Dptm_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rp=25, sortname='number', sortorder='asc',
-         qtype=None, query=None):
-      ''' Function called on AJAX request made by FlexGrid
+   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+          searchOper=None, searchField=None, searchString=None, **kw):
+      ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
       '''
 
       try:
          page = int(page)
-         offset = (page-1) * int(rp)
+         rows = int(rows)
+         offset = (page-1) * rows
       except:
          offset = 0
          page = 1
-         rp = 25
+         rows = 25
 
-      if (query):
-         q = {str(qtype): query}
-         dptms = DBSession.query(Department).filter_by(**q)
-      else:
-         dptms = DBSession.query(Department)
+      dptms = DBSession.query(Department)
+      if  searchOper and searchField and searchString:
+         log.debug('fetch query <%s> <%s> <%s>' % \
+            (searchField, searchOper, searchString))
+         try:
+            field = eval('Department.' + searchField)
+         except:
+            field = None
+            log.error('eval: Department.' + searchField)
+         if field and searchOper=='eq': 
+            dptms = dptms.filter(field==searchString)
+         elif field and searchOper=='ne':
+            dptms = dptms.filter(field!=searchString)
+         elif field and searchOper=='le':
+            dptms = dptms.filter(field<=searchString)
+         elif field and searchOper=='lt':
+            dptms = dptms.filter(field<searchString)
+         elif field and searchOper=='ge':
+            dptms = dptms.filter(field>=searchString)
+         elif field and searchOper=='gt':
+            dptms = dptms.filter(field>searchString)
+         elif field and searchOper=='bw':
+            dptms = dptms.filter(field.ilike(searchString + '%'))
+         elif field and searchOper=='bn':
+            dptms = dptms.filter(~field.ilike(searchString + '%'))
+         elif field and searchOper=='ew':
+            dptms = dptms.filter(field.ilike('%' + searchString))
+         elif field and searchOper=='en':
+            dptms = dptms.filter(~field.ilike('%' + searchString))
+         elif field and searchOper=='cn':
+            dptms = dptms.filter(field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='nc':
+            dptms = dptms.filter(~field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='in':
+            dptms = dptms.filter(field.in_(str(searchString.split(' '))))
+         elif field and searchOper=='ni':
+            dptms = dptms.filter(~field.in_(str(searchString.split(' '))))
 
-      total = dptms.count()
-      column = getattr(Department, sortname)
-      dptms = dptms.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
-      rows = [ { 'id'  : d.dptm_id, 'cell': row(d) } for d in dptms ]
+      total = dptms.count()/rows + 1
+      column = getattr(Department, sidx)
+      dptms = dptms.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      data = [ { 'id'  : d.dptm_id, 'cell': row(d) } for d in dptms ]
 
-      return dict(page=page, total=total, rows=rows)
+      return dict(page=page, total=total, rows=data)
 
 
    @expose(template="astportal2.templates.form_new")

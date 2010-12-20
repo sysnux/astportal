@@ -7,7 +7,7 @@ from tg.controllers import RestController
 
 from repoze.what.predicates import in_group
 
-from tw.jquery import FlexiGrid
+from tw.jqgrid import JqGrid
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int
@@ -15,9 +15,11 @@ from tw.forms.validators import NotEmpty, Int
 from genshi import Markup
 
 from astportal2.model import DBSession, Group, User
+from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
 log = logging.getLogger(__name__)
+
 
 class New_group_form(TableForm):
    ''' New group form
@@ -75,23 +77,23 @@ class Group_ctrl(RestController):
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les groupes')
 
 
-   @expose(template="astportal2.templates.flexigrid")
+   @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List all groups
       '''
-      grid = FlexiGrid( id='flexi', fetchURL='fetch', title=None,
-            sortname='group_name', sortorder='asc',
-            colModel = [ { 'display': u'Action', 'width': 80, 'align': 'center' },
-               { 'display': u'Nom', 'name': 'group_name', 'width': 80 },
-               { 'display': u'Description', 'name': 'display_name', 'width': 160 },
-               { 'display': u'Utilisateurs', 'width': 160 } ],
-            searchitems = [{'display': u'Nom', 'name': 'group_name'} ],
-            buttons = [ {'name': u'Ajouter', 'bclass': 'add', 'onpress': js_callback('add')},
-               {'separator': True} ],
-            usepager=True,
-            useRp=True,
-            rp=10,
-            resizable=False,
+      grid = MyJqGrid(
+            id='grid', url='fetch', caption=u'Groupes',
+            colNames = [u'Action', u'Nom', u'Description', u'Utilisateurs'],
+            colModel = [ 
+               { 'sortable': False, 'search': False, 'width': 80, 'align': 'center' },
+               { 'name': 'group_name', 'width': 80 },
+               { 'name': 'display_name', 'width': 160 },
+               { 'name': 'users', 'sortable': False, 'search': False, 'width': 160 } ],
+            sortname = 'group_name',
+            navbuttons_options = {'view': False, 'edit': False, 'add': True,
+               'del': False, 'search': True, 'refresh': True, 
+               'addfunc': js_callback('add'),
+               }
             )
       tmpl_context.grid = grid
       tmpl_context.form = None
@@ -99,31 +101,66 @@ class Group_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rp=25, sortname='group_name', sortorder='asc',
-         qtype=None, query=None):
+   def fetch(self, page=1, rows=25, sidx='group_name', sord='asc', _search='false',
+          searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
+
       try:
          page = int(page)
-         offset = (page-1) * int(rp)
+         rows = int(rows)
+         offset = (page-1) * rows
       except:
          offset = 0
          page = 1
-         rp = 25
+         rows = 25
 
-      if (query):
-         q = {str(qtype): query}
-         groups = DBSession.query(Group).filter_by(**q)
-      else:
-         groups = DBSession.query(Group)
+      groups = DBSession.query(Group)
+      users = DBSession.query(User)
+      if  searchOper and searchField and searchString:
+         log.debug('fetch query <%s> <%s> <%s>' % \
+            (searchField, searchOper, searchString))
+         try:
+            field = eval('Group.' + searchField)
+         except:
+            field = None
+            log.error('eval: Group.' + searchField)
+         if field and searchOper=='eq': 
+            groups = groups.filter(field==searchString)
+         elif field and searchOper=='ne':
+            groups = groups.filter(field!=searchString)
+         elif field and searchOper=='le':
+            groups = groups.filter(field<=searchString)
+         elif field and searchOper=='lt':
+            groups = groups.filter(field<searchString)
+         elif field and searchOper=='ge':
+            groups = groups.filter(field>=searchString)
+         elif field and searchOper=='gt':
+            groups = groups.filter(field>searchString)
+         elif field and searchOper=='bw':
+            groups = groups.filter(field.ilike(searchString + '%'))
+         elif field and searchOper=='bn':
+            groups = groups.filter(~field.ilike(searchString + '%'))
+         elif field and searchOper=='ew':
+            groups = groups.filter(field.ilike('%' + searchString))
+         elif field and searchOper=='en':
+            groups = groups.filter(~field.ilike('%' + searchString))
+         elif field and searchOper=='cn':
+            groups = groups.filter(field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='nc':
+            groups = groups.filter(~field.ilike('%' + searchString + '%'))
+         elif field and searchOper=='in':
+            groups = groups.filter(field.in_(str(searchString.split(' '))))
+         elif field and searchOper=='ni':
+            groups = groups.filter(~field.in_(str(searchString.split(' '))))
 
-      total = groups.count()
-      column = getattr(Group, sortname)
-      groups = groups.order_by(getattr(column,sortorder)()).offset(offset).limit(rp)
-      rows = [ { 'id'  : g.group_id, 'cell': row(g) } for g in groups ]
+      total = groups.count()/rows + 1
+      column = getattr(Group, sidx)
+      groups = groups.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      data = [ { 'id'  : g.group_id, 'cell': row(g) } for g in groups ]
 
-      return dict(page=page, total=total, rows=rows)
+      return dict(page=page, total=total, rows=data)
 
 
    @expose(template="astportal2.templates.form_new")
