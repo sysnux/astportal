@@ -331,12 +331,12 @@ class Billing_ctrl:
 
       colNames = [u'Service', u'Nom', u'Appelant', u'Durée', u'CFP HT', u'CFP TTC']
       colModel = [
-               { 'width': 200 },
-               { 'width': 200 },
-               { 'name': 'src', 'width': 60 },
-               { 'width': 60, 'align': 'right' },
-               { 'width': 60, 'align': 'right' },
-               { 'width': 60, 'align': 'right' },
+            { 'width': 200, 'sortable': False },
+               { 'width': 200, 'sortable': False  },
+               { 'name': 'src', 'width': 60, 'sortable': False  },
+               { 'width': 60, 'align': 'right', 'sortable': False  },
+               { 'width': 60, 'align': 'right', 'sortable': False  },
+               { 'width': 60, 'align': 'right', 'sortable': False  },
             ]
       if report_type=='detail':
          fetchURL = 'fetch_detail'
@@ -361,13 +361,14 @@ class Billing_ctrl:
          flash(msg)
 
       if report_type!='detail':
-         cdrs = cdrs.group_by(CDR.src).group_by(CDR.calldate)
+         cdrs = cdrs.group_by(CDR.src)
 
       global filtered_cdrs
       filtered_cdrs = cdrs
 
       global phones_dict
-      phones_dict= dict([(p.number, (phone_user_display_name(p),p.department.comment))
+      phones_dict= dict([(p.number, (phone_user_display_name(p),
+         p.department.comment)) 
          for p in DBSession.query(Phone)])
 
       tmpl_context.grid = grid
