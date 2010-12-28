@@ -4,7 +4,7 @@
 from tg import expose, flash, require, url, request, redirect
 from pylons.i18n import ugettext as _, lazy_ugettext as l_
 
-from repoze.what import predicates
+from repoze.what.predicates import is_anonymous
 
 from astportal2.lib.base import BaseController
 
@@ -52,13 +52,8 @@ class RootController(BaseController):
    @expose('astportal2.templates.index')
    def index(self):
       """Handle the front-page."""
-#      if predicates.anonymous(msg=u'Veuiller vous connecter pour continuer'):
-#         pass
-      return dict(page='index')
-
-   @expose('astportal2.templates.welcome')
-   def welcome(self):
-      """Handle the front-page."""
+      if is_anonymous(msg=u'Veuiller vous connecter pour continuer'):
+         redirect('/login')
       return dict(page='index')
 
    @expose('astportal2.templates.login')
@@ -93,12 +88,4 @@ class RootController(BaseController):
       """
       flash(u'A bientôt')
       redirect('/login')
-
-   @expose('astportal2.templates.tabs')
-   def tabs(self):
-      from tw.jquery.ui import ui_tabs_js, jquery_ui_all_js
-      from tw.uitheme import uilightness_css
-      jquery_ui_all_js.inject()
-      uilightness_css.inject()
-      return dict(title='Test tabs', debug=None)
 
