@@ -8,7 +8,7 @@ from tg.controllers import RestController
 from repoze.what.predicates import in_group, not_anonymous
 
 from tw.api import js_callback
-from tw.forms import TableForm, Label, SingleSelectField, TextField, CheckBoxList, PasswordField, HiddenField
+from tw.forms import TableForm, LabelHiddenField, SingleSelectField, TextField, CheckBoxList, PasswordField, HiddenField, TextArea
 from tw.forms.validators import NotEmpty, Email, Int
 
 from genshi import Markup
@@ -20,15 +20,10 @@ import logging
 log = logging.getLogger(__name__)
 
 
-class New_user_form(TableForm):
-   ''' New user form
-   '''
-   fields = [
-         TextField('user_name', validator=NotEmpty,
-            label_text=u'Compte',
-            help_text=u'Entrez le nom d\'utilisateur'),
+# Common fields for user form, used by admin or not
+common_fields = [
          TextField('firstname',
-            label_text=u'Prénom',
+            label_text=u'Prénom', validator=NotEmpty,
             help_text=u'Entrez le prénom de l\'utilisateur'),
          TextField('lastname', validator=NotEmpty,
             label_text=u'Nom de famille',
@@ -42,64 +37,54 @@ class New_user_form(TableForm):
          PasswordField('pwd2', validator=NotEmpty,
             label_text=u'Confirmation mot de passe',
             help_text=u'Entrez à nouveau le mot de passe'),
-         SingleSelectField('phone_id',
-            options=DBSession.query(Phone.phone_id, 
-               Phone.number).filter(Phone.user_id==None).order_by(Phone.number),
-            label_text=u'Téléphone', 
-            help_text=u'Choisissez le téléphone de l\'utilisateur'),
-         CheckBoxList('groups', validator=Int,
+         HiddenField('_method',validator=None), # Needed by RestController
+         HiddenField('user_id',validator=Int),
+         ]
+
+
+# Fields for admin
+admin_form_fields = []
+admin_form_fields.extend(common_fields)
+admin_form_fields.insert(0, TextField('user_name', validator=NotEmpty,
+            label_text=u'Compte',
+            help_text=u'Entrez le nom d\'utilisateur'))
+admin_form_fields.append( CheckBoxList('groups', validator=Int,
             options=DBSession.query(Group.group_id, 
                Group.group_name).order_by(Group.group_name),
             label_text=u'Groupes', 
-            help_text=u'Cochez les groupes auxquels appartient l\'utilisateur'),
-         ]
-   submit_text = u'Valider...'
-   action = 'create'
+            help_text=u'Cochez les groupes auxquels appartient l\'utilisateur') )
+
+# New user form (only for admin)
+new_user_form = TableForm(
+   fields = admin_form_fields,
+   submit_text = u'Valider...',
+   action = 'create',
    hover_help = True
-new_user_form = New_user_form('new_form_user')
+)
 
-
-class Edit_user_form(TableForm):
-   ''' Edit user form
-   '''
-   fields = [
-         TextField('firstname', validator=NotEmpty,
-            label_text=u'Prénom',
-            help_text=u'Entrez le prénom de l\'utilisateur'),
-         TextField('lastname', validator=NotEmpty,
-            label_text=u'Nom de famille',
-            help_text=u'Entrez le nom de famille de l\'utilisateur'),
-         TextField('email_address', validator=Email,
-            label_text=u'Adresse email',
-            help_text=u'Entrez l\'adresse email de l\'utisateur'),
-         TextField('pwd1',
-            label_text=u'Mot de passe',
-            help_text=u'Entrez le mot de passe'),
-         TextField('pwd2',
-            label_text=u'Confirmation mot de passe',
-            help_text=u'Entrez à nouveau le mot de passe'),
-         SingleSelectField('phone_id',
-            options=DBSession.query(Phone.phone_id, 
-               Phone.number).order_by(Phone.number),
-            label_text=u'Téléphone',
-            help_text=u'Choisissez le téléphone de l\'utilisateur'),
-         CheckBoxList('groups', validator=Int,
-            options=DBSession.query(Group.group_id, 
-               Group.group_name).order_by(Group.group_name),
-            label_text=u'Groupes', 
-            help_text=u'Cochez les groupes auxquels appartient l\'utilisateur'),
-         HiddenField('_method', validator=None), # Needed by RestController
-         HiddenField('user_id', validator=Int),
-         ]
-   submit_text = u'Valider...'
-   action = '/users/'
+# Edit user form for admin
+admin_edit_user_form = TableForm(
+   fields = admin_form_fields,
+   submit_text = u'Valider...',
+   action = '/users/',
    hover_help = True
-edit_user_form = Edit_user_form('edit_form_user')
+)
 
+# Edit user form for normal user (not admin)
+user_fields = []
+user_fields.extend(common_fields)
+user_fields.append(LabelHiddenField( 'groups',
+   label_text=u'Groupes', suppress_label=False))
+edit_user_form = TableForm(
+   fields = user_fields,
+   submit_text = u'Valider...',
+   action = '/users/',
+   hover_help = True
+)
 
 def row(u):
    '''Displays a formatted row of the users list
-   Parameter: Phone object
+   Parameter: User object
    '''
    if u.phone:
       phone = u.phone[0].number
@@ -110,19 +95,20 @@ def row(u):
       groups = ', '.join([g.group_name for g in u.groups])
    else:
       groups = ''
+   js_name = u.display_name.replace("'","\\'")
    action =  u'<a href="'+ str(u.user_id) + u'/edit" title="Modifier">'
    action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
    action += u'&nbsp;&nbsp;&nbsp;'
    action += u'<a href="#" onclick="del(\''+ str(u.user_id) + \
-         u'\',\'Suppression de ' + u.display_name + u'\')" title="Supprimer">'
+         u'\',\'Suppression de ' + js_name + u'\')" title="Supprimer">'
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    if u.email_address:
       email = u'<a href="mailto:' + u.email_address + '">' + u.email_address + '</a>'
    else:
       email = ''
-
-   return [Markup(action), u.user_name, u.display_name, Markup(email), phone, groups]
+   
+   return [Markup(action), u.user_name, u.display_name, Markup(email), u.phone, groups]
 
 
 class User_ctrl(RestController):
@@ -221,12 +207,14 @@ class User_ctrl(RestController):
 
 
    @expose(template="astportal2.templates.form_new")
+   @require(in_group('admin',
+      msg=u'Seul un membre du groupe administrateur peut créer un utilisateur'))
    def new(self, **kw):
       ''' Display new user form
       '''
       tmpl_context.form = new_user_form
-      return dict(title = u'Nouvel utilisateur', debug='', values='')
-      
+      return dict(title = u'Nouvel utilisateur', debug=None, values=None)
+ 
    @validate(new_user_form, error_handler=new)
    @require(in_group('admin',
       msg=u'Seul un membre du groupe administrateur peut créer un utilisateur'))
@@ -240,8 +228,9 @@ class User_ctrl(RestController):
       u.display_name = kw['lastname'] + ' ' + kw['firstname']
       u.email_address = kw['email_address']
       u.password = kw['pwd1']
-      u.phone = [DBSession.query(Phone).get(kw['phone_id'])]
+      #u.phone = [DBSession.query(Phone).get(kw['phone_id'])]
       u.groups = DBSession.query(Group).filter(Group.group_id.in_(kw['groups'])).all()
+      DBSession.add(u)
       flash(u'Nouvel utilisateur "%s" créé' % (kw['user_name']))
       redirect('/users/')
 
@@ -254,7 +243,13 @@ class User_ctrl(RestController):
       if not in_group('admin') and request.identity['user'].user_id != int(id):
          flash(u'Accès interdit !', 'error')
          redirect('/')
+
       u = DBSession.query(User).get(id)
+      if not u:
+         flash(u'Une erreur est survenue !', 'warning')
+         log.info('user not found %d !' % id)
+         redirect('/users/')
+
       ln = u.display_name.split(' ')[0]
       fn = u.display_name.split(' ')[1:]
       if type(fn)==type([]):
@@ -262,34 +257,47 @@ class User_ctrl(RestController):
       if u.phone: phone = u.phone[0].phone_id
       else: phone=None
 
+      if in_group('admin'):
+         groups = [g.group_id for g in u.groups]
+      else:
+         groups = ', '.join([g.group_name for g in u.groups])
+
       v = {'user_id': u.user_id, 
+            'user_name': u.user_name,
             'firstname': fn,
             'lastname': ln,
             'email_address': u.email_address,
+            'pwd1': '      ',
+            'pwd2': '      ',
             'phone_id': phone,
-            'groups': [g.group_id for g in u.groups],
-            '_method': 'PUT'}
-      tmpl_context.form = edit_user_form
+            'groups': groups }
+      if in_group('admin'): tmpl_context.form = admin_edit_user_form
+      else: tmpl_context.form = edit_user_form
       return dict(title = u'Modification utilisateur ' + u.user_name, debug='', values=v)
 
+   class user_form_valid(object):
+      def validate(self, params, state):
+         f = admin_edit_user_form if in_group('admin') else edit_user_form
+         return f.validate(params, state)
 
-   @validate(edit_user_form, error_handler=edit)
+   @validate(user_form_valid(), error_handler=edit)
    @expose()
-   def put(self, user_id, lastname, firstname, pwd1, pwd2, 
-         email_address=None, groups=None, phone_id=None ):
+   def put(self, **kw):
       ''' Update user in DB
       '''
       if not in_group('admin') and request.identity['user'].user_id != kw['user_id']:
          flash(u'Accès interdit !', 'error')
          redirect('/')
-      log.info('update %d' % user_id)
-      u = DBSession.query(User).get(user_id)
-      u.display_name = lastname + ' ' + firstname
-      u.email_address = email_address
-      if pwd1: u.password = pwd1
-      p = DBSession.query(Phone).get(phone_id)
-      u.phone = [p]
-      u.groups = DBSession.query(Group).filter(Group.group_id.in_(groups)).all()
+      log.info('update %d' % kw['user_id'])
+      u = DBSession.query(User).get(kw['user_id'])
+      u.display_name = kw['lastname'] + ' ' + kw['firstname']
+      u.email_address = kw['email_address']
+      if kw['pwd1'] and kw['pwd1'] != '      ':
+         u.password = kw['pwd1']
+      #u.phone = [p]
+      if kw.has_key('user_name'): # Modification par administrateur
+         u.user_name = kw['user_name']
+         u.groups = DBSession.query(Group).filter(Group.group_id.in_(kw['groups'])).all()
       flash(u'Utilisateur modifié')
       redirect('/users/')
 

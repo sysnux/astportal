@@ -169,6 +169,10 @@ span.code {
   border: 1px solid #cce;
 }
 
+.fieldlabel.required {
+    font-weight: bold;
+}
+
 .fielderror {
     color: red;
     font-weight: bold;
