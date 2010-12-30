@@ -60,7 +60,8 @@ class Phone(DeclarativeBase):
    '''
    __tablename__ = 'phone'
    phone_id = Column(Integer, autoincrement=True, primary_key=True)
-   number = Column(Unicode(16), nullable=False, unique=True)
+   mac = Column(Unicode(17), nullable=False, unique=True)
+   number = Column(Unicode(16), unique=True)
    department_id = Column(Integer, ForeignKey('department.dptm_id'), nullable=False)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    created = Column(DateTime, nullable=False, default=datetime.now)

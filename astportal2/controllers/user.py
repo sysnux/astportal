@@ -87,7 +87,7 @@ def row(u):
    Parameter: User object
    '''
    if u.phone:
-      phone = u.phone[0].number
+      phone = ', '.join(['<a href="/phones/%s/edit">%s</a>' % (p.phone_id,p.number) for p in u.phone])
    else:
       phone = ''
 
@@ -108,7 +108,7 @@ def row(u):
    else:
       email = ''
    
-   return [Markup(action), u.user_name, u.display_name, Markup(email), u.phone, groups]
+   return [Markup(action), u.user_name, u.display_name, Markup(email), Markup(phone), groups]
 
 
 class User_ctrl(RestController):

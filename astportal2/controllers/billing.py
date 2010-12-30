@@ -128,7 +128,7 @@ class Billing_form(TableForm):
          name = 'phones',
          label_text = u'Téléphones',
          options = [(p.number, p.number + ' ' + phone_user_display_name(p)) 
-            for p in DBSession.query(Phone).order_by(Phone.number)]),
+            for p in DBSession.query(Phone).filter(Phone.number!=None).order_by(Phone.number)]),
       Spacer(),
       ]
 

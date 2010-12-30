@@ -89,3 +89,11 @@ class RootController(BaseController):
       flash(u'A bientôt')
       redirect('/login')
 
+   @expose('astportal2.templates.tabs')
+   def tabs(self):
+      from tw.jquery.ui import ui_tabs_js
+      from tw.uitheme import uilightness_css
+      uilightness_css.inject()
+      ui_tabs_js.inject()
+      return dict(title=u'Test tabs', debug=None)
+
