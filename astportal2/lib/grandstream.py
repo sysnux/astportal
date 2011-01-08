@@ -1,0 +1,311 @@
+# -*- coding: utf-8 -*-
+
+import logging
+log = logging.getLogger(__name__)
+from time import time, sleep
+from os import system, popen #, rename
+import cookielib, urllib, urllib2
+from BeautifulSoup import BeautifulSoup
+from struct import pack, unpack
+
+class Grandstream:
+
+   cj = cookielib.CookieJar()
+   opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+   params = dict(
+# Admin password for web interface
+P2 = '0000',
+# No Key Entry Timeout. Default - 4 seconds.
+P85 = 3,
+# Use # as Dial Key. 0 - no, 1 - yes
+P72 = 1,
+# Local RTP port (1024-65535, default 5004)
+P39 = 5004,
+# Use Random Port. 0 - no, 1 - yes
+P78 = 1,
+# Keep-alive interval (in seconds. default 20 seconds)
+P84 = 20,
+# Firmware Upgrade. 0 - TFTP Upgrade,  1 - HTTP Upgrade.
+P212 = 0,
+# Firmware Server Path
+P192 = '',
+# Config Server Path
+P237 = '',
+# Firmware File Prefix
+P232 = '',
+# Firmware File Postfix
+P233 = '',
+# Config File Prefix
+P234 = 'gs-',
+# Config File Postfix
+P235 = '.cfg',
+# Automatic Upgrade. 0 - No, 1 - Yes. Default is No.
+P194 = 1,
+# Check for new firmware every () minutes, unit is in minute, minimnu 60 minutes, default is 7 days.
+P193 = 1440,
+# Use firmware pre/postfix to determine if f/w is required
+# 0 = Always Check for New Firmware 
+# 1 = Check New Firmware only when F/W pre/suffix changes
+# 2 = Always Skip the Firmware Check
+P238 = 0,
+# Authenticate Conf File. 0 - No, 1 - Yes. Default is No.
+P240 = 0,
+#----------------------------------------
+# XML Phonebook
+#----------------------------------------
+# Enable Phonebook XML Download
+# 0 = No
+# 1 = YES, HTTP
+# 2 = YES, TFTP
+P330 = 1,
+
+# Phonebook XML Server Path
+# This is a string of up to 128 characters that should contain a path to the XML file.  
+# It MUST be in the host/path format. For example: "directory.grandstream.com/engineering"
+P331 = '',
+# Phonebook Download Interval
+# This is an integer variable in hours.  
+# Valid value range is 0-720 (default 0), and greater values will default to 720
+P332 = 1,
+# Remove Manually-edited entries on Download
+# 0 - No, 1 - Yes, other values ignored
+P333 = 0,
+# Syslog Server (name of the server, max length is 64 charactors)
+P207 = '',
+# Syslog Level (Default setting is NONE)
+# 0 - NONE, 1 - DEBUG, 2 - INFO, 3 - WARNING, 4 - ERROR
+P208 = 3,
+# NTP Server
+P30 = '',
+# Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
+P342 = 3,
+# language file postfix
+P399 = 'french',
+)
+
+   def __init__(self, host, mac, pwd='admin'):
+      self.host = host
+      self.mac = mac
+      self.pwd = pwd
+      self.url = 'http://%s/' % host
+
+   def get(self, action, params=None):
+      if params:
+         params = urllib.urlencode(params)
+         params += '&gnkey=0b82' # Seems it *must* be last parameter, or update fails
+      req = urllib2.Request(self.url + action, params)
+      resp = self.opener.open(req)
+      return resp
+
+   def login(self, pwd=None):
+      if pwd:
+         self.pwd = pwd
+      # Login
+      self.get('dologin.htm', {'P2': self.pwd})
+      logged_in = False
+      for c in self.cj:
+         log.debug('Cookie: %s = %s' % (c.name, c.value))
+         if c.name=='SessionId': logged_in = True
+      if not logged_in:
+         log.warning('Login failed (check password?)')
+         return False
+      return True
+
+   def infos(self):
+      resp = self.get('index.htm')
+
+      buffer = ''
+      for l in resp.readlines():
+         buffer += unicode(l,'ISO-8859-1')
+      html = BeautifulSoup(buffer)
+      tables = html.findAll('table')
+      tr = tables[3].findAll('tr')
+      td = tr[2].findAll('td')
+      model = td[1].contents[0].replace('&nbsp; ','')
+      td = tr[4].findAll('td')
+      soft = td[1].contents[0].replace('&nbsp; ','')
+      soft = soft.replace('&nbsp;','')
+      return {'model': model.strip(), 'version': soft.strip()}
+
+   def update(self, params):
+      log.debug('Update...')
+      resp = self.get('update.htm',params)
+      log.debug('Update -> %s', resp.msg)
+      return resp.msg
+
+   def reboot(self):
+      # Reboot
+      log.debug('Reboot...')
+      t1 = time()
+      resp = self.get('rs.htm')
+
+      # While rebooting, phone is reachable, then unreachable, then reachable again
+      reachable = True
+      for wait in xrange(60):
+         try:
+            resp = urllib2.urlopen(self.url, timeout=1)
+            if not reachable: break
+         except:
+            reachable = False
+         sleep(1)
+      t2 = time()
+      log.debug('Reboot done in %.1f seconds !' % (t2-t1))
+      return resp.msg
+
+   def configure(self, firmware_server, config_server, ntp_server,
+         phonebook_url=None, syslog_server=None):
+
+      self.params['P192'] = firmware_server
+      self.params['P237'] = config_server
+      self.params['P331'] = phonebook_url
+      self.params['P30'] = ntp_server
+      self.params['P207'] = syslog_server
+
+      # Generate conf files (text and binary)
+      name = '/tmp/gs-cfg%s' % self.mac.replace(':','')
+      txt = open(name + '.txt', 'w')
+      for k in self.params.keys():
+         txt.write('%s=%s\n' % (k, self.params[k]))
+      txt.close()
+#      cmd = '/opt/GS_CFG_GEN/bin/encode.sh %s %s.txt %s.cfg2' % \
+#            (self.mac.replace(':',''), name, name)
+#      ret = system(cmd)
+#      log.debug('<%s> returns <%d>', cmd, ret)
+      bin = self.encode()
+      cfg2 = open(name + '.cfg', 'w')
+      for x in bin:
+         cfg2.write(chr(x))
+      cfg2.close()
+
+      # Update and reboot phone
+      self.update(self.params)
+      #cmd = '/usr/bin/gsutil -r -o -p %s %s < %s.txt' % (self.pwd, self.host, name)
+      #ret = system(cmd)
+      #log.debug('<%s> returns <%d>', cmd, ret)
+      self.reboot()
+
+   def encode(self):
+      '''Create a configuration file suitable for phone
+
+From http://www.voip-info.org/wiki/view/Grandstream+Configuration+Tool
+The parameters are strung together without whitespace, ie:
+"P30=time.nist.gov&P63=1&P31=1"
+
+A "key" parameter ("&gnkey=0b82") is then added to the parameter string. ie:
+"P30=time.nist.gov&P63=1&P31=1&gnkey=0b82"
+
+If the length of this parameter string is not even, a zero byte is added 
+to the string,
+
+A 16 byte "header" that is prepended to the resulting configuration string.
+
+The header consists of:
+Byte 0x00: 0x00
+Byte 0x01: 0x00
+Byte 0x02: high byte of (length of parameter string) divided by 2
+Byte 0x03: low byte of (length of parameter string) divided by 2
+Byte 0x04: 0x00 (replaced by high byte of checksum)
+Byte 0x05: 0x00 (replaced by low bytes of checksum)
+Byte 0x06: first byte of device MAC address
+Byte 0x07: second byte of device MAC address
+Byte 0x08: third byte of device MAC address
+Byte 0x09: fourth byte of device MAC address
+Byte 0x0A: fifth byte of device MAC address
+Byte 0x0B: sixth byte of device MAC address
+Byte 0x0C: carriage return ( 0x0C )
+Byte 0x0D: line feed (0x0A)
+Byte 0x0E: carriage return ( 0x0C )
+Byte 0x0F: line feed (0x0A)
+
+This results in a configuration string of:
+16 bytes header + (configuration parameters) + (&gnkey=0b82) + (Padding byte 
+if length is not even)
+
+You then compute a 16 bit checksum (initial value 0x0000 - adding the value 
+of each individual byte) of the entire confguration string. This value is 
+the subtracted from 0x10000 and placed in bytes 4 and 5 of the header, then 
+the header and parameter strings are written to a binary file.
+'''
+      
+      cfg = bytearray((0,0,0,0,0,0,0,0,0,0,0,0,13,10,13,10)) # Header
+      cfg[6:12] = [int(h,16) for h in self.mac.split(':')]
+      params = urllib.urlencode(self.params)
+      params += '&gnkey=0b82' # Seems it must be the *last* parameter, or update fails
+      if len(params) % 2:
+         params += chr(0) # Padding
+      cfg[16:] = params
+      cfg[2] = (len(cfg) / 2) / 256
+      cfg[3] = (len(cfg) / 2) % 256
+      cfg[4:6] = self.checksum(cfg)
+      return cfg
+
+#      outlength = len(cfgdata) + 15
+#      outlength -= outlength % 16
+#      cleartext = cfgdata
+#      for i in xrange(outlength - len(cfgdata)):
+#         cleartext += '\000'
+#      outlength += 16
+#      salt = 1
+#      cleartext_checksum = self.checksum(cleartext);
+#      initbytes = [0,0, 
+#         ((outlength / 2) >> 8) & 0xFF, 
+#         (outlength / 2) & 0xFF, 
+#         0, 0, 0xFF, 1,
+#         (salt >> 8) & 0xFF, 
+#         salt & 0xFF, 
+#         cleartext_checksum[0], 
+#         cleartext_checksum[1], 
+#         13, 10, 13, 10]
+#
+#      iv1 = unpack('B'*len('lixiabingweixian'), 'lixiabingweixian')
+#      iv2 = unpack('B'*len('gweiningzhangwei'), 'gweiningzhangwei')
+#      arr = []
+#      for i,c in enumerate(iv1):
+#         arr.append(c ^ iv2[i])
+#      iv = pack('B'*16,*arr)
+#      log.debug(iv)
+#
+#      l1 = (macbytes[2] << 24) + \
+#         (macbytes[3] << 16) + (macbytes[4] << 8) + macbytes[5]
+#      l2 = (initbytes[8] << 8) + initbytes[9]
+#      l = l1 % l2
+#
+#      keybytes = []
+#      keybytes += initbytes[2:4]
+#      log.debug(keybytes)
+#      keybytes += macbytes
+#      log.debug(keybytes)
+#      keybytes += initbytes[6:12]
+#      log.debug(keybytes)
+#      keybytes += ((l >> 8) & 0xFF, l &0xFF)
+#      log.debug(keybytes)
+#      keybytes += [0,0,0,0,0,0,0,0]
+#      log.debug(keybytes)
+#      key = pack('B'*16,*keybytes)
+#
+#      import mcrypt
+#      crypt = mcrypt.MCRYPT('rijndael-128','cbc')
+#      crypt.init(key,iv)
+#      ciphertext = crypt.encrypt(cleartext)
+#
+#      log.debug(initbytes)
+#      initstr = pack('B'*16, *initbytes)
+#      checktext = initstr + ciphertext
+#
+#      initbytes[4:6] = self.checksum(checktext)
+#      log.debug(initbytes)
+#      initstr = pack('B'*16, *initbytes)
+#      bin = initstr + ciphertext
+#      log.debug(bin)
+#      return bin
+
+   def checksum(self, bytes):
+      '''16 bit checksum of bytearray
+      '''
+      sum = 0
+      for i in xrange(0, len(bytes), 2):
+         sum += (bytes[i] << 8) + bytes[i+1]
+         sum &= 0xFFFF
+      sum = 0x10000 - sum
+      return (sum >> 8, sum & 0xFF)
+

@@ -1,0 +1,72 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:py="http://genshi.edgewall.org/"
+  xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html"/>
+
+<head>
+   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
+   <title py:content="title">ToscaWidget Form</title>
+
+   <script type="text/javascript">
+//<![CDATA[
+
+$(document).ready(function() {
+   $("#wait").hide();
+   $("#tabs").tabs();
+   $("#tabs").tabs( "disable", 1 );
+});
+
+function wait() {
+   $("#wait").show();
+   //alert('wait');
+}
+
+function phone_ok(x) {
+   $("#wait").hide();
+   var data = $.parseJSON(x);
+   document.form_info.ip.value = data.ip;
+   document.form_info.mac.value = data.mac;
+   document.form_info.password.value = data.password;
+   $("#phone_type").html(data.msg);
+   if (!data.status) {
+      $("#tabs").tabs( "enable", 1 )
+//      $.post(data.conf, {ip: data.ip, mac: data.mac}, conf_ok)
+   }
+}
+
+function conf_ok(data) {
+   if (data.status)
+      alert(data.status + '\n' + data.msg);
+   else
+      alert(data.model + '\n' + data.version);
+   $("#phone_type").html( $("#phone_type").html() + 'ok !');
+   $("#tabs").tabs( "select", 1 );
+}
+
+//]]>
+   </script>
+
+</head>
+<body>
+      <h1 py:content="title">ToscaWidget Form</h1>
+      <span py:replace="debug"/><br />
+      <div id="tabs">
+         <ul>
+            <li><a href="#ip">Identification</a></li>
+            <li><a href="#info">Informations</a></li>
+         </ul>
+         <div id="ip">
+            <!-- Phone discovery form -->
+            ${tmpl_context.ip_form()}
+            <div id="wait"><i>Recherche du téléphone, veuillez patienter...</i></div>
+            <div id="phone_type"></div>
+         </div>
+         <div id="info" py:content="tmpl_context.form(values)">
+            Phone info form
+         </div>
+      </div>
+   </body>
+</html>
