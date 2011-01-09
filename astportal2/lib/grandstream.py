@@ -118,13 +118,16 @@ P399 = 'french',
       for l in resp.readlines():
          buffer += unicode(l,'ISO-8859-1')
       html = BeautifulSoup(buffer)
-      tables = html.findAll('table')
-      tr = tables[3].findAll('tr')
-      td = tr[2].findAll('td')
-      model = td[1].contents[0].replace('&nbsp; ','')
-      td = tr[4].findAll('td')
-      soft = td[1].contents[0].replace('&nbsp; ','')
-      soft = soft.replace('&nbsp;','')
+      try:
+         tables = html.findAll('table')
+         tr = tables[-1].findAll('tr')
+         td = tr[2].findAll('td')
+         model = td[1].contents[0].replace('&nbsp; ','')
+         td = tr[4].findAll('td')
+         soft = td[1].contents[0].replace('&nbsp; ','')
+         soft = soft.replace('&nbsp;','')
+      except:
+         return None
       return {'model': model.strip(), 'version': soft.strip()}
 
    def update(self, params):
@@ -152,17 +155,59 @@ P399 = 'french',
       log.debug('Reboot done in %.1f seconds !' % (t2-t1))
       return resp.msg
 
-   def configure(self, firmware_server, config_server, ntp_server,
-         phonebook_url=None, syslog_server=None):
+   def configure(self, pwd, firmware_url, config_url, ntp_server,
+         phonebook_url=None, syslog_server=None,
+         sip_server=None, sip_user=None, sip_display_name=None,
+         mwi_subscribe=0):
+      '''Parameters: firmware_url, config_url, ntp_server,
+         phonebook_url=None, syslog_server=None
+      '''
 
-      self.params['P192'] = firmware_server
-      self.params['P237'] = config_server
+      self.params['P2'] = pwd
+      self.params['P192'] = firmware_url
+      self.params['P237'] = config_url
       self.params['P331'] = phonebook_url
       self.params['P30'] = ntp_server
       self.params['P207'] = syslog_server
+      self.params['P207'] = syslog_server
+      self.params['P270'] = 'Asterisk'
+      self.params['P99'] = mwi_subscribe
+      if sip_server:
+         self.params['P47'] = sip_server
+         self.params['P35'] = sip_user
+         self.params['P34'] = pwd
+         self.params['P3'] = sip_display_name
+         self.params['P271'] = \
+         self.params['P31'] = \
+         self.params['P81'] = \
+         self.params['P1346'] = \
+         self.params['P188'] = \
+            1
+      else:
+         self.params['P47'] = \
+         self.params['P35'] = \
+         self.params['P34'] = \
+         self.params['P3'] = \
+            ''
+         self.params['P271'] = \
+         self.params['P31'] = \
+         self.params['P81'] = \
+         self.params['P1346'] = \
+         self.params['P188'] = \
+            0
+      self.params['P48'] = ''
+      self.params['P52'] = \
+      self.params['P29'] = \
+         0
+      self.params['P33'] = '*79'
+      self.params['P73'] = 1
+      self.params['P1347'] = '**'
+      self.params['P182'] = '2'
+      self.params['P57'] = 8
+      self.params['P58'] = 0
 
       # Generate conf files (text and binary)
-      name = '/tmp/gs-cfg%s' % self.mac.replace(':','')
+      name = '/var/lib/tftpboot/phones/config/gs-cfg%s' % self.mac.replace(':','')
       txt = open(name + '.txt', 'w')
       for k in self.params.keys():
          txt.write('%s=%s\n' % (k, self.params[k]))
@@ -226,7 +271,7 @@ of each individual byte) of the entire confguration string. This value is
 the subtracted from 0x10000 and placed in bytes 4 and 5 of the header, then 
 the header and parameter strings are written to a binary file.
 '''
-      
+ 
       cfg = bytearray((0,0,0,0,0,0,0,0,0,0,0,0,13,10,13,10)) # Header
       cfg[6:12] = [int(h,16) for h in self.mac.split(':')]
       params = urllib.urlencode(self.params)

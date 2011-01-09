@@ -8,7 +8,7 @@ from tg.controllers import RestController
 from repoze.what.predicates import in_group
 
 from tw.api import js_callback
-from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
+from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, CheckBoxList
 from tw.jquery import AjaxForm
 from tw.forms.validators import NotEmpty, Int, Invalid
 
@@ -29,18 +29,24 @@ vendors = {
    '00:90:7a': 'Polycom',
 }
 
+contexts = ((-1, ' - - - '), (0, 'default'), (1, 'autorise-global'))
+callgroups = ((1, 'Groupe 1'), (2, 'Groupe 2'), (3, 'Groupe 3'), (4, 'Groupe 4'),
+   (5, 'Groupe 5'), (6, 'Groupe 6'), (7, 'Groupe 7'), (8, 'Groupe 8'), (9, 'Groupe 9'))
+pickupgroups = ((1, 'Groupe 1'), (2, 'Groupe 2'), (3, 'Groupe 3'), (4, 'Groupe 4'),
+   (5, 'Groupe 5'), (6, 'Groupe 6'), (7, 'Groupe 7'), (8, 'Groupe 8'), (9, 'Groupe 9'))
+
 def departments():
    a = [('-9999',' - - - ')]
    for d in DBSession.query(Department).order_by(Department.comment):
        a.append((d.dptm_id,d.comment))
    return a
- 
+
 def users():
    a = [('-9999',' - - - ')]
    for u in DBSession.query(User).order_by(User.display_name):
       a.append((u.user_id, u.display_name))
    return a
- 
+
 
 # New phone page contains 2 forms, displayed in two tabs:
 # the first form (ip_form) "discovers" the phone
@@ -72,6 +78,16 @@ class New_phone_form(TableForm):
    fields = [
          TextField('number', validator=Int,
             label_text=u'Numéro', help_text=u'Entrez le numéro du téléphone'),
+         SingleSelectField('context', options = contexts,
+            label_text=u'Contexte', help_text=u'Droits d\'appels'),
+         CheckBoxList('callgroups', validator=Int,
+            options=callgroups,
+            label_text=u'Groupes d\'appels', 
+            help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
+         CheckBoxList('pickupgroups', validator=Int,
+            options=pickupgroups,
+            label_text=u'Groupes d\'interception', 
+            help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
          SingleSelectField('dptm_id', options = departments,
             label_text=u'Service', help_text=u'Service facturé'),
          SingleSelectField('user_id', options=users,
@@ -93,6 +109,17 @@ class Edit_phone_form(TableForm):
    fields = [
          TextField('number', #validator=Int,
             label_text=u'Numéro', help_text=u'Entrez le numéro du téléphone'),
+         SingleSelectField('context', validator=Int, 
+            options = contexts,
+            label_text=u'Contexte', help_text=u'Droits d\'appels'),
+         CheckBoxList('callgroups', validator=Int,
+            options=callgroups,
+            label_text=u'Groupes d\'appels', 
+            help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
+         CheckBoxList('pickupgroups', validator=Int,
+            options=pickupgroups,
+            label_text=u'Groupes d\'interception', 
+            help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
          SingleSelectField('dptm_id',
             options= departments,
             label_text=u'Service', help_text=u'Service facturé',
@@ -116,8 +143,20 @@ def row(p):
    '''Displays a formatted row of the phones list
    Parameter: Phone object
    '''
-   dptm = p.department.comment if p.department else None
-   user = p.user.display_name if p.user else None
+   if p.department:
+      dptm = Markup(u'<a href="/departments/%d/edit/">%s</a>' % \
+            (p.department.dptm_id, p.department.comment))
+   else: 
+      dptm = None
+   if p.user:
+      user = Markup(u'<a href="/users/%d/edit/">%s</a>' % \
+            (p.user.user_id, p.user.display_name))
+   else:
+      user = None
+   if p.ip: 
+      ip = Markup('<a href="http://%s/index.htm" target="_blank" title="Interface t&eacute;l&eacute;phone">%s</a>' % (p.ip,p.ip)) 
+   else: 
+      ip = None
 
    html =  u'<a href="'+ str(p.phone_id) + u'/edit" title="Modifier">'
    html += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
@@ -126,7 +165,7 @@ def row(p):
          u'\',\'Suppression du téléphone ' + str(p.number) + u'\')" title="Supprimer">'
    html += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
-   return [Markup(html), p.ip, p.mac, p.number, user , dptm]
+   return [Markup(html), ip, p.mac, p.number, user , dptm]
 
 
 class Phone_ctrl(RestController):
@@ -270,8 +309,10 @@ class Phone_ctrl(RestController):
          if not new_phone.login(pwd):
             return dict(status=6, msg=msg+u'erreur login')
          infos = new_phone.infos()
-         return dict(status=0, ip=ip, mac=mac, conf='grandstream_configure',
-               msg=msg+infos['model']+infos['version'])
+         if not infos:
+            return dict(status=6, msg=msg+u'erreur login')
+         return dict(status = 0, ip = ip, mac = mac, conf = 'grandstream_configure',
+               msg = msg + infos['model'] + ', ' + infos['version'])
       elif vendors[vendor]=='Polycom':
          return dict(status=0, ip=ip, mac=mac, conf='polycom_configure',
                msg=u"Trouvé téléphone Polycom")
@@ -310,14 +351,35 @@ class Phone_ctrl(RestController):
             flash(u'Le numéro "%s" est déjà utilisé' % (kw['number']),'error')
             redirect('new')
 
+      # Configure phone
       server = 'tiare.sysnux.pf'
+      pwd = '0000'
+      sip_server = None
+      sip_user = None
+      sip_display_name = None
+      mwi_subscribe = 0
+      if kw['number']:
+         sip_server = 'asterisk.sysnux.pf'
+         sip_user = kw['number']
+         sip_display_name = ''
+         mwi_subscribe = 0
+         if kw['user_id']!='-9999':
+            u = DBSession.query(User).get(kw['user_id'])
+            sip_display_name = u.display_name
+            if u.email_address:
+               mwi_subscribe = 1
+ 
       global new_phone
-      new_phone.configure(server, server, server,
-            server + ':8080/phonebook', server)
+      new_phone.configure( pwd, server + '/phones/firmware', 
+            server + '/phones/config', server,
+            server + ':8080/phonebook', server,
+            sip_server, sip_user, sip_display_name, mwi_subscribe)
+
       # Save phone info to database
       p = Phone()
       p.ip = kw['ip']
       p.mac = kw['mac']
+      p.password = pwd
       if kw['number']: p.number = kw['number']
       if kw['number']: p.number = kw['number']
       if kw['dptm_id']!='-9999': p.department_id = kw['dptm_id']
@@ -374,11 +436,46 @@ class Phone_ctrl(RestController):
 
    @validate(edit_form_valid(), error_handler=edit)
    @expose()
-   def put(self, phone_id, dptm_id, user_id, number):
+   def put(self, phone_id, dptm_id, user_id, number, context,
+         callgroups, pickupgroups):
       ''' Update phone in DB
       '''
       log.info('update %d' % phone_id)
+      log.debug(callgroups)
+      log.debug(pickupgroups)
       p = DBSession.query(Phone).get(phone_id)
+
+      gs = Grandstream(p.ip, p.mac)
+      gs.login(p.password)
+
+      server = 'tiare.sysnux.pf'
+      sip_server = None
+      sip_user = None
+      sip_display_name = None
+      mwi_subscribe = 0
+      need_sip_update = False
+      need_voicemail_update = False
+      if number:
+         need_sip_update = True
+
+         sip_server = 'asterisk.sysnux.pf'
+         sip_user = number
+         sip_display_name = ''
+         mwi_subscribe = 0
+
+         if user_id!=-9999:
+            u = DBSession.query(User).get(user_id)
+            sip_display_name = u.display_name
+            if u.email_address:
+               need_voicemail_update = True
+               mwi_subscribe = 1
+ 
+      gs.configure( p.password, server + '/phones/firmware', 
+            server + '/phones/config', server,
+            server + ':8080/phonebook', server,
+            sip_server, sip_user, sip_display_name, mwi_subscribe)
+
+      # Save phone info to database
       if dptm_id:
          if dptm_id==-9999:
             p.department_id = None
@@ -393,6 +490,30 @@ class Phone_ctrl(RestController):
          p.number = None
       else:
          p.number = number
+      p.context = contexts[context][1]
+      p.callgroups = ','.join([str(x) for x in callgroups])
+      p.pickupgroups = ','.join([str(x) for x in pickupgroups])
+
+      if need_sip_update:
+         # Update Asterisk's sip.conf
+         sip = open('/tmp/sip-osb.conf','w')
+         for friend in DBSession.query(Phone).filter(Phone.number!=None):
+            context = friend.context if friend.context else 'default'
+            callgroups = friend.callgroups if friend.callgroups else ''
+            pickupgroups = friend.pickupgroups if friend.pickupgroups else ''
+            sip.write('''[%s]!osb
+secret=%s
+context=%s
+callgroups=%s
+pickupgroups=%s
+
+''' % (friend.number, friend.password, context, callgroups, pickupgroups))
+         sip.close()
+
+      if need_voicemail_update:
+         # Update Asterisk's voicemail.conf
+         pass
+
       flash(u'Téléphone modifié')
       redirect('/phones/')
 
