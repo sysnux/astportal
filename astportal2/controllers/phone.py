@@ -408,10 +408,13 @@ class Phone_ctrl(RestController):
       else:
          if not id: id=kw['phone_id']
          p = DBSession.query(Phone).get(id)
-         v = {'phone_id': p.phone_id, 
-            'number': p.number, 
-            'dptm_id': p.department_id, 
-            'user_id': p.user_id, 
+         v = {'phone_id': p.phone_id,
+            'number': p.number,
+            'context': contexts[1+[c[1] for c in contexts].index('default')][0],
+            'callgroups': p.callgroups.split(','),
+            'pickupgroups': p.pickupgroups.split(','),
+            'dptm_id': p.department_id,
+            'user_id': p.user_id,
             '_method': 'PUT'}
          if p.number: ident = p.number
          elif p.mac: ident = p.mac
@@ -440,9 +443,11 @@ class Phone_ctrl(RestController):
          callgroups, pickupgroups):
       ''' Update phone in DB
       '''
+      context += 1
       log.info('update %d' % phone_id)
-      log.debug(callgroups)
-      log.debug(pickupgroups)
+      log.debug('Context %s (%d)' % (contexts[context][1],context))
+      log.debug('Callgroups %s' % callgroups)
+      log.debug('Pickupgroups %s' % pickupgroups)
       p = DBSession.query(Phone).get(phone_id)
 
       gs = Grandstream(p.ip, p.mac)
@@ -455,8 +460,11 @@ class Phone_ctrl(RestController):
       mwi_subscribe = 0
       need_sip_update = False
       need_voicemail_update = False
-      if number:
-         need_sip_update = True
+      need_phone_update = False
+
+      if number and number!=p.number:
+         log.debug('%s!=%s' % (number,p.number))
+         need_sip_update = need_phone_update = True
 
          sip_server = 'asterisk.sysnux.pf'
          sip_user = number
@@ -469,30 +477,48 @@ class Phone_ctrl(RestController):
             if u.email_address:
                need_voicemail_update = True
                mwi_subscribe = 1
- 
-      gs.configure( p.password, server + '/phones/firmware', 
+
+      if need_phone_update:
+         gs.configure( p.password, server + '/phones/firmware', 
             server + '/phones/config', server,
             server + ':8080/phonebook', server,
             sip_server, sip_user, sip_display_name, mwi_subscribe)
 
       # Save phone info to database
-      if dptm_id:
+      if p.department_id!=dptm_id:
          if dptm_id==-9999:
             p.department_id = None
          else:
             p.department_id = dptm_id
-      if user_id:
+
+      if p.user_id!=user_id:
+         need_sip_update = True
          if user_id==-9999:
             p.user_id = None
          else:
             p.user_id = user_id
-      if number=='':
-         p.number = None
-      else:
-         p.number = number
-      p.context = contexts[context][1]
-      p.callgroups = ','.join([str(x) for x in callgroups])
-      p.pickupgroups = ','.join([str(x) for x in pickupgroups])
+
+      if p.number!=number:
+         need_sip_update = True
+         if number=='':
+            p.number = None
+         else:
+            p.number = number
+
+      if p.context!=contexts[context][1]:
+         log.debug('New context %s' % contexts[context][1])
+         need_sip_update = True
+         p.context = contexts[context][1]
+
+      x = ','.join([str(x) for x in callgroups])
+      if p.callgroups!=x:
+         need_sip_update = True
+         p.callgroups = x
+
+      x = ','.join([str(x) for x in pickupgroups])
+      if p.callgroups!=x:
+         need_sip_update = True
+         p.pickupgroups = x
 
       if need_sip_update:
          # Update Asterisk's sip.conf
@@ -501,13 +527,16 @@ class Phone_ctrl(RestController):
             context = friend.context if friend.context else 'default'
             callgroups = friend.callgroups if friend.callgroups else ''
             pickupgroups = friend.pickupgroups if friend.pickupgroups else ''
+            cidname = friend.user.display_name if friend.user else ''
             sip.write('''[%s]!osb
 secret=%s
 context=%s
 callgroups=%s
 pickupgroups=%s
+callerid="%s" <540%s>
 
-''' % (friend.number, friend.password, context, callgroups, pickupgroups))
+''' % (friend.number, friend.password, context, callgroups, pickupgroups,
+   cidname, friend.number))
          sip.close()
 
       if need_voicemail_update:
