@@ -270,7 +270,8 @@ class User_ctrl(RestController):
             'pwd1': '      ',
             'pwd2': '      ',
             'phone_id': phone,
-            'groups': groups }
+            'groups': groups,
+            '_method': 'PUT' }
       if in_group('admin'): tmpl_context.form = admin_edit_user_form
       else: tmpl_context.form = edit_user_form
       return dict(title = u'Modification utilisateur ' + u.user_name, debug='', values=v)

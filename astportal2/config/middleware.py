@@ -44,6 +44,7 @@ def make_app(global_conf, full_stack=True, **app_conf):
     import astportal2.manager.manager_thread
     try:
        man = eval(config.get('asterisk.manager'))
+       log.debug(man)
        for m in man:
           mt = astportal2.manager.manager_thread.manager_thread(m[0], m[1], m[2])
           mt.start()

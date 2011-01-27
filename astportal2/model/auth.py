@@ -148,26 +148,27 @@ class User(DeclarativeBase):
 
     def _set_password(self, password):
         """Hash ``password`` on the fly and store its hashed version."""
-        hashed_password = password
-        
-        if isinstance(password, unicode):
-            password_8bit = password.encode('UTF-8')
-        else:
-            password_8bit = password
-
-        salt = sha1()
-        salt.update(os.urandom(60))
-        hash = sha1()
-        hash.update(password_8bit + salt.hexdigest())
-        hashed_password = salt.hexdigest() + hash.hexdigest()
-
-        # Make sure the hashed password is an UTF-8 object at the end of the
-        # process because SQLAlchemy _wants_ a unicode object for Unicode
-        # columns
-        if not isinstance(hashed_password, unicode):
-            hashed_password = hashed_password.decode('UTF-8')
-
-        self._password = hashed_password
+        self._password = password
+#        hashed_password = password
+#        
+#        if isinstance(password, unicode):
+#            password_8bit = password.encode('UTF-8')
+#        else:
+#            password_8bit = password
+#
+#        salt = sha1()
+#        salt.update(os.urandom(60))
+#        hash = sha1()
+#        hash.update(password_8bit + salt.hexdigest())
+#        hashed_password = salt.hexdigest() + hash.hexdigest()
+#
+#        # Make sure the hashed password is an UTF-8 object at the end of the
+#        # process because SQLAlchemy _wants_ a unicode object for Unicode
+#        # columns
+#        if not isinstance(hashed_password, unicode):
+#            hashed_password = hashed_password.decode('UTF-8')
+#
+#        self._password = hashed_password
 
     def _get_password(self):
         """Return the hashed version of the password."""
@@ -190,9 +191,10 @@ class User(DeclarativeBase):
         :rtype: bool
 
         """
-        hashed_pass = sha1()
-        hashed_pass.update(password + self.password[:40])
-        return self.password[40:] == hashed_pass.hexdigest()
+        return self.password==password
+#        hashed_pass = sha1()
+#        hashed_pass.update(password + self.password[:40])
+#        return self.password[40:] == hashed_pass.hexdigest()
 
 
 class Permission(DeclarativeBase):

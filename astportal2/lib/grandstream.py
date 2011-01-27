@@ -22,7 +22,7 @@ P72 = 1,
 # Local RTP port (1024-65535, default 5004)
 P39 = 5004,
 # Use Random Port. 0 - no, 1 - yes
-P78 = 1,
+P78 = 0,
 # Keep-alive interval (in seconds. default 20 seconds)
 P84 = 20,
 # Firmware Upgrade. 0 - TFTP Upgrade,  1 - HTTP Upgrade.
@@ -87,6 +87,7 @@ P399 = 'french',
       self.host = host
       self.mac = mac
       self.pwd = pwd
+      self.type = 0
       self.url = 'http://%s/' % host
 
    def get(self, action, params=None):
@@ -94,18 +95,33 @@ P399 = 'french',
          params = urllib.urlencode(params)
          params += '&gnkey=0b82' # Seems it *must* be last parameter, or update fails
       req = urllib2.Request(self.url + action, params)
-      resp = self.opener.open(req)
+      try:
+         resp = self.opener.open(req)
+      except:
+         return None
       return resp
 
    def login(self, pwd=None):
       if pwd:
          self.pwd = pwd
       # Login
-      self.get('dologin.htm', {'P2': self.pwd})
       logged_in = False
-      for c in self.cj:
-         log.debug('Cookie: %s = %s' % (c.name, c.value))
-         if c.name=='SessionId': logged_in = True
+      if self.get('dologin.htm', {'P2': self.pwd}) == None:
+         log.debug('Login error, GXP-2xxx?')
+         if self.get('/cgi-bin/dologin', \
+               {'P2': self.pwd}) != None:
+            # GXP-2100
+            for c in self.cj:
+               log.debug('Cookie: %s = %s' % (c.name, c.value))
+               if c.name=='session_id':
+                  logged_in = True
+                  self.type = 2
+      else:
+         for c in self.cj:
+            log.debug('Cookie: %s = %s' % (c.name, c.value))
+            if c.name=='SessionId':
+               logged_in = True
+               self.type = 1
       if not logged_in:
          log.warning('Login failed (check password?)')
          return False
@@ -156,7 +172,7 @@ P399 = 'french',
       return resp.msg
 
    def configure(self, pwd, firmware_url, config_url, ntp_server,
-         phonebook_url=None, syslog_server=None,
+         phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
          mwi_subscribe=0):
       '''Parameters: firmware_url, config_url, ntp_server,
@@ -168,8 +184,16 @@ P399 = 'french',
       self.params['P237'] = config_url
       self.params['P331'] = phonebook_url
       self.params['P30'] = ntp_server
+      self.params['P64'] = 120
       self.params['P207'] = syslog_server
       self.params['P207'] = syslog_server
+      if dns1:
+         (self.params['P21'], self.params['P22'], self.params['P23'],
+            self.params['P24']) = dns1.split('.')
+      if dns2:
+         (self.params['P25'], self.params['P26'], self.params['P27'],
+            self.params['P28']) = dns2.split('.')
+
       self.params['P270'] = 'Asterisk'
       self.params['P99'] = mwi_subscribe
       if sip_server:
@@ -196,6 +220,7 @@ P399 = 'french',
          self.params['P188'] = \
             0
       self.params['P48'] = ''
+      self.params['P78'] = ''
       self.params['P52'] = \
       self.params['P29'] = \
          0
@@ -207,26 +232,27 @@ P399 = 'french',
       self.params['P58'] = 0
 
       # Generate conf files (text and binary)
-      name = '/var/lib/tftpboot/phones/config/gs-cfg%s' % self.mac.replace(':','')
-      txt = open(name + '.txt', 'w')
-      for k in self.params.keys():
-         txt.write('%s=%s\n' % (k, self.params[k]))
-      txt.close()
-#      cmd = '/opt/GS_CFG_GEN/bin/encode.sh %s %s.txt %s.cfg2' % \
-#            (self.mac.replace(':',''), name, name)
-#      ret = system(cmd)
-#      log.debug('<%s> returns <%d>', cmd, ret)
+      name = '/tftpboot/phones/config/gs-cfg%s' % self.mac.replace(':','')
+      try:
+         txt = open(name + '.txt', 'w')
+         for k in self.params.keys():
+            txt.write('%s=%s\n' % (k, self.params[k]))
+         txt.close()
+      except:
+         log.debug('ERROR: write text config file')
+
       bin = self.encode()
-      cfg2 = open(name + '.cfg', 'w')
-      for x in bin:
-         cfg2.write(chr(x))
-      cfg2.close()
+
+      try:
+         cfg2 = open(name + '.cfg', 'w')
+         for x in bin:
+            cfg2.write(chr(x))
+         cfg2.close()
+      except:
+         log.debug('ERROR: write binary config file')
 
       # Update and reboot phone
       self.update(self.params)
-      #cmd = '/usr/bin/gsutil -r -o -p %s %s < %s.txt' % (self.pwd, self.host, name)
-      #ret = system(cmd)
-      #log.debug('<%s> returns <%d>', cmd, ret)
       self.reboot()
 
    def encode(self):
@@ -283,66 +309,6 @@ the header and parameter strings are written to a binary file.
       cfg[3] = (len(cfg) / 2) % 256
       cfg[4:6] = self.checksum(cfg)
       return cfg
-
-#      outlength = len(cfgdata) + 15
-#      outlength -= outlength % 16
-#      cleartext = cfgdata
-#      for i in xrange(outlength - len(cfgdata)):
-#         cleartext += '\000'
-#      outlength += 16
-#      salt = 1
-#      cleartext_checksum = self.checksum(cleartext);
-#      initbytes = [0,0, 
-#         ((outlength / 2) >> 8) & 0xFF, 
-#         (outlength / 2) & 0xFF, 
-#         0, 0, 0xFF, 1,
-#         (salt >> 8) & 0xFF, 
-#         salt & 0xFF, 
-#         cleartext_checksum[0], 
-#         cleartext_checksum[1], 
-#         13, 10, 13, 10]
-#
-#      iv1 = unpack('B'*len('lixiabingweixian'), 'lixiabingweixian')
-#      iv2 = unpack('B'*len('gweiningzhangwei'), 'gweiningzhangwei')
-#      arr = []
-#      for i,c in enumerate(iv1):
-#         arr.append(c ^ iv2[i])
-#      iv = pack('B'*16,*arr)
-#      log.debug(iv)
-#
-#      l1 = (macbytes[2] << 24) + \
-#         (macbytes[3] << 16) + (macbytes[4] << 8) + macbytes[5]
-#      l2 = (initbytes[8] << 8) + initbytes[9]
-#      l = l1 % l2
-#
-#      keybytes = []
-#      keybytes += initbytes[2:4]
-#      log.debug(keybytes)
-#      keybytes += macbytes
-#      log.debug(keybytes)
-#      keybytes += initbytes[6:12]
-#      log.debug(keybytes)
-#      keybytes += ((l >> 8) & 0xFF, l &0xFF)
-#      log.debug(keybytes)
-#      keybytes += [0,0,0,0,0,0,0,0]
-#      log.debug(keybytes)
-#      key = pack('B'*16,*keybytes)
-#
-#      import mcrypt
-#      crypt = mcrypt.MCRYPT('rijndael-128','cbc')
-#      crypt.init(key,iv)
-#      ciphertext = crypt.encrypt(cleartext)
-#
-#      log.debug(initbytes)
-#      initstr = pack('B'*16, *initbytes)
-#      checktext = initstr + ciphertext
-#
-#      initbytes[4:6] = self.checksum(checktext)
-#      log.debug(initbytes)
-#      initstr = pack('B'*16, *initbytes)
-#      bin = initstr + ciphertext
-#      log.debug(bin)
-#      return bin
 
    def checksum(self, bytes):
       '''16 bit checksum of bytearray

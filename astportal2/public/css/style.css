@@ -43,7 +43,7 @@ a.link, a, a.active {
  background: #fff;
  left: 10px;
  padding-bottom: 0.5ex;
- width:  150px;
+ /* width:  150px; */
  border: 1px solid #aaa;
  /* position: absolute; */
  position: fixed;
@@ -58,7 +58,8 @@ a.link, a, a.active {
 }
 */
 .menulist {
-   padding-left: 10px;
+   padding-left: 0px;
+   width:  120px;
 }
 
 .menuitem {
@@ -73,7 +74,7 @@ a.link, a, a.active {
   color: black;
   font-size: 127%;
   background-color: white; 
-  min-height: 450px;
+  min-height: 500px;
   padding: 10px 20px 20px 180px;
   border-right: 1px solid #aaa;
   border-left: 1px solid #aaa;

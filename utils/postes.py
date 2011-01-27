@@ -1,17 +1,16 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Script de création des postes dans les plages de la Présidence
+# Script de création des postes dans les plages SDA
 
 # Import nécessaires pour utiliser le modèle
 import transaction
 import os
 import ConfigParser
 from sqlalchemy import create_engine
-#from genshi.template import MarkupTemplate, TemplateLoader
-#import tg
 
-from astportal2.model import *
+#from astportal2.model import *
+from astportal2.model import init_model, DBSession, Phone
 
 config = ConfigParser.ConfigParser({'here': os.getcwd()})
 config.read(os.path.join(os.getcwd(), 'development.ini'))

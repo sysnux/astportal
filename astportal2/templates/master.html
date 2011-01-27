@@ -16,17 +16,24 @@
     <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/style.css')}" />
     <script type="text/javascript">
 //<![CDATA[
+
+$(document).ready(function () {
+   $('#menu_toggle_link').css('height',$('#menulist').css('height'));
+   $('#menu_toggle_link').css('cursor','pointer');
+   $('#menu_toggle_link').click(menu_toggle);
+});
+
 var menu_status=1;
 function menu_toggle() {
    if (menu_status) {
-      $('#menu').hide();
-      $('#main_content').css('padding-left', '10px');
-      $('#menu_toggle_link').text('Afficher');
+      $('#menulist').hide();
+      $('#main_content').css('padding-left', '60px');
+      $('#menu_toggle_link').text('>');
       menu_status=0;
    } else {
-      $('#menu').show();
+      $('#menulist').show();
       $('#main_content').css('padding-left', '180px');
-      $('#menu_toggle_link').text('Cacher');
+      $('#menu_toggle_link').text('<');
       menu_status=1;
    }
    if (typeof($('#grid').setGridWidth)=='function')
@@ -54,21 +61,23 @@ function menu_toggle() {
          <span py:if="not tg.request.identity">
             <a href="${tg.url('/login')}">Connexion</a>
          </span><br />
-         <a href="#" onclick="menu_toggle();" id="menu_toggle_link">Cacher</a> le menu
       </div>
    </div>
 
    <!-- Menu -->
    <div id="menu" class="menu">
-      <ul class="menulist">
+      <table><tr><td><ul id="menulist" class="menulist">
          <li class="menuitem" style="background: url('/images/home-mdk.png') left center no-repeat;"><br/><a href="/">Accueil</a></li>
+         <li class="menuitem" style="background: url('/images/astronomy_section.png') left center no-repeat;"><br/><a href="/monitor/">Surveillance</a></li>
+         <li class="menuitem" style="background: url('/images/phonebook-small.jpg') left center no-repeat;"><br/><a href="/phonebook/">Annuaire</a></li>
+         <li class="menuitem" style="background: url('/images/ktimetracker.png') left center no-repeat;"><br/><a href="/billing/">Facturation</a></li>
          <li class="menuitem" style="background: url('/images/databases_section.png') left center no-repeat;"><br/><a href="/cdr/">Journal des appels</a></li>
          <li class="menuitem" style="background: url('/images/ktimetracker.png') left center no-repeat;"><br/><a href="/billing/">Facturation</a></li>
          <li class="menuitem" style="background: url('/images/preferences-desktop-user.png') left center no-repeat;"><br/><a href="/users/">Utilisateurs</a></li>
          <li class="menuitem" style="background: url('/images/internet-telephony.png') left center no-repeat;"><br/><a href="/phones/">Téléphones</a></li>
          <li class="menuitem" style="background: url('/images/kdf.png') left center no-repeat;"><br/><a href="/departments/">Services</a></li>
          <li class="menuitem" style="background: url('/images/system-users.png') left center no-repeat;"><br/><a href="/groups/">Groupes</a></li>
-      </ul>
+      </ul></td><td id="menu_toggle_link" style="background: #ccc">&lt;</td></tr></table>
    </div>
 
    <!-- Contenu -->
@@ -81,7 +90,7 @@ function menu_toggle() {
 
    <!-- Pied -->
    <div id="footer">
-      <p>Copyright &#169; 2007-2010 <a href="http://www.sysnux.pf">SysNux</a>, powered by:</p>
+      <p>Copyright &#169; 2007-2011 <a href="http://www.sysnux.pf">SysNux</a>, powered by:</p>
       <img src="${tg.url('/images/under_the_hood_blue.png')}" alt="TurboGears under the hood" />
    </div>
 

@@ -6,7 +6,7 @@ AstPortal model
 from datetime import datetime
 
 from sqlalchemy import Table, Column, ForeignKey
-from sqlalchemy import String, Unicode, Integer, DateTime
+from sqlalchemy import String, Unicode, Integer, DateTime, Boolean
 from sqlalchemy.orm import mapper, relation, backref
 
 #from astportal2.model import metadata
@@ -37,6 +37,10 @@ class CDR(DeclarativeBase):
    ut = Column(Integer)
    ht = Column(Integer)
    ttc = Column(Integer)
+
+   def __repr__(self):
+      return '<CDR: %s "%s" -> "%s" (%d sec)>' % (
+            str(self.calldate), self.src, self.dst, self.billsec)
 
 
 class Department(DeclarativeBase):
@@ -80,4 +84,19 @@ class Phone(DeclarativeBase):
       return '<Phone: number="%s", department="%s">' % (
             self.number, self.department_id)
 
+class Phonebook(DeclarativeBase):
+   '''
+   '''
+   __tablename__ = 'phonebook'
+   pb_id = Column(Integer, autoincrement=True, primary_key=True)
+   firstname = Column(Unicode(), nullable=False)
+   lastname = Column(Unicode(), nullable=False)
+   company = Column(Unicode())
+   phone1 = Column(Unicode(), nullable=False)
+   phone2 = Column(Unicode())
+   phone3 = Column(Unicode())
+   private = Column(Boolean())
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   user_id = Column(Integer, ForeignKey('tg_user.user_id'))
+   user = relation('User', backref=backref('phonebook'))
 
