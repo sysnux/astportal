@@ -1,0 +1,102 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:py="http://genshi.edgewall.org/"
+  xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html"/>
+
+<head>
+   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
+   <title py:content="title">Paginate Data Grid</title>
+
+   <script type="text/javascript">
+<![CDATA[
+
+var last=0, count=0, error=0, display_tmo=setTimeout(display,5000);
+var begins= new Object();
+var channels = new Object();
+
+$(document).ready(function() {
+   update();
+});
+
+function update() {
+   $.post(
+      "${tg.url('/monitor/update_channels')}",
+      {'last': last},
+      list_channels, 'json');
+   //   d.addCallbacks(list_channels, data_fetch_failed);
+}
+
+function list_channels(data) {
+   channels = data.channels;
+   last = data.last_update;
+   clearTimeout(display_tmo);
+	display();
+   setTimeout(update,500);
+}
+
+function display() {
+   var table = '';
+	var now = new Date(), total=0;
+   for (p in channels) {
+      total++;
+		if (begins[p]) {
+			duree = min_sec(now.getTime()-begins[p].getTime());
+		} else {
+			duree = '0:00';
+			begins[p] = now;
+		}
+		table += '<tr>';
+		table += '<td>' + channels[p]['Uniqueid'] + '</td>';
+		table += '<td>' + p + '</td>';
+		table += '<td>' + duree + '</td>';
+		table += '<td>' + channels[p]['CallerIDName'] + ' ' + channels[p]['CallerIDNum'] + '</td>';
+/*		table += '<td>' + channels[p]['AccountCode'] + '</td>';
+		table += '<td>' + channels[p]['Context'] + '</td>';
+		table += '<td>' + channels[p]['Priority'] + '</td>'; */
+		table += '</tr>';
+   }
+   if (total) {
+      //table = '<table><tr><th>Identifiant</th><th>Canal</th><th>Durée</th><th>Appelant</th><th>Appli</th><th>Contexte</th><th>Prio</th></tr>' + table;
+      table = '<table><tr><th>Identifiant</th><th>Canal</th><th>Durée</th><th>Appelant</th></tr>' + table;
+      table += '<tr><th>Total :</th><th colspan="3">' + total + ' appel';
+      table += (total>1) ? 's':'' + '</th></tr>';
+   } else {
+      table = '<i>Aucun appel en cours</i>';
+   }
+	table += '</table>';
+   for (p in begins) {
+      if (channels[p]==undefined) {
+         delete begins[p]; // Clean up !
+      }
+   }
+   document.getElementById('channels_list').innerHTML = table;
+	display_tmo = setTimeout(display,1000);
+}
+
+function data_fetch_failed (err) {
+   error++
+   if (error>3)
+      alert('ERREUR: ' + err);
+}
+
+function min_sec(millisec) {
+   // Converts millisec to string min:sec (ex 1:23)
+   var sec = Math.ceil(millisec/1000);
+   var min = parseInt(sec/60);
+   sec %= 60;
+   if (sec<10) sec = '0'+sec;
+   return min + ':' + sec;
+}
+
+]]>
+   </script>
+</head>
+<body>
+      <h1 py:content="title">Title</h1>
+      <span py:replace="debug" /><br />
+      <div id="channels_list">. . .</div>
+   </body>
+</html>
