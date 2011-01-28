@@ -5,7 +5,6 @@ from tg.controllers import TGController
 
 from repoze.what.predicates import in_group
 
-#from astportal2.model import DBSession, User, Group, Application, Record, CDR
 from astportal2.manager import manager
 
 from time import sleep

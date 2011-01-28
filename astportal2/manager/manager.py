@@ -125,14 +125,14 @@ class ManagerClient(asynchat.async_chat):
       id = 'destar-%d-%08x' % (os.getpid(), 1)
       n = 0
       while not self.closing and n<20:
-         if self.action_data.has_key(id) and self.action_data[id]:
+         if id in self.action_data and self.action_data[id]:
             #print "do_connect() id", id, "found in action_data"
             break
          #print "do_connect() sleep, id:", id, "action_data:", self.action_data
          asyncore.poll(0.5, asyncore.socket_map)
          n = n + 1
       #print "do_connect() done with while"
-      if self.action_data.has_key(id):
+      if id in self.action_data:
          self.loggedin = self.action_data[id][0].find("Response: Success") != -1
          #print "do_connect(), loggedin:", self.loggedin
       
@@ -206,7 +206,7 @@ class ManagerClient(asynchat.async_chat):
       if data[0].startswith("Event: "):
          self.handle_event(data)
 
-      if self.action_data.has_key(id):
+      if id in self.action_data:
          self.action_data[id] = data
 
       if data[0][0:22]=="Asterisk Call Manager/":
@@ -307,16 +307,16 @@ class ManagerEvents(ManagerClient):
             key = s[:i]
             val = s[i+1:].strip()
          dict[key] = val.strip()
-      if not dict.has_key('Event'):
+      if 'Event' not in dict:
          print ' * * * ERROR: event without event ?', dict
          return
       e = dict['Event']
-      print e #, dict
+      print e, dict
    
       # When we look if we have a handler function
-      if e=='CEL':
-         print ' * * * CEL ', dict, '* ' * 20
-         return
+#      if e=='CEL':
+#         print ' * * * CEL ', dict, '* ' * 20
+#         return
       if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
             'MusicOnHold'):
          return
@@ -361,10 +361,10 @@ class ManagerEvents(ManagerClient):
       elif e=='Leave':
          self.handle_Leave(dict)
       elif e in ('ExtensionStatus', 'Dial'):
-         print ' * * * WARNING unimplemented event', dict, '* ' * 20
+         print ' * * * NOT IMPLEMENTED', dict, '* ' * 20
          return
       else:
-         print ' * * * ERROR unknown event', dict, '* ' * 20
+         print ' * * * UNKOWN', dict, '* ' * 20
          return
 
       print '-' * 40
@@ -416,7 +416,7 @@ class ManagerEvents(ManagerClient):
       q = dict['Queue']
       m = normalize_member(dict['Name'])
       queues[q]['Members'].append(m)
-      if members.has_key(m):
+      if m in members:
          members[m]['Queues'].append(q)
       else:
          members[m] = {'Status': dict['Status'], 'Begin': time.time(),
@@ -501,18 +501,21 @@ class ManagerEvents(ManagerClient):
    def updateChannels(self, dict):
       c = dict['Channel']
       global channels
-      if not channels.has_key(c): return
+      if c not in channels: return
       channels[c]['LastUpdate'] = time.time()
       for k, v in dict.iteritems():
          if k in ('State', 'ChannelStateDesc', 'Channel', 'Uniqueid', 'Privilege'): continue
          channels[c][k] = v
       if self.manager_version=='1.0':
-         if dict.has_key('State'):
+         if 'State' in dict:
             channels[dict['Channel']]['State'] = dict['State']
          else:
             print 'UPDATE CHANNEL 1.0', dict
       elif self.manager_version=='1.1':
-         channels[dict['Channel']]['State'] = dict['ChannelStateDesc']
+         if 'ChannelStateDesc' in dict:
+            channels[dict['Channel']]['State'] = dict['ChannelStateDesc']
+         else:
+            print 'UPDATE CHANNEL 1.1', dict
 
    def handle_Newchannel(self,dict):
       global channels
@@ -526,7 +529,7 @@ class ManagerEvents(ManagerClient):
    def handle_Hangup(self, dict):
       c = dict['Channel']
       global channels
-      if not channels.has_key(c):
+      if c not in channels:
          print 'HANGUP', c, 'DOES NOT EXIST'
          return
       del channels[c]
@@ -592,8 +595,15 @@ class ManagerEvents(ManagerClient):
 
    def handle_PeerStatus(self,dict):
       global registry
-      registry[dict['Peer']] = {'PeerStatus': dict['PeerStatus'],
+      peer = dict['Peer']
+      if peer in registry:
+         registry[peer]['PeerStatus'] = dict['PeerStatus']
+         registry[peer]['LastUpdate'] = time.time()
+      else:
+         registry[peer] = {'PeerStatus': dict['PeerStatus'],
             'LastUpdate': time.time()}
+      if 'Address' in dict:
+         registry[dict['Peer']]['Address'] = dict['Address']
 
 
    def handle_MessageWaiting(self, dict):

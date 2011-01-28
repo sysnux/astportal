@@ -2,14 +2,14 @@
 # Department CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request
+from tg import expose, flash, redirect, tmpl_context, validate, request, response
 from tg.controllers import RestController
 
 from repoze.what.predicates import in_group
 
 from tw.api import js_callback
 from tw.forms import TableForm, TextField, CheckBox, HiddenField
-from tw.forms.validators import NotEmpty, Int
+from tw.forms.validators import NotEmpty, Int, Bool
 
 from sqlalchemy import or_
 
@@ -63,7 +63,7 @@ class Edit_contact_form(TableForm):
             label_text=u'Téléphone 2', help_text=u'Deuxième numéro de téléphone'),
          TextField('phone3', not_empty = False,
             label_text=u'Téléphone 3', help_text=u'Troisième numéro de téléphone'),
-         CheckBox('private', not_empty = False, default = True,
+         CheckBox('private', default = True, validator=Bool,
             label_text=u'Contact privé', help_text=u'Cochez si privé'),
          HiddenField('_method', validator=None), # Needed by RestController
          HiddenField('pb_id', validator=Int),
@@ -145,38 +145,38 @@ class Phonebook_ctrl(RestController):
          log.debug('fetch query <%s> <%s> <%s>' % \
             (searchField, searchOper, searchString))
          try:
-            field = eval('Department.' + searchField)
+            field = eval('Phonebook.' + searchField)
          except:
             field = None
-            log.error('eval: Department.' + searchField)
+            log.error('eval: Phonebook.' + searchField)
          if field and searchOper=='eq': 
-            dptms = dptms.filter(field==searchString)
+            book = book.filter(field==searchString)
          elif field and searchOper=='ne':
-            dptms = dptms.filter(field!=searchString)
+            book = book.filter(field!=searchString)
          elif field and searchOper=='le':
-            dptms = dptms.filter(field<=searchString)
+            book = book.filter(field<=searchString)
          elif field and searchOper=='lt':
-            dptms = dptms.filter(field<searchString)
+            book = book.filter(field<searchString)
          elif field and searchOper=='ge':
-            dptms = dptms.filter(field>=searchString)
+            book = book.filter(field>=searchString)
          elif field and searchOper=='gt':
-            dptms = dptms.filter(field>searchString)
+            book = book.filter(field>searchString)
          elif field and searchOper=='bw':
-            dptms = dptms.filter(field.ilike(searchString + '%'))
+            book = book.filter(field.ilike(searchString + '%'))
          elif field and searchOper=='bn':
-            dptms = dptms.filter(~field.ilike(searchString + '%'))
+            book = book.filter(~field.ilike(searchString + '%'))
          elif field and searchOper=='ew':
-            dptms = dptms.filter(field.ilike('%' + searchString))
+            book = book.filter(field.ilike('%' + searchString))
          elif field and searchOper=='en':
-            dptms = dptms.filter(~field.ilike('%' + searchString))
+            book = book.filter(~field.ilike('%' + searchString))
          elif field and searchOper=='cn':
-            dptms = dptms.filter(field.ilike('%' + searchString + '%'))
+            book = book.filter(field.ilike('%' + searchString + '%'))
          elif field and searchOper=='nc':
-            dptms = dptms.filter(~field.ilike('%' + searchString + '%'))
+            book = book.filter(~field.ilike('%' + searchString + '%'))
          elif field and searchOper=='in':
-            dptms = dptms.filter(field.in_(str(searchString.split(' '))))
+            book = book.filter(field.in_(str(searchString.split(' '))))
          elif field and searchOper=='ni':
-            dptms = dptms.filter(~field.in_(str(searchString.split(' '))))
+            book = book.filter(~field.in_(str(searchString.split(' '))))
 
       total = book.count()/rows + 1
       column = getattr(Phonebook, sidx)
@@ -195,7 +195,8 @@ class Phonebook_ctrl(RestController):
       
    @validate(new_contact_form, error_handler=new)
    @expose()
-   def create(self, firstname, lastname, company, phone1, phone2, phone3, private):
+   def create(self, firstname, lastname, company, phone1, phone2, 
+         phone3, private=None):
       ''' Add new department to DB
       '''
       d = Phonebook()
@@ -216,7 +217,7 @@ class Phonebook_ctrl(RestController):
    def edit(self, id=None, **kw):
       ''' Display edit phonebook form
       '''
-      if not id: id = kw['dptm_id']
+      if not id: id = kw['pb_id']
       pb = DBSession.query(Phonebook).get(id)
       v = {'pb_id': pb.pb_id, 'firstname': pb.firstname, 
             'lastname': pb.lastname, 'phone1': pb.phone1,
@@ -230,12 +231,17 @@ class Phonebook_ctrl(RestController):
    @validate(edit_contact_form, error_handler=edit)
    @expose()
    def put(self, pb_id, firstname, lastname, company, phone1, phone2,
-         phone3, private):
+         phone3, private=False):
       ''' Update contact in DB
       '''
       log.info('update %d' % pb_id)
-      pb = DBSession.query(phonebook).get(pb_id)
+      pb = DBSession.query(Phonebook).get(pb_id)
       pb.firstname = firstname
+      pb.lastname = lastname
+      pb.phone1 = phone1
+      pb.phone2 = phone2
+      pb.phone3 = phone3
+      pb.private = private
       flash(u'Contact modifié')
       redirect('/phonebook/')
 
@@ -250,27 +256,68 @@ class Phonebook_ctrl(RestController):
       redirect('/phonebook/')
 
 
-   @expose('XML') # format='xml; encoding="iso-8859-1"')
-   def gs_phonebook_xml(self, number=None):
+   @expose(content_type='text/xml; charset=ISO-8859-1')
+   def gs_phonebook_xml(self, user=None):
       ''' Export phonebook to Grandstream XML phonebook format
       '''
-      list = DBSession.query(Phonebook).filter(\
-            or_(Phonebook.phone1!=None, 
-               Phonebook.phone2!=None,
-               Phonebook.phone3!=None))
+      log.debug(u'Grandstream phonebook <%s>', user)
+
       xml = '<?xml version="1.0" encoding="iso-8859-1"?>\n<AddressBook>\n'
+
+      # Fist, look for entries in phonebook...
+      list = DBSession.query(Phonebook)
+      list = list.filter( or_(Phonebook.phone1!=None,
+               Phonebook.phone2!=None,
+               Phonebook.phone3!=None) )
+      list = list.order_by(Phonebook.lastname, Phonebook.firstname)
+
       for e in list:
-         xml += '''<Contact>
-<LastName>%s %s</LastName>
+         index = 0
+         if e.phone1:
+            xml += '''<Contact>
+<LastName>%s %s %d</LastName>
   <Phone>
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.firstname, e.lastname, e.phone1)
+</Contact>''' % (e.lastname, e.firstname, index+1, e.phone1)
+            index += 1
 
-      # Encoding to numeric entities is not (currently?) supported on Grandstream phones
-      #  => can't use xxx.encode("ascii", "xmlcharrefreplace")
+         if e.phone2:
+            xml += '''<Contact>
+<LastName>%s %s %d</LastName>
+  <Phone>
+   <phonenumber>%s</phonenumber>
+   <accountindex>0</accountindex>
+  </Phone>
+</Contact>''' % (e.lastname, e.firstname, index+1, e.phone1)
+            index += 1
+
+         if e.phone3:
+            xml += '''<Contact>
+<LastName>%s %s %d</LastName>
+  <Phone>
+   <phonenumber>%s</phonenumber>
+   <accountindex>0</accountindex>
+  </Phone>
+</Contact>''' % (e.lastname, e.firstname, index+1, e.phone1)
+            index += 1
+
+
+      # ...then add users
+      list = DBSession.query(User).filter(User.phone!=None)
+      list = list.order_by(User.display_name)
+
+      for e in list:
+         xml += '''<Contact>
+<LastName>%s</LastName>
+  <Phone>
+   <phonenumber>%s</phonenumber>
+   <accountindex>0</accountindex>
+  </Phone>
+</Contact>''' % (e.display_name, e.phone[0].number)
 
       xml += '</AddressBook>\n'
-      return xml
+
+      return xml.encode('iso-8859-1', 'replace')
 
