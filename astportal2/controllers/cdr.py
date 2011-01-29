@@ -137,14 +137,14 @@ cdr_grid = MyJqGrid(
    caption = u'Appels',
    id = 'grid',
    url = 'fetch',
-   colNames = [u'Date / heure', u'Source', u'Destination', u'\u00C9tat', u'Durée', u'\u00C9coute'],
+   colNames = [u'Date / heure', u'Source', u'Destination', u'\u00C9tat', u'Durée'], #, u'\u00C9coute'],
    colModel = [
       { 'name': 'calldate', 'width': 100 },
       { 'name': 'src', 'width': 70 },
       { 'name': 'dst', 'width': 70 },
       { 'name': 'disposition', 'width': 80 },
       { 'name': 'billsec', 'width': 40 },
-      { 'sortable': False, 'search': False, 'width': 40, 'align':'center' },
+#      { 'sortable': False, 'search': False, 'width': 40, 'align':'center' },
       ],
    sortname = 'calldate',
    sortorder = 'desc',
@@ -180,11 +180,11 @@ class Display_CDR:
 
       if in_out=='in':
          filter.append(u'type entrant')
-         cdrs = cdrs.filter('''NOT (dstchannel ~ E'Zap/1?\\\\d-1' OR dstchannel LIKE 'SIP/gsm%' OR dstchannel LIKE 'IAX2/teliax%')''')
+         cdrs = cdrs.filter('''NOT (dstchannel ~ E'Dahdi/1?\\\\d-1' OR dstchannel LIKE 'IAX2/teliax%')''')
          #cdrs = cdrs.filter(sqlalchemy.not_(CDR.lastdata.ilike('Dahdi/g0/%')))
       elif in_out=='out':
          filter.append(u'type sortant')
-         cdrs = cdrs.filter(''' (dstchannel ~ E'Zap/1?\\\\d-1' OR dstchannel LIKE 'SIP/gsm%' OR dstchannel LIKE 'IAX2/teliax%')''')
+         cdrs = cdrs.filter(''' (dstchannel ~ E'Dahdi/1?\\\\d-1' OR dstchannel LIKE 'IAX2/teliax%')''')
          #cdrs = cdrs.filter(CDR.lastdata.ilike('Dahdi/g0/%'))
 
       if date:
