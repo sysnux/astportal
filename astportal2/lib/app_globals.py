@@ -13,6 +13,8 @@ class Globals(object):
 
     """
 
+    manager = None
+
     def __init__(self):
         """Do nothing, by default."""
         pass

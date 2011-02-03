@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:py="http://genshi.edgewall.org/"
+  xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html"/>
+
+<head>
+   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
+   <title py:content="title">Jquery Grid</title>
+
+   <script type="text/javascript">
+//<![CDATA[
+      
+$(document).ready(function() {
+   $(window).bind('resize', function() {
+      $('#grid').setGridWidth($('#data').width()-10, true);
+   });
+});
+
+function echo() {
+   $.post("${tg.url('echo')}",{});
+   // $(document).ajaxError(data_fetch_failed);
+}
+
+function originate(num) {
+   $.post("${tg.url('originate')}", {'number': num});
+   // $(document).ajaxError(data_fetch_failed);
+}
+
+function add(x) {
+   location = 'new'
+}
+
+function del(xid,msg) {
+   if (confirm(msg)) {
+      with (document.form_delete) {
+         _id.value = xid;
+         submit();
+      }
+   }
+}
+//]]>
+   </script>
+</head>
+
+<body>
+      <h1 py:content="title">Paginate Data Grid</h1>
+      <a href="#" onclick="echo()">Test echo</a><br/><br/>
+
+      <div id="data">
+         <!-- JQuery Grid -->
+         ${tmpl_context.grid()}
+      </div>
+
+      <!-- -->
+      <form name="form_delete" action="delete" method="POST">
+         <input type="hidden" name="_id" />
+         <input type="hidden" name="_method" value="DELETE" />
+      </form>
+
+   </body>
+</html>

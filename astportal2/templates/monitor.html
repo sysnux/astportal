@@ -26,16 +26,15 @@ function update() {
       "${tg.url('/monitor/update_channels')}",
       {'last': last},
       list_channels, 'json');
-   //   d.addCallbacks(list_channels, data_fetch_failed);
    $(document).ajaxError(data_fetch_failed);
 }
 
 function list_channels(data) {
+   clearTimeout(display_tmo);
    channels = data.channels;
    last = data.last_update;
-   clearTimeout(display_tmo);
 	display();
-   display_tmo = setTimeout(update,500);
+   update();
 }
 
 function display() {
@@ -49,6 +48,7 @@ function display() {
 			duree = '0:00';
 			begins[p] = now;
 		}
+      // if (channels[p]['Begin']!=0)
 		table += '<tr>';
 		table += '<td>' + channels[p]['Uniqueid'] + '</td>';
 		table += '<td>' + p + '</td>';
@@ -62,8 +62,10 @@ function display() {
    if (total) {
       table = '<table><tr><th>Identifiant</th><th>Canal</th><th>Durée</th><th>Appelant</th><th>&Eacute;tat</th><th>Contexte</th><th>Prio</th></tr>' + table;
       table = '<table><tr><th>Identifiant</th><th>Canal</th><th>Durée</th><th>Appelant</th></tr>' + table;
-      table += '<tr><th>Total :</th><th colspan="3">' + total + ' appel';
-      table += (total>1) ? 's':'' + '</th></tr>';
+      table += '<tr>';
+      table += '<th>Total :</th>';
+      table += '<th colspan="6">' + total + ' appel' + ((total>1) ? 's':'') + '</th>';
+      table += '</tr>';
    } else {
       table = '<i>Aucun appel en cours</i>';
    }
@@ -74,15 +76,16 @@ function display() {
       }
    }
    document.getElementById('channels_list').innerHTML = table;
+   display_tmo = setTimeout(display,500);
 }
 
 function data_fetch_failed (e, xhr, settings, exception) {
-   clearTimeout(display_tmo);
    error++;
    if (error>3) {
       alert('ERREUR !' + error);
    } else {
-      display_tmo = setTimeout(update,5000);
+      // Wait a bit and try again
+      setTimeout(update,1000*error);
    }
 }
 

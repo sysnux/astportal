@@ -100,3 +100,17 @@ class Phonebook(DeclarativeBase):
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    user = relation('User', backref=backref('phonebook'))
 
+class View_phonebook(DeclarativeBase):
+   '''
+   '''
+   __tablename__ = 'view_pb'
+   pb_id = Column(Integer, primary_key=True)
+   firstname = Column(Unicode())
+   lastname = Column(Unicode())
+   company = Column(Unicode())
+   phone1 = Column(Unicode())
+   phone2 = Column(Unicode())
+   phone3 = Column(Unicode())
+   private = Column(Boolean())
+   user_id = Column(Integer)
+

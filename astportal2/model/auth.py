@@ -21,7 +21,7 @@ except ImportError:
 
 from sqlalchemy import Table, ForeignKey, Column
 from sqlalchemy.types import Unicode, Integer, DateTime
-from sqlalchemy.orm import relation, synonym
+from sqlalchemy.orm import relation, synonym, column_property
 
 from astportal2.model import DeclarativeBase, metadata, DBSession
 
@@ -64,21 +64,15 @@ class Group(DeclarativeBase):
     __tablename__ = 'tg_group'
     
     #{ Columns
-    
     group_id = Column(Integer, autoincrement=True, primary_key=True)
-    
     group_name = Column(Unicode(16), unique=True, nullable=False)
-    
     display_name = Column(Unicode(255))
-    
     created = Column(DateTime, default=datetime.now)
     
     #{ Relations
-    
     users = relation('User', secondary=user_group_table, backref='groups')
     
     #{ Special methods
-    
     def __repr__(self):
         return '<Group: name=%s>' % self.group_name
     
@@ -101,22 +95,21 @@ class User(DeclarativeBase):
     """
     __tablename__ = 'tg_user'
     
-    #{ Columns
 
+    #{ Columns
     user_id = Column(Integer, autoincrement=True, primary_key=True)
-    
     user_name = Column(Unicode(16), unique=True, nullable=False)
-    
     email_address = Column(Unicode(255), unique=True,
                            info={'rum': {'field':'Email'}})
-    
-    display_name = Column(Unicode(255))
-    
+    firstname = Column(Unicode(255))
+    lastname = Column(Unicode(255))
     _password = Column('password', Unicode(80),
                        info={'rum': {'field':'Password'}})
-    
     created = Column(DateTime, default=datetime.now)
-    
+
+    # Needed by repoze.who / what
+    display_name = column_property(lastname + ' ' + firstname)
+ 
     #{ Special methods
 
     def __repr__(self):
@@ -208,15 +201,11 @@ class Permission(DeclarativeBase):
     __tablename__ = 'tg_permission'
     
     #{ Columns
-
     permission_id = Column(Integer, autoincrement=True, primary_key=True)
-    
     permission_name = Column(Unicode(16), unique=True, nullable=False)
-    
     description = Column(Unicode(255))
     
     #{ Relations
-    
     groups = relation(Group, secondary=group_permission_table,
                       backref='permissions')
     

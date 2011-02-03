@@ -15,7 +15,8 @@ from sqlalchemy import or_
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Phonebook, User
+from astportal2.model import DBSession, Phonebook, User, Phone, View_phonebook
+from astportal2.lib.app_globals import Globals
 from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
@@ -79,25 +80,54 @@ def row(pb):
    Parameter: phonebook object
    '''
 
-   html =  u'<a href="'+ str(pb.pb_id) + u'/edit" title="Modifier">'
-   html += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
-   html += u'&nbsp;&nbsp;&nbsp;'
-   html += u'<a href="#" onclick="del(\''+ str(pb.pb_id) + \
+   if (int(pb.pb_id)>0):
+      action =  u'<a href="'+ str(pb.pb_id) + u'/edit" title="Modifier">'
+      action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
+      action += u'&nbsp;&nbsp;&nbsp;'
+      action += u'<a href="#" onclick="del(\''+ str(pb.pb_id) + \
          u'\',\'Suppression du contact ' + pb.firstname + ' ' + pb.lastname + u'\')" title="Supprimer">'
-   html += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+      action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+      company = pb.company
+      private = u'Oui' if pb.private else u'Non'
+   else:
+      action = ''
+      company = 'SysNux'
+      private = ''
 
-   private = u'Oui' if pb.private else u'Non'
+   if pb.phone1:
+      if len(request.identity['user'].phone)<1:
+         phone1 = pb.phone1
+      else:
+         phone1 = u'<a href="#" onclick="originate(\'' + pb.phone1 + '\')" title="Appeler">' + pb.phone1 + '</a>'
+   else:
+      phone1 = ''
 
-   return [Markup(html), pb.firstname, pb.lastname, pb.company, 
-         pb.phone1, pb.phone2, pb.phone3, private]
+   if pb.phone2:
+      if len(request.identity['user'].phone)<1:
+         phone2 = pb.phone2
+      else:
+         phone2 = u'<a href="#" onclick="originate(\'' + pb.phone2 + '\')" title="Appeler">' + pb.phone2 + '</a>'
+   else:
+      phone2 = ''
+
+   if pb.phone3:
+      if len(request.identity['user'].phone)<1:
+         phone2 = pb.phone2
+      else:
+         phone3 = u'<a href="#" onclick="originate(\'' + pb.phone3 + '\')" title="Appeler">' + pb.phone3 + '</a>'
+   else:
+      phone3 = ''
+
+   return [Markup(action), pb.firstname, pb.lastname, company, 
+         Markup(phone1), Markup(phone2), Markup(phone3), private]
 
 
 class Phonebook_ctrl(RestController):
    
 
-   @expose(template="astportal2.templates.grid")
+   @expose(template="astportal2.templates.grid_phonebook")
    def get_all(self):
-      ''' List all departments
+      ''' List all
       '''
       grid = MyJqGrid( 
             id='grid', url='fetch', caption=u'Services',
@@ -140,15 +170,15 @@ class Phonebook_ctrl(RestController):
          page = 1
          rows = 25
 
-      book = DBSession.query(Phonebook)
+      book = DBSession.query(View_phonebook)
       if  searchOper and searchField and searchString:
          log.debug('fetch query <%s> <%s> <%s>' % \
             (searchField, searchOper, searchString))
          try:
-            field = eval('Phonebook.' + searchField)
+            field = eval('View_phonebook.' + searchField)
          except:
             field = None
-            log.error('eval: Phonebook.' + searchField)
+            log.error('eval: View_phonebook.' + searchField)
          if field and searchOper=='eq': 
             book = book.filter(field==searchString)
          elif field and searchOper=='ne':
@@ -177,9 +207,10 @@ class Phonebook_ctrl(RestController):
             book = book.filter(field.in_(str(searchString.split(' '))))
          elif field and searchOper=='ni':
             book = book.filter(~field.in_(str(searchString.split(' '))))
+         log.debug(book)
 
       total = book.count()/rows + 1
-      column = getattr(Phonebook, sidx)
+      column = getattr(View_phonebook, sidx)
       book = book.order_by(getattr(column,sord)()).offset(offset).limit(rows)
       data = [ { 'id'  : b.pb_id, 'cell': row(b) } for b in book ]
 
@@ -320,4 +351,35 @@ class Phonebook_ctrl(RestController):
       xml += '</AddressBook>\n'
 
       return xml.encode('iso-8859-1', 'replace')
+
+
+   @expose('json')
+   def echo(self):
+      if len(request.identity['user'].phone)<1:
+         return dict(status=2)
+      chan = request.identity['user'].phone[0].number
+      log.debug('Echo test for extension ' + chan)
+      res = Globals.manager.originateCallApp('SIP/' + chan.encode('iso-8859-1'),
+            'Echo', '')
+      status = 0 if res[0]=='Success' else 1
+      return dict(status=status)
+
+
+   @expose('json')
+   def originate(self, number):
+      '''
+      '''
+      if len(request.identity['user'].phone)<1:
+         return dict(status=2)
+      chan = request.identity['user'].phone[0].number
+      log.debug('Call from extension %s to %s' % (chan, number))
+      res = Globals.manager.originateCallExt(
+            'SIP/' + chan.encode('iso-8859-1'), # Channel
+            'interne', # Context
+            number.encode('iso-8859-1'), # Extension
+            '1', # Priority
+            'AstPortal <501040>' # CallerID
+            )
+      status = 0 if res[0]=='Success' else 1
+      return dict(status=status)
 

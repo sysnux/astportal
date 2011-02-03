@@ -95,6 +95,8 @@ import sys, os, time, socket, asyncore, asynchat # , string
 # in call(), not in do_connect().
 #
 
+conn = None
+
 class ManagerClient(asynchat.async_chat):
 
    def __init__(self, host, username, password):
@@ -252,7 +254,7 @@ class ManagerClient(asynchat.async_chat):
 
       #res = map(string.strip, self.call(act,**args).split('\n'))
       res = self.call(act, **args)
-      #print "action(), res:", res
+      print "action(), res:", res
       if res[1].startswith('ActionID:'):
          del res[1]
       if res[0]=='Response: Follows':
@@ -506,21 +508,27 @@ class ManagerEvents(ManagerClient):
       for k, v in dict.iteritems():
          if k in ('State', 'ChannelStateDesc', 'Channel', 'Uniqueid', 'Privilege'): continue
          channels[c][k] = v
-      if self.manager_version=='1.0':
-         if 'State' in dict:
-            channels[dict['Channel']]['State'] = dict['State']
-         else:
-            print 'UPDATE CHANNEL 1.0', dict
-      elif self.manager_version=='1.1':
-         if 'ChannelStateDesc' in dict:
-            channels[dict['Channel']]['State'] = dict['ChannelStateDesc']
-         else:
-            print 'UPDATE CHANNEL 1.1', dict
+
+      new_state = None
+      if 'State' in dict:
+         # manager_version=='1.0':
+         new_state = dict['State']
+      elif 'ChannelStateDesc' in dict:
+         # manager_version=='1.1':
+         new_state = dict['ChannelStateDesc']
+      else:
+         print 'UPDATE CHANNEL ?', dict
+
+      if new_state and channels[dict['Channel']]['State'] != new_state:
+         channels[dict['Channel']]['State'] = new_state
+         if new_state=='Up':
+            channels[dict['Channel']]['Begin'] = time.time()
 
    def handle_Newchannel(self,dict):
       global channels
       channels[dict['Channel']] = {'CallerIDNum': dict['CallerIDNum'], 
-            'CallerIDName': dict['CallerIDName'], 'Uniqueid': dict['Uniqueid']}
+            'CallerIDName': dict['CallerIDName'], 'Uniqueid': dict['Uniqueid'],
+            'Begin': 0}
       if self.manager_version=='1.0':
          channels[dict['Channel']]['State'] = dict['State']
       elif self.manager_version=='1.1':
@@ -638,9 +646,13 @@ class ManagerEvents(ManagerClient):
 
       pass
 
+   def originateCallExt(self,channel,context,extension,priority,callerid):
+      return self.action('Originate', Channel=channel, Context=context, Exten=extension, Priority=priority, CallerID=callerid)
 
+   def originateCallApp(self, channel,application,data):
+      print ' * * * * * ORIGINATE ', channel, application
+      return self.action('Originate', Channel=channel, Application=application)
 
-conn = None
 
 def connect(username=None,password=None):
    global conn
@@ -680,11 +692,6 @@ def setVar(family, key, val):
    else:
       conn.action('Command', Command='database del %s %s' % (family,key))
 
-def originateCallApp(channel,application,data):
-   return conn.action('Originate', Channel=channel, Application=application)
-
-def originateCallExt(channel,context,extension,priority,callerid):
-   return conn.action('Originate', Channel=channel, Context=context, Exten=extension, Priority=priority, CallerID=callerid)
 
 def getVarFamily(family):
    varlist = []

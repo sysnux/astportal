@@ -5,15 +5,18 @@ Asterisk Manager Thread
 
 import asyncore
 from threading import Thread 
-from manager import ManagerClient, ManagerEvents
+from manager import ManagerEvents
 
-astman = { 'id': 0, 'data': [], 'len': 10  }
+from astportal2.lib.app_globals import Globals
+
+import logging
+log = logging.getLogger(__name__)
 
 class manager_thread(Thread):
 
 
    def __init__ (self, host, user, secret):
-      print 'manager_thread:: init'
+      log.debug('init')
       Thread.__init__(self)
       self.host = host
       self.user = user
@@ -21,10 +24,10 @@ class manager_thread(Thread):
       self.connected = False
 
    def run(self):
-      print 'manager_thread:: run'
-      me = ManagerEvents(self.host, self.user, self.secret)
-      me.action('QueueStatus')
-      print "Waiting for events ...\n"
+      log.debug('run')
+      Globals.manager = ManagerEvents(self.host, self.user, self.secret)
+      Globals.manager.action('Status')
+      log.debug('Waiting for events...')
       asyncore.loop()
 
 
