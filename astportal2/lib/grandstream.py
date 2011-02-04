@@ -171,7 +171,7 @@ P399 = 'french',
       log.debug('Reboot done in %.1f seconds !' % (t2-t1))
       return resp.msg
 
-   def configure(self, pwd, firmware_url, config_url, ntp_server,
+   def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
          mwi_subscribe=0):
@@ -232,7 +232,7 @@ P399 = 'french',
       self.params['P58'] = 0
 
       # Generate conf files (text and binary)
-      name = '/tftpboot/phones/config/gs-cfg%s' % self.mac.replace(':','')
+      name = tftp_dir + '/phones/config/gs-cfg%s' % self.mac.replace(':','')
       try:
          txt = open(name + '.txt', 'w')
          for k in self.params.keys():

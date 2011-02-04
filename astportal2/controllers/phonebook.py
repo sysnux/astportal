@@ -171,6 +171,8 @@ class Phonebook_ctrl(RestController):
          rows = 25
 
       book = DBSession.query(View_phonebook)
+      book = book.filter(or_(View_phonebook.private==False, 
+         View_phonebook.user_id==request.identity['user'].user_id))
       if  searchOper and searchField and searchString:
          log.debug('fetch query <%s> <%s> <%s>' % \
             (searchField, searchOper, searchString))

@@ -32,10 +32,12 @@ function del(xid,msg) {
    }
 }
 
-function gs_open(ip, pwd) {
-   with (document.gs_login) {
-      P2.value = pwd;
-      action = 'http://' + ip + '/dologin.htm';
+function phone_open(ip, pwd, phone_type) {
+   with (document.phone_login) {
+      if (phone_type=='GXP') {
+         P2.value = pwd;
+         action = 'http://' + ip + '/dologin.htm';
+      }
       submit();
    }
 }
@@ -48,7 +50,7 @@ function gs_open(ip, pwd) {
       <span py:replace="debug"/><br />
 
       <!-- GS login form -->
-      <form name="gs_login" action="" method="post" target="_blank">
+      <form name="phone_login" action="" method="post" target="_blank">
          <input type="hidden" name="P2" value=""/>
          <input type="hidden" name="gnkey" value="0b82"/>
       </form>

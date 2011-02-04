@@ -313,14 +313,14 @@ class ManagerEvents(ManagerClient):
          print ' * * * ERROR: event without event ?', dict
          return
       e = dict['Event']
-      print e, dict
+      #print e, dict
    
       # When we look if we have a handler function
 #      if e=='CEL':
 #         print ' * * * CEL ', dict, '* ' * 20
 #         return
       if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
-            'MusicOnHold'):
+            'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete' ):
          return
       if e=='Newchannel':
          self.handle_Newchannel(dict)
@@ -336,6 +336,8 @@ class ManagerEvents(ManagerClient):
          self.handle_Rename(dict)
       elif e=='PeerStatus':
          self.handle_PeerStatus(dict)
+      elif e=='PeerEntry':
+         self.handle_PeerEntry(dict)
       elif e=='MessageWaiting':
          self.handle_MessageWaiting(dict)
       elif e=='Shutdown':
@@ -366,7 +368,7 @@ class ManagerEvents(ManagerClient):
          print ' * * * NOT IMPLEMENTED', dict, '* ' * 20
          return
       else:
-         print ' * * * UNKOWN', dict, '* ' * 20
+         print ' * * * UNKNOWN', e, dict, '* ' * 20
          return
 
       print '-' * 40
@@ -612,7 +614,30 @@ class ManagerEvents(ManagerClient):
             'LastUpdate': time.time()}
       if 'Address' in dict:
          registry[dict['Peer']]['Address'] = dict['Address']
+      peer_data = self.action('SIPshowPeer', Peer=peer[4:].encode('iso-8859-1'))
+      for x in peer_data:
+         if x.startswith('SIP-Useragent: '):
+            registry[peer]['UserAgent'] = x.replace('SIP-Useragent: ','')
+            break
 
+
+   def handle_PeerEntry(self,dict):
+      '''
+      '''
+      global registry
+      peer = dict['Channeltype'] + '/' + dict['ObjectName']
+      status = 'Registered' if dict['Status'].startswith('OK ') else dict['Status']
+      addr = None if dict['IPaddress']=='-none-' else dict['IPaddress']
+      if peer in registry:
+         registry[peer]['PeerStatus'] = status
+         registry[peer]['LastUpdate'] = time.time()
+         registry[peer]['Address'] = addr
+      else:
+         registry[peer] = {
+            'PeerStatus': status,
+            'LastUpdate': time.time(),
+            'Address': addr
+            }
 
    def handle_MessageWaiting(self, dict):
       # Event: MessageWaiting

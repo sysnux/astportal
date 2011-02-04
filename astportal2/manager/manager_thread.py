@@ -27,6 +27,9 @@ class manager_thread(Thread):
       log.debug('run')
       Globals.manager = ManagerEvents(self.host, self.user, self.secret)
       Globals.manager.action('Status')
+      Globals.manager.action('QueueStatus')
+      Globals.manager.action('SIPpeers')
+      Globals.manager.action('IAXpeers')
       log.debug('Waiting for events...')
       asyncore.loop()
 

@@ -64,8 +64,8 @@ class Phone(DeclarativeBase):
    '''
    __tablename__ = 'phone'
    phone_id = Column(Integer, autoincrement=True, primary_key=True)
-   ip = Column(Unicode(), nullable=False, unique=True)
-   mac = Column(Unicode(), nullable=False, unique=True)
+   sip_id = Column(Unicode(), nullable=False, unique=True)
+   mac = Column(Unicode()) # MAC can be null (DECT)
    password = Column(Unicode())
    context = Column(Unicode())
    callgroups = Column(Unicode())
@@ -102,6 +102,15 @@ class Phonebook(DeclarativeBase):
 
 class View_phonebook(DeclarativeBase):
    '''
+CREATE VIEW view_pb AS (SELECT -tg_user.user_id as pb_id, 
+   lastname, firstname, '__COMPANY__' AS company, 
+   number AS phone1, '' AS phone2, '' AS phone3, 'f' AS private, 
+   -1 as user_id
+   FROM tg_user, phone WHERE phone.user_id=tg_user.user_id
+UNION
+   SELECT pb_id, lastname, firstname, company, phone1, 
+   phone2, phone3, private, user_id
+   FROM phonebook);
    '''
    __tablename__ = 'view_pb'
    pb_id = Column(Integer, primary_key=True)

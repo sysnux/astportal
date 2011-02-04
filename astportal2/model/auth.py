@@ -199,7 +199,7 @@ class Permission(DeclarativeBase):
     """
     
     __tablename__ = 'tg_permission'
-    
+ 
     #{ Columns
     permission_id = Column(Integer, autoincrement=True, primary_key=True)
     permission_name = Column(Unicode(16), unique=True, nullable=False)

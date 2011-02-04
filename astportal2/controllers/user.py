@@ -225,7 +225,8 @@ class User_ctrl(RestController):
       log.info('new ' + kw['user_name'])
       u = User()
       u.user_name = kw['user_name']
-      u.display_name = kw['lastname'] + ' ' + kw['firstname']
+      u.firstname = kw['firstname']
+      u.lastname = kw['lastname']
       u.email_address = kw['email_address']
       u.password = kw['pwd1']
       #u.phone = [DBSession.query(Phone).get(kw['phone_id'])]
@@ -291,7 +292,8 @@ class User_ctrl(RestController):
          redirect('/')
       log.info('update %d' % kw['user_id'])
       u = DBSession.query(User).get(kw['user_id'])
-      u.display_name = kw['lastname'] + ' ' + kw['firstname']
+      u.firstname = kw['firstname']
+      u.lastname = kw['lastname']
       u.email_address = kw['email_address']
       if kw['pwd1'] and kw['pwd1'] != '      ':
          u.password = kw['pwd1']
