@@ -174,7 +174,7 @@ P399 = 'french',
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
-         mwi_subscribe=0):
+         mwi_subscribe=False):
       '''Parameters: firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None
       '''
@@ -195,7 +195,7 @@ P399 = 'french',
             self.params['P28']) = dns2.split('.')
 
       self.params['P270'] = 'Asterisk'
-      self.params['P99'] = mwi_subscribe
+      self.params['P99'] = 1 if mwi_subscribe else 0
       if sip_server:
          self.params['P47'] = sip_server
          self.params['P35'] = sip_user
@@ -223,13 +223,13 @@ P399 = 'french',
       self.params['P78'] = ''
       self.params['P52'] = \
       self.params['P29'] = \
+      self.params['P182'] = \
+      self.params['P58'] = \
          0
       self.params['P33'] = '*79'
       self.params['P73'] = 1
       self.params['P1347'] = '**'
-      self.params['P182'] = '2'
       self.params['P57'] = 8
-      self.params['P58'] = 0
 
       # Generate conf files (text and binary)
       name = tftp_dir + '/phones/config/gs-cfg%s' % self.mac.replace(':','')

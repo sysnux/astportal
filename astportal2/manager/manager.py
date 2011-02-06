@@ -19,6 +19,8 @@
 
 
 import sys, os, time, socket, asyncore, asynchat # , string
+import logging
+log = logging.getLogger(__name__)
 
 #
 # Oh, this beast is complex. In order to be able to comprehend it in
@@ -142,7 +144,7 @@ class ManagerClient(asynchat.async_chat):
    def close(self):
       """Close event callback from asyncore/asynchat."""
 
-      #print "close()"
+      print "close()"
       asynchat.async_chat.close(self)
       self.loggedin = False
       if self.reconnect:
@@ -162,7 +164,7 @@ class ManagerClient(asynchat.async_chat):
 
       self.closing = True
       t, v, tb = sys.exc_info()
-      #print "handle_error(), t:",t
+      print "handle_error(), t:",t
       #print "handle_error(), v:",v
       #print "handle_error(), tb:",tb
       #while tb:
@@ -170,6 +172,9 @@ class ManagerClient(asynchat.async_chat):
       #  tb = tb.next
       if t != socket.error:
          asynchat.async_chat.handle_error(self)
+
+      #self.do_connect()
+
 
 
    def collect_incoming_data(self, data):
@@ -225,12 +230,15 @@ class ManagerClient(asynchat.async_chat):
 
       self.seq = self.seq + 1
       id = 'destar-%d-%08x' % (os.getpid(), self.seq)
-      #print "call_nowait(), id", id, "to None"
+      print "call_nowait(), id", id, "to None"
       self.action_data[id] = None
       self.push('Action: %s\r\n' % action)
       self.push('ActionID: %s\r\n' % id)
       for k in args:
-         self.push('%s: %s\r\n' % (k,args[k]))
+         self.push('%s: %s\r\n' % (
+            (k.replace('_','-')).encode('iso-8859-1'),
+            args[k].encode('iso-8859-1') ) )
+         print k.replace('_','-'), args[k]
       self.push('\r\n')
       return id
 
@@ -254,7 +262,7 @@ class ManagerClient(asynchat.async_chat):
 
       #res = map(string.strip, self.call(act,**args).split('\n'))
       res = self.call(act, **args)
-      print "action(), res:", res
+      #print "action(), res:", res
       if res[1].startswith('ActionID:'):
          del res[1]
       if res[0]=='Response: Follows':
@@ -291,6 +299,25 @@ members  = {}
 last_update = time.time()
 
 class ManagerEvents(ManagerClient):
+
+   def update_config(self, file, reload, actions):
+      ''' Update an Asterisk configuration file
+      '''
+      i = 0
+      log.debug('Updating Asterisk config file <%s>' % file)
+      params = {'SrcFilename': file, 'Reload': reload, 'DstFilename': file}
+      for a in actions:
+         params['Action_%06d' % i] = a[0]
+         params['Cat_%06d' % i] = a[1]
+         if len(a)==3:
+            params['Var_%06d' % i] = a[2]
+         elif len(a)==4:
+            params['Var_%06d' % i] = a[2]
+            params['Value_%06d' % i] = a[3]
+         i += 1
+
+      return self.action( 'UpdateConfig', **params )
+
 
    def handle_event(self, data):
       # First we convert the array into a dict:
@@ -372,22 +399,22 @@ class ManagerEvents(ManagerClient):
          return
 
       print '-' * 40
-      print "CHANNELS:"
-      for c, d in channels.iteritems():
-         print '\t', c, d
-      print "REGISTRY:"
-      for r, d in registry.iteritems():
-         print '\t', r, d
-      print "MESSAGES:"
-      for m, d in messages.iteritems():
-         print '\t', m, d
-      print "QUEUES:"
-      for q, d in queues.iteritems():
-         print '\t', q, d
-      print "MEMBERS:"
-      for m, d in members.iteritems():
-         print '\t', m, d
-      print '-' * 40
+#      print "CHANNELS:"
+#      for c, d in channels.iteritems():
+#         print '\t', c, d
+#      print "REGISTRY:"
+#      for r, d in registry.iteritems():
+#         print '\t', r, d
+#      print "MESSAGES:"
+#      for m, d in messages.iteritems():
+#         print '\t', m, d
+#      print "QUEUES:"
+#      for q, d in queues.iteritems():
+#         print '\t', q, d
+#      print "MEMBERS:"
+#      for m, d in members.iteritems():
+#         print '\t', m, d
+#      print '-' * 40
       global last_update
       last_update = time.time()
 
@@ -614,7 +641,7 @@ class ManagerEvents(ManagerClient):
             'LastUpdate': time.time()}
       if 'Address' in dict:
          registry[dict['Peer']]['Address'] = dict['Address']
-      peer_data = self.action('SIPshowPeer', Peer=peer[4:].encode('iso-8859-1'))
+      peer_data = self.action('SIPshowPeer', Peer=peer[4:])
       for x in peer_data:
          if x.startswith('SIP-Useragent: '):
             registry[peer]['UserAgent'] = x.replace('SIP-Useragent: ','')
