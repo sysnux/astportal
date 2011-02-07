@@ -39,7 +39,7 @@ base_config.DBSession = astportal2.model.DBSession
 
 
 # YOU MUST CHANGE THIS VALUE IN PRODUCTION TO SECURE YOUR APP
-base_config.sa_auth.cookie_secret = "SysNuX"
+base_config.sa_auth.cookie_secret = "AstPortal (c) SysNux \o/"
 
 # Configure the authentication backend
 base_config.auth_backend = 'sqlalchemy'

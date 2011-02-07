@@ -245,13 +245,12 @@ class Manager(object):
             if isinstance(value, list):
                for item in value:
                   item = tuple([key, item])
-                  clist.append('%s: %s'.encode('iso-8859-1') % item)
+                  clist.append('%s: %s' % item)
             else:
                item = tuple([key, value])
-               clist.append('%s: %s'.encode('iso-8859-1') % item)
+               clist.append('%s: %s' % item)
         clist.append(EOL)
         command = EOL.join(clist)
-        print command
 
         # lock the socket and send our command
         try:
@@ -624,21 +623,22 @@ class Manager(object):
     def update_config(self, file, reload, actions):
         ''' Update an Asterisk configuration file
         '''
-        i = 0
-        print('Updating Asterisk config file <%s>' % file)
         cdict = {'Action': 'UpdateConfig',
-                'SrcFilename': file, 'Reload': reload, 'DstFilename': file}
+                'SrcFilename': file, 
+                'DstFilename': file,
+                'Reload': reload,
+                }
+        i = 0
         for a in actions:
-            cdict['Action_%06d' % i] = a[0]
-            cdict['Cat_%06d' % i] = a[1]
+            cdict['Action-%06d' % i] = a[0]
+            cdict['Cat-%06d' % i] = a[1]
             if len(a)==3:
-                cdict['Var_%06d' % i] = a[2]
+                cdict['Var-%06d' % i] = a[2]
             elif len(a)==4:
-                cdict['Var_%06d' % i] = a[2]
-                cdict['Value_%06d' % i] = a[3]
+                cdict['Var-%06d' % i] = a[2]
+                cdict['Value-%06d' % i] = a[3]
             i += 1
 
-        print(cdict)
         return self.send_action( cdict )
 
 
