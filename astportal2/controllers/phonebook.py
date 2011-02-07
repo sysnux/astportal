@@ -361,9 +361,14 @@ class Phonebook_ctrl(RestController):
          return dict(status=2)
       chan = request.identity['user'].phone[0].number
       log.debug('Echo test for extension ' + chan)
-      res = Globals.manager.originateCallApp('SIP/' + chan.encode('iso-8859-1'),
-            'Echo', '')
-      status = 0 if res[0]=='Success' else 1
+      res = Globals.manager.originate(
+            'SIP/' + chan.encode('iso-8859-1'), # Channel
+            '199', # Extension
+            context='interne',
+            priority='1',
+            caller_id='AstPortal <501040>'
+            )
+      status = 0 if res=='Success' else 1
       return dict(status=status)
 
 
@@ -375,13 +380,14 @@ class Phonebook_ctrl(RestController):
          return dict(status=2)
       chan = request.identity['user'].phone[0].number
       log.debug('Call from extension %s to %s' % (chan, number))
-      res = Globals.manager.originateCallExt(
+      res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel
-            'interne', # Context
             number.encode('iso-8859-1'), # Extension
-            '1', # Priority
-            'AstPortal <501040>' # CallerID
+            context='interne',
+            priority='1',
+            caller_id='AstPortal <501040>'
             )
-      status = 0 if res[0]=='Success' else 1
+      log.debug(res)
+      status = 0 if res=='Success' else 1
       return dict(status=status)
 

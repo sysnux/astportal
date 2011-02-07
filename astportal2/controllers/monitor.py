@@ -6,6 +6,7 @@ from tg.controllers import TGController
 from repoze.what.predicates import in_group
 
 from astportal2.manager import manager
+from astportal2.lib.app_globals import Globals
 
 from time import sleep
 
@@ -33,7 +34,8 @@ class Monitor_ctrl(TGController):
       i = 0
       for i in xrange(50):
          sleep(1)
-         if float(manager.last_update) > last: break
+         last_update = float(Globals.asterisk.last_update)
+         if last_update > last: break
       log.debug('monitor returns after sleeping %d sec', i)
-      return dict(last_update=manager.last_update, channels=manager.channels)
+      return dict(last_update=last_update, channels=Globals.asterisk.channels)
 

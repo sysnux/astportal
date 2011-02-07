@@ -41,16 +41,35 @@ def make_app(global_conf, full_stack=True, **app_conf):
     # Wrap your base TurboGears 2 application with custom middleware here
     
     # Start Asterisk manager thread(s)
-    import astportal2.manager.manager_thread
+#    import astportal2.manager.manager_thread
+    from astportal2.pyst import manager
+    from astportal2.lib.app_globals import Globals
+    from astportal2.lib import asterisk
+    Globals.asterisk = asterisk.Status()
     try:
        man = eval(config.get('asterisk.manager'))
-       log.debug(man)
-       for m in man:
-          mt = astportal2.manager.manager_thread.manager_thread(m[0], m[1], m[2])
-          mt.start()
-          log.info('Connected to Asterisk manager on "%s"' % m[0])
+       log.debug(man[0])
+       Globals.manager = manager.Manager()
+       log.debug('Connect...')
+       Globals.manager.connect(man[0][0])
+       log.debug('Login...')
+       Globals.manager.login(man[0][1],man[0][2])
+       log.debug('Register events...')
+       Globals.manager.register_event('*', Globals.asterisk.handle_event)
+       log.debug('Request status...')
+       Globals.manager.status()
+       log.info('Connected to Asterisk manager on "%s"' % man[0][0])
+#       for m in man:
+#          mt = astportal2.manager.manager_thread.manager_thread(m[0], m[1], m[2])
+#          mt.start()
+#          log.info('Connected to Asterisk manager on "%s"' % m[0])
+    except manager.ManagerSocketException, (errno, reason):
+       log.error('Error connecting to the manager: %s' % reason)
+    except manager.ManagerAuthException, reason:
+       log.error('Error logging in to the manager: %s' % reason)
+    except manager.ManagerException, reason:
+       log.error('Error: %s' % reason)
     except:
        log.error('Configuration error, manager thread NOT STARTED (check asterisk.manager)')
-
 
     return app

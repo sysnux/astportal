@@ -18,7 +18,6 @@ from astportal2.model import DBSession, Phone, Department, User
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.grandstream import Grandstream
 from astportal2.lib.app_globals import Globals
-from astportal2.manager import manager
 
 from string import letters, digits
 from random import choice
@@ -190,9 +189,9 @@ def row(p):
       (p.user.user_id, p.user.display_name)) if p.user else None
 
    # Find peer
-   if p.sip_id and 'SIP/'+p.sip_id in manager.registry:
+   if p.sip_id and 'SIP/'+p.sip_id in Globals.asterisk.peers:
       peer = p.sip_id
-   elif p.number and 'SIP/'+p.number in manager.registry:
+   elif p.number and 'SIP/'+p.number in Globals.asterisk.peers:
       peer = p.number
    else:
       log.warning('%s not registered ?' % p.sip_id)
@@ -200,16 +199,13 @@ def row(p):
 
    if peer:
       # Peer exists, try to find User agent
-      if 'UserAgent' not in manager.registry['SIP/'+peer]:
-         peer_data = Globals.manager.action('SIPshowPeer', Peer=peer)
-         manager.registry['SIP/'+peer]['UserAgent'] = None
-         for x in peer_data:
-            if x.startswith('SIP-Useragent: '):
-               manager.registry['SIP/'+peer]['UserAgent'] = x.replace('SIP-Useragent: ','')
-               break
-      if manager.registry['SIP/'+peer]['Address']:
-         p_ip = (manager.registry['SIP/'+peer]['Address']).split(':')[0]
-         ua = manager.registry['SIP/'+peer]['UserAgent']
+      if 'UserAgent' not in Globals.asterisk.peers['SIP/'+peer]:
+         log.debug('SIPshowPeer(%s)' % peer)
+         res = Globals.manager.sipshowpeer(peer)
+         Globals.asterisk.peers['SIP/'+peer]['UserAgent'] = res.get_header('SIP-Useragent')
+      if Globals.asterisk.peers['SIP/'+peer]['Address']:
+         p_ip = (Globals.asterisk.peers['SIP/'+peer]['Address']).split(':')[0]
+         ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
          if ua and ua.startswith('Grandstream GXP'):
             ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (p_ip, p.password, 'GXP', p_ip))
 
@@ -242,8 +238,8 @@ class Phone_ctrl(RestController):
       ''' List all phones
       '''
       # Refresh Asterisk peers
-      Globals.manager.action('SIPpeers')
-      #Globals.manager.action('IAXpeers')
+      Globals.manager.sippeers()
+      #Globals.manager.send_action('IAXpeers')
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u'Téléphones',
          sortname='number',
@@ -491,13 +487,14 @@ class Phone_ctrl(RestController):
       if mwi_subscribe and p.number:
          actions.append(('Append', sip_id, 'mailbox', '%s@astportal' % p.number))
       # ... then really update
-      Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
+      res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
             'chan_sip', actions)
+      log.debug('Update sip.conf returns %s' % res)
 
       if p.number:
          # Update Asterisk DataBase
-         Globals.manager.action('DBput',
-            family='exten', key=p.number, val=sip_id)
+         Globals.manager.send_action({'Action': 'DBput',
+            'Family': 'exten', 'Key': p.number, 'Val': sip_id})
 
       if need_voicemail_update:
          vm = '>%s,%s,%s' \
@@ -506,8 +503,10 @@ class Phone_ctrl(RestController):
             # XXX ('Delete', 'astportal', p.number),
             ('Append', 'astportal', p.number, vm),
             ]
-         Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
+         res = Globals.manager.update_config(
+               directory_asterisk  + 'voicemail.conf', 
                'app_voicemail_plain', actions)
+         log.debug('Update voicemail.conf returns %s' % res)
 
       if 'context' in kw:
          # Create contexts
@@ -517,8 +516,9 @@ class Phone_ctrl(RestController):
             ]
          for c in kw['context']:
             actions.append(('Append', sip_id, 'include', '>%s' % c))
-         Globals.manager.update_config(directory_asterisk  + 'extensions.conf', 
-               'dialplan', actions)
+         res = Globals.manager.update_config(
+               directory_asterisk  + 'extensions.conf', 'dialplan', actions)
+         log.debug('Update extensions.conf returns %s' % res)
 
       if kw['mac']:
          # Create provisionning file if MAC exists
@@ -685,7 +685,8 @@ class Phone_ctrl(RestController):
 
       if number:
          # Update Asterisk DataBase
-         Globals.manager.action('DBdel', family='exten', key = number)
+         Globals.manager.send_action({'Action': 'DBdel',
+            'Family': 'exten', 'Key': number})
 
       # Update Asterisk config files
       actions = [ ('DelCat', sip_id) ]
