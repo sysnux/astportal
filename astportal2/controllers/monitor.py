@@ -5,7 +5,6 @@ from tg.controllers import TGController
 
 from repoze.what.predicates import in_group
 
-from astportal2.manager import manager
 from astportal2.lib.app_globals import Globals
 
 from time import sleep
