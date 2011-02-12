@@ -50,8 +50,8 @@ class Status(object):
          self._handle_PeerStatus(event.headers)
       elif e=='PeerEntry':
          self._handle_PeerEntry(event.headers)
-#      elif e=='MessageWaiting':
-#         self._handle_MessageWaiting(event.headers)
+      elif e=='MessageWaiting':
+         self._handle_MessageWaiting(event.headers)
       elif e=='Shutdown':
          self._handle_Shutdown(event.headers)
       elif e=='Reload':
@@ -78,7 +78,7 @@ class Status(object):
          self._handle_Leave(event.headers)
       elif e == 'CEL':
          self._handle_CEL(event.headers)
-      elif e in ('MessageWaiting', 'ExtensionStatus', 'Dial'):
+      elif e in ('ExtensionStatus', 'Dial'):
          log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
       else:
          log.warning('Event not handled "%s"' % e)
