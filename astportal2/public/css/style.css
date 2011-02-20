@@ -39,8 +39,6 @@ a.link, a, a.active {
 }
 
 .menu {
-/*  background: #fff url(images/menuback.png) repeat-y; */
- background: #fff;
  left: 10px;
  padding-bottom: 0.5ex;
  /* width:  150px; */
@@ -48,7 +46,7 @@ a.link, a, a.active {
  /* position: absolute; */
  position: fixed;
  float: left;
- margin-top: 40px;
+ margin-top: 80px;
  margin-left: 0px;
 }
 
@@ -57,16 +55,27 @@ a.link, a, a.active {
         position: fixed;
 }
 */
-.menulist {
+.jd_menu {
    padding-left: 0px;
    width:  120px;
+   background: white;
+   border: none;
 }
 
-.menuitem {
+.jd_menu li {
    list-style-type: none;
-   height: 35px;
-   padding-left: 40px;
-   margin-top: 10px;
+   clear: left;
+}
+
+.jd_menu img { 
+   vertical-align: middle;
+   float: left;
+   margin: 3px;
+}
+
+.sidebar_level1 {
+   display: none;
+   padding-left: 10px;
 }
 
 /* margin: top right bottom left */
@@ -80,7 +89,7 @@ a.link, a, a.active {
   border-left: 1px solid #aaa;
   z-index: 0;
 }
-
+/*
 #sidebar {
   border: 3px solid #aaa;
   background-color: #eee;
@@ -99,7 +108,7 @@ a.link, a, a.active {
   margin-left: 1.5em;
   padding-left: 0;
 }
-
+*/
 h1,h2,h3,h4,h5,h6,#getting_started_steps {
   font-family: "Century Schoolbook L", Georgia, serif;
   font-weight: bold;

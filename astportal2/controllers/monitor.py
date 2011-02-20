@@ -2,6 +2,7 @@
 
 from tg import config, expose
 from tg.controllers import TGController
+from tgext.menu import navbar, sidebar, menu
 
 from repoze.what.predicates import in_group
 
@@ -17,6 +18,8 @@ class Monitor_ctrl(TGController):
  
    allow_only = in_group('admin',msg=u'Veuiller vous connecter pour continuer')
 
+   @sidebar(u'-- Administration || Surveillance', sortorder = 11,
+      icon = '/images/astronomy_section.png')
    @expose(template="astportal2.templates.monitor")
    def index(self):
       '''

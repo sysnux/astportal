@@ -4,6 +4,7 @@
 
 from tg import expose, flash, redirect, tmpl_context, validate
 from tg.controllers import RestController
+from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group
 
@@ -77,6 +78,8 @@ class Group_ctrl(RestController):
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les groupes')
 
 
+   @sidebar(u'-- Administration || Groupes', sortorder = 14,
+      icon = '/images/system-users.png')
    @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List all groups

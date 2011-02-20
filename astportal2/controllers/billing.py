@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from tg import expose, flash, redirect, tmpl_context, request, response, validate
+from tgext.menu import sidebar
 from astportal2.model import DBSession, CDR, Department, Phone, User
 from tg.decorators import allow_only
 from repoze.what.predicates import not_anonymous, in_group, in_any_group
@@ -11,6 +12,7 @@ from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSe
 from tw.forms.validators import DateConverter
 
 from astportal2.lib.myjqgrid import MyJqGrid
+from astportal2.lib.base import BaseController
 
 from sqlalchemy import func #, sql, types
 import datetime
@@ -256,15 +258,16 @@ def fetch(report_type, page, rows):
    return dict(page=page, total=total, rows=data)
 
 
-class Billing_ctrl:
+class Billing_ctrl(BaseController):
    '''Billing controller
    '''
 
-   allow_only = not_anonymous('NOT ANONYMOUS')
+   allow_only = not_anonymous('Veuillez vous connecter pour continuer')
    paginate_limit = 25
 
 
-   @expose(template="astportal2.templates.form_new")
+   @sidebar(u'Facturation', sortorder = 3, icon = '/images/ktimetracker.png')
+   @expose('genshi:astportal2.templates.form_new')
    def index(self, **kw):
       '''Formulaire facturation
       '''

@@ -2,12 +2,14 @@
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, response
 from tg.controllers import CUSTOM_CONTENT_TYPE, WSGIAppController
+from tgext.menu import sidebar
 import paste.fileapp
 from tg.decorators import allow_only
 from repoze.what.predicates import not_anonymous, in_group, in_any_group
 
 from astportal2.model import DBSession, CDR, Phone
 from astportal2.lib.myjqgrid import MyJqGrid
+from astportal2.lib.base import BaseController
 
 import logging
 log = logging.getLogger("astportal.controllers.cdr")
@@ -150,14 +152,16 @@ cdr_grid = MyJqGrid(
    sortorder = 'desc',
    )
 
-class Display_CDR:
+class Display_CDR(BaseController):
 
    allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
    paginate_limit = 25
    filtered_cdrs = None
 
 
-   @expose(template="astportal2.templates.cdr")
+   @sidebar(u'Journal des appels',  sortorder = 2,
+         icon = '/images/databases_section.png')
+   @expose("genshi:astportal2.templates.cdr")
    def index(self, **kw):
 
       global filtered_cdrs

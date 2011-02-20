@@ -4,6 +4,7 @@
 
 from tg import expose, flash, redirect, tmpl_context, validate, require
 from tg.controllers import RestController
+from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group
 
@@ -228,12 +229,14 @@ def row(p):
 
 
 class Phone_ctrl(RestController):
-   
+ 
    new_phone = ''
    allow_only = in_group('admin', 
       msg=u'Vous devez appartenir au groupe "admin" pour gérer les téléphones')
 
-   @expose(template="astportal2.templates.grid_phone")
+   @sidebar(u'-- Administration || Téléphones', sortorder = 10,
+      icon = '/images/internet-telephony.png')
+   @expose('genshi:astportal2.templates.grid_phone')
    def get_all(self):
       ''' List all phones
       '''

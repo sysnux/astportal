@@ -27,6 +27,7 @@ setup(
         "repoze.who ==1.0.18",
         "tgext.admin>=0.3.9",
         "tw.forms",
+        "tgext.menu",
         ],
     setup_requires=["PasteScript >= 1.7"],
     paster_plugins=['PasteScript', 'Pylons', 'TurboGears2'],

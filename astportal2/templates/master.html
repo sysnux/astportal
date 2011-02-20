@@ -18,7 +18,7 @@
 //<![CDATA[
 
 $(document).ready(function () {
-   $('#menu_toggle_link').css('height',$('#menulist').css('height'));
+   $('#menu_toggle_link').css('height',$('#sidebar_div').css('height'));
    $('#menu_toggle_link').css('cursor','pointer');
    $('#menu_toggle_link').click(menu_toggle);
 });
@@ -26,12 +26,12 @@ $(document).ready(function () {
 var menu_status=1;
 function menu_toggle() {
    if (menu_status) {
-      $('#menulist').hide();
+      $('#sidebar_div').hide();
       $('#main_content').css('padding-left', '60px');
       $('#menu_toggle_link').text('>');
       menu_status=0;
    } else {
-      $('#menulist').show();
+      $('#sidebar_div').show();
       $('#main_content').css('padding-left', '180px');
       $('#menu_toggle_link').text('<');
       menu_status=1;
@@ -66,17 +66,9 @@ function menu_toggle() {
 
    <!-- Menu -->
    <div id="menu" class="menu">
-      <table><tr><td><ul id="menulist" class="menulist">
-         <li class="menuitem" style="background: url('/images/home-mdk.png') left center no-repeat;"><br/><a href="/">Accueil</a></li>
-         <li class="menuitem" style="background: url('/images/astronomy_section.png') left center no-repeat;"><br/><a href="/monitor/">Surveillance</a></li>
-         <li class="menuitem" style="background: url('/images/phonebook-small.jpg') left center no-repeat;"><br/><a href="/phonebook/">Annuaire</a></li>
-         <li class="menuitem" style="background: url('/images/databases_section.png') left center no-repeat;"><br/><a href="/cdr/">Journal des appels</a></li>
-         <li class="menuitem" style="background: url('/images/ktimetracker.png') left center no-repeat;"><br/><a href="/billing/">Facturation</a></li>
-         <li class="menuitem" style="background: url('/images/preferences-desktop-user.png') left center no-repeat;"><br/><a href="/users/">Utilisateurs</a></li>
-         <li class="menuitem" style="background: url('/images/internet-telephony.png') left center no-repeat;"><br/><a href="/phones/">Téléphones</a></li>
-         <li class="menuitem" style="background: url('/images/kdf.png') left center no-repeat;"><br/><a href="/departments/">Services</a></li>
-         <li class="menuitem" style="background: url('/images/system-users.png') left center no-repeat;"><br/><a href="/groups/">Groupes</a></li>
-      </ul></td><td id="menu_toggle_link" style="background: #ccc">&lt;</td></tr></table>
+      <table><tr><td>
+         ${HTML(render_sidebar())}
+      </td><td id="menu_toggle_link" style="background: #ccc">&lt;</td></tr></table>
    </div>
 
    <!-- Contenu -->

@@ -2,9 +2,10 @@
 """Main Controller"""
 
 from tg import expose, flash, require, url, request, redirect
+from tgext.menu import sidebar
 from pylons.i18n import ugettext as _, lazy_ugettext as l_
 
-from repoze.what.predicates import is_anonymous
+from repoze.what.predicates import is_anonymous, in_group
 
 from astportal2.lib.base import BaseController
 
@@ -53,6 +54,8 @@ class RootController(BaseController):
 
    error = ErrorController()
 
+   @sidebar(u'Accueil', sortorder = 0,
+      icon = '/images/home-mdk.png')
    @expose('astportal2.templates.index')
    def index(self):
       """Handle the front-page."""

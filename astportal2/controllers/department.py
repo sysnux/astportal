@@ -4,6 +4,7 @@
 
 from tg import expose, flash, redirect, tmpl_context, validate
 from tg.controllers import RestController
+from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group
 
@@ -74,7 +75,9 @@ class Dptm_ctrl(RestController):
    allow_only = in_group('admin', 
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les services')
 
-   @expose(template="astportal2.templates.grid")
+   @sidebar(u'-- Administration || Services',
+      icon = '/images/kdf.png', sortorder = 13)
+   @expose("genshi:astportal2.templates.grid")
    def get_all(self):
       ''' List all departments
       '''

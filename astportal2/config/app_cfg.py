@@ -64,3 +64,8 @@ base_config.sa_auth.post_login_url = '/post_login'
 # on logout:
 base_config.sa_auth.post_logout_url = '/post_logout'
 
+import tgext.menu
+base_config.variable_provider = tgext.menu.menu_variable_provider
+# base_config.tgext_menu = {}
+# base_config.tgext_menu['inject_css'] = True
+

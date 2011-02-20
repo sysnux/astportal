@@ -4,6 +4,7 @@
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, require
 from tg.controllers import RestController
+from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group, not_anonymous
 
@@ -114,7 +115,10 @@ def row(u):
 class User_ctrl(RestController):
 
    allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
-
+   
+   @sidebar(u'-- Administration || Utilisateurs', sortorder = 12,
+      icon = '/images/preferences-desktop-user.png',
+      permission = in_group('admin'))
    @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List all users
@@ -236,11 +240,16 @@ class User_ctrl(RestController):
       redirect('/users/')
 
 
+   @sidebar('Compte', sortorder = 4, icon = '/images/user-identity.png')
    @expose(template="astportal2.templates.form_new")
    def edit(self, id=None, **kw):
       ''' Display edit user form
       '''
-      if not id: id=kw['user_id']
+      if not id: 
+         if 'user_id' in kw:
+            id = kw['user_id']
+         else:
+            id = request.identity['user'].user_id
       if not in_group('admin') and request.identity['user'].user_id != int(id):
          flash(u'Accès interdit !', 'error')
          redirect('/')

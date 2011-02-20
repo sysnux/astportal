@@ -4,6 +4,7 @@
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, response
 from tg.controllers import RestController
+from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group
 
@@ -125,6 +126,9 @@ def row(pb):
 class Phonebook_ctrl(RestController):
    
 
+   @sidebar(u'Annuaire',
+         sortorder = 1,
+         icon = '/images/phonebook-small.jpg')
    @expose(template="astportal2.templates.grid_phonebook")
    def get_all(self):
       ''' List all
