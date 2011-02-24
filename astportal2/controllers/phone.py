@@ -2,7 +2,7 @@
 # Phone CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, require
+from tg import expose, flash, redirect, tmpl_context, validate, require, config
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -19,14 +19,13 @@ from astportal2.model import DBSession, Phone, Department, User
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.grandstream import Grandstream
 from astportal2.lib.app_globals import Globals
+from astportal2.lib.asterisk import asterisk_update
 
 from string import letters, digits
 from random import choice
 from os import system, popen #, rename
 import logging
 log = logging.getLogger(__name__)
-
-from tg import config
 
 server_sip = config.get('server.sip')
 server_firmware = config.get('server.firmware')
@@ -38,21 +37,22 @@ command_arp = config.get('command.arp')
 directory_tftp = config.get('directory.tftp')
 directory_asterisk = config.get('directory.asterisk')
 
-vendors = {
+_vendors = {
    '00:0b:82': 'Grandstream',
    '00:04:f2': 'Polycom',
    '00:90:7a': 'Polycom',
 }
 
-contexts = ((1, u'Urgences'), (2, u'Interne'), (3, u'Services'), 
-   (4, u'Local'), (5, u'Iles'), (6, u'GSM'), 
-   (7, u'International IP'), (8, u'International RTC'))
+_contexts = (('urgent', u'Urgences'), ('internal', u'Interne'), 
+   ('services', u'Services'), ('local', u'Local'), ('islands', u'Iles'), 
+   ('gsm', u'GSM'), ('international_ip', u'International IP'),
+   ('international_pstn', u'International RTC'))
 
-callgroups = ((1, u'Groupe 1'), (2, u'Groupe 2'), (3, u'Groupe 3'), 
+_callgroups = ((1, u'Groupe 1'), (2, u'Groupe 2'), (3, u'Groupe 3'), 
    (4, u'Groupe 4'), (5, u'Groupe 5'), (6, u'Groupe 6'), 
    (7, u'Groupe 7'), (8, u'Groupe 8'), (9, 'Groupe 9'))
 
-pickupgroups = ((1, u'Groupe 1'), (2, u'Groupe 2'), (3, u'Groupe 3'), 
+_pickupgroups = ((1, u'Groupe 1'), (2, u'Groupe 2'), (3, u'Groupe 3'), 
    (4, u'Groupe 4'), (5, u'Groupe 5'), (6, u'Groupe 6'), 
    (7, u'Groupe 7'), (8, u'Groupe 8'), (9, 'Groupe 9'))
 
@@ -99,27 +99,25 @@ class New_phone_form(AjaxForm):
       TextField('number', validator=Int,
          not_empty = False,
          label_text=u'Numéro', help_text=u'Entrez le numéro du téléphone'),
-      CheckBoxTable('context',  validator=Int,
-         options = contexts,
+      CheckBoxTable('contexts',  validator=Int,
+         options = _contexts,
          not_empty = False,
-         default = (1,2,3),
-         label_text=u'Contexte', help_text=u'Droits d\'appels'),
+         default = ('urgent','internal','services'),
+         label__text=u'Droits d\'appels'),
       CheckBoxTable('callgroups', validator=Int,
-         options = callgroups,
+         options = _callgroups,
          label_text=u'Groupes d\'appels', 
-         not_empty = False,
-         help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
+         not_empty = False),
       CheckBoxTable('pickupgroups', validator=Int,
-         options=pickupgroups,
+         options = _pickupgroups,
          label_text=u'Groupes d\'interception', 
-         not_empty = False,
-         help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
+         not_empty = False),
       SingleSelectField('dptm_id', options = departments,
          not_empty = False,
-         label_text=u'Service', help_text=u'Service facturé'),
+         label_text=u'Service facturé'),
       SingleSelectField('user_id', options=users,
          not_empty = False,
-         label_text=u'Utilisateur', help_text=u'Utilisateur du téléphone'),
+         label_text=u'Utilisateur'),
       HiddenField('mac', 
          not_empty = False,
          validator=Int),
@@ -150,15 +148,15 @@ class Edit_phone_form(TableForm):
    fields = [
       TextField('number', #validator=Int,
          label_text=u'Numéro', help_text=u'Entrez le numéro du téléphone'),
-      CheckBoxList('context', validator=Int, 
-         options = contexts,
+      CheckBoxList('contexts',
+         options = _contexts,
          label_text=u'Contexte', help_text=u'Droits d\'appels'),
       CheckBoxList('callgroups', validator=Int,
-         options=callgroups,
+         options = _callgroups,
          label_text=u'Groupes d\'appels', 
          help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
       CheckBoxList('pickupgroups', validator=Int,
-         options=pickupgroups,
+         options = _pickupgroups,
          label_text=u'Groupes d\'interception', 
          help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
       SingleSelectField('dptm_id',
@@ -180,22 +178,18 @@ class Edit_phone_form(TableForm):
 edit_phone_form = Edit_phone_form('edit_form_phone')
 
 
-def row(p):
-   '''Displays a formatted row of the phones list
-   Parameter: Phone object
+def peer_info(sip_id=None, number=None):
+   '''Find peer by id or number return ip address and user agent
    '''
-   dptm = Markup(u'<a href="/departments/%d/edit/">%s</a>' % \
-      (p.department.dptm_id, p.department.comment)) if p.department else None
-   user = Markup(u'<a href="/users/%d/edit/">%s</a>' % \
-      (p.user.user_id, p.user.display_name)) if p.user else None
 
-   # Find peer
-   if p.sip_id and 'SIP/'+p.sip_id in Globals.asterisk.peers:
-      peer = p.sip_id
-   elif p.number and 'SIP/'+p.number in Globals.asterisk.peers:
-      peer = p.number
+   if sip_id is not None and 'SIP/'+sip_id in Globals.asterisk.peers:
+      log.debug('peer_info sip_id  %s' % sip_id)
+      peer = sip_id
+   elif number is not None and 'SIP/'+number in Globals.asterisk.peers:
+      log.debug('peer_info number  %s' % number)
+      peer = number
    else:
-      log.warning('%s not registered ?' % p.sip_id)
+      log.warning('%s not registered ?' % sip_id)
       peer = None
 
    if peer:
@@ -205,18 +199,32 @@ def row(p):
          res = Globals.manager.sipshowpeer(peer)
          Globals.asterisk.peers['SIP/'+peer]['UserAgent'] = res.get_header('SIP-Useragent')
       if Globals.asterisk.peers['SIP/'+peer]['Address']:
-         p_ip = (Globals.asterisk.peers['SIP/'+peer]['Address']).split(':')[0]
+         ip = (Globals.asterisk.peers['SIP/'+peer]['Address']).split(':')[0]
          ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
-         if ua and ua.startswith('Grandstream GXP'):
-            ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (p_ip, p.password, 'GXP', p_ip))
-
-         else:
-            ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (p_ip, p_ip))
       else:
          ip = ua = None
 
    else: 
       ip = ua = None
+
+   return ip, ua
+
+
+def row(p):
+   '''Displays a formatted row of the phones list
+   Parameter: Phone object
+   '''
+   dptm = Markup(u'<a href="/departments/%d/edit/">%s</a>' % \
+      (p.department.dptm_id, p.department.comment)) if p.department else None
+   user = Markup(u'<a href="/users/%d/edit/">%s</a>' % \
+      (p.user.user_id, p.user.display_name)) if p.user else None
+
+   ip, ua = peer_info(p.sip_id, p.number)
+   if ua and ua.startswith('Grandstream GXP'):
+            ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, 'GXP', ip))
+
+   else:
+            ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
 
    action =  u'<a href="'+ str(p.phone_id) + u'/edit" title="Modifier">'
    action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
@@ -363,7 +371,7 @@ class Phone_ctrl(RestController):
          return dict(status=3, msg=u"Téléphone injoignable, vérifiez l'adresse")
       (vendor,device) = match.groups()
       log.debug('vendor=%s, device=%s' % (vendor,device))
-      if not vendors.has_key(vendor):
+      if vendor not in _vendors.keys():
          return dict(status=4, msg=u"Type de téléphone inconnu")
 
       mac = '%s:%s' % (vendor,device)
@@ -374,7 +382,7 @@ class Phone_ctrl(RestController):
                      <a href="/phones/%s/edit">modifier</a>.' % p[0].phone_id)
 
       global new_phone
-      if vendors[vendor]=='Grandstream':
+      if _vendors[vendor]=='Grandstream':
          new_phone = Grandstream(ip, mac)
          msg = u"Trouvé téléphone Grandstream : "
          if not new_phone.login(pwd):
@@ -384,7 +392,7 @@ class Phone_ctrl(RestController):
             return dict(status=6, msg=msg+u'erreur login')
          return dict(status = 0, ip = ip, mac = mac, conf = 'grandstream_configure',
                msg = msg + infos['model'] + ', ' + infos['version'])
-      elif vendors[vendor]=='Polycom':
+      elif _vendors[vendor]=='Polycom':
          return dict(status=0, ip=ip, mac=mac, conf='polycom_configure',
                msg=u"Trouvé téléphone Polycom")
 
@@ -411,6 +419,7 @@ class Phone_ctrl(RestController):
    @expose('json')
    def create(self, **kw):
       ''' Create phone:
+
       Create provisionning file.
       If a number is attached to the phone, create exten in Asterisk database.
       If a user is attached to the phone, add callerid to phone ; if the user has
@@ -463,65 +472,10 @@ class Phone_ctrl(RestController):
       if 'pickupgroups' in kw:
          p.pickupgroups = ','.join([str(x) for x in kw['pickupgroups']])
       if 'contexts' in kw:
-         p.context = ','.join([str(x) for x in kw['contexts']])
+         p.contexts = ','.join([str(x) for x in kw['contexts']])
       DBSession.add(p)
 
-      # Build Asterisk UpdateConfig action list...
-      actions = [
-            ('NewCat', sip_id),
-            ('Append', sip_id, 'secret', pwd),
-            ('Append', sip_id, 'type', 'friend'),
-            ('Append', sip_id, 'host', 'dynamic'),
-            ('Append', sip_id, 'context', sip_id),
-            ('Append', sip_id, 'allow', 'g722'),
-            ]
-      if p.callgroups:
-         actions.append(('Append', sip_id, 'callgroups', p.callgroups))
-      if p.pickupgroups:
-         actions.append(('Append', sip_id, 'pickupgroups', p.pickupgroups))
-      if p.user_id:
-         u = DBSession.query(User).get(p.user_id)
-         cidname = u.display_name
-      else:
-         cidname = ''      
-      cidnum = p.number if p.number else ''
-      if cidname or cidnum:
-         actions.append(('Append', sip_id, 'callerid', '%s <%s>' % (cidname,cidnum)))
-      if mwi_subscribe and p.number:
-         actions.append(('Append', sip_id, 'mailbox', '%s@astportal' % p.number))
-      # ... then really update
-      res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
-            'chan_sip', actions)
-      log.debug('Update sip.conf returns %s' % res)
-
-      if p.number:
-         # Update Asterisk DataBase
-         Globals.manager.send_action({'Action': 'DBput',
-            'Family': 'exten', 'Key': p.number, 'Val': sip_id})
-
-      if need_voicemail_update:
-         vm = '>%s,%s,%s' \
-               % (u.password, cidname, u.email_address)
-         actions = [
-            # XXX ('Delete', 'astportal', p.number),
-            ('Append', 'astportal', p.number, vm),
-            ]
-         res = Globals.manager.update_config(
-               directory_asterisk  + 'voicemail.conf', 
-               'app_voicemail_plain', actions)
-         log.debug('Update voicemail.conf returns %s' % res)
-
-      if 'context' in kw:
-         # Create contexts
-         log.debug('Contexts %s' % kw['context'])
-         actions = [
-            ('NewCat', sip_id),
-            ]
-         for c in kw['context']:
-            actions.append(('Append', sip_id, 'include', '>%s' % c))
-         res = Globals.manager.update_config(
-               directory_asterisk  + 'extensions.conf', 'dialplan', actions)
-         log.debug('Update extensions.conf returns %s' % res)
+      asterisk_update(p)
 
       if kw['mac']:
          # Create provisionning file if MAC exists
@@ -544,10 +498,10 @@ class Phone_ctrl(RestController):
       '''
       ident = ''
       log.debug('Edit')
-      p = DBSession.query(Phone).get(id)
+      p = DBSession.query(Phone).get(id) if id else DBSession.query(Phone).get(phone_id)
       v = {'phone_id': p.phone_id,
          'number': p.number,
-         'contexts': p.context.split(',') if  p.context else None,
+         'contexts': p.contexts.split(',') if  p.contexts else None,
          'callgroups': p.callgroups.split(',') if  p.callgroups else None,
          'pickupgroups': p.pickupgroups.split(',') if  p.pickupgroups else None,
          'dptm_id': p.department_id,
@@ -575,55 +529,32 @@ class Phone_ctrl(RestController):
 
    @validate(edit_form_valid(), error_handler=edit)
    @expose()
-   def put(self, phone_id, dptm_id, user_id, number, context,
+   def put(self, phone_id, dptm_id, user_id, number, contexts,
          callgroups=None, pickupgroups=None):
-      ''' Update phone in DB
+      ''' Update phone 
+
+      User and number information is independant from phone, there is no need
+      to modify provisionning file.
+      If a number is attached to the phone, create exten in Asterisk database.
+      If a user is attached to the phone, add callerid to SIP account ; if 
+      the user has email, add voicemail info to sip.conf and add entry in 
+      voicemail.conf. Create or update entry in Asterisk sip.conf.
       '''
-      context += 1
       log.info('update %d' % phone_id)
-      log.debug('Context %s (%d)' % (contexts[context][1],context))
+      log.debug('Contexts %s' % contexts)
       log.debug('Callgroups %s' % callgroups)
       log.debug('Pickupgroups %s' % pickupgroups)
+
       p = DBSession.query(Phone).get(phone_id)
+      old_number = p.number
 
-      if p.ip and p.mac:
-         gs = Grandstream(p.ip, p.mac)
-         gs.login(p.password)
-      else:
-         gs = None
+      if number!=p.number:
+         log.debug('Number has changed, %s -> %s' % (p.number, number))
+         if number=='':
+            p.number = None
+         else:
+            p.number = number
 
-      server = '192.168.0.5'
-      sip_server = None
-      sip_user = None
-      sip_display_name = None
-      mwi_subscribe = False
-      need_sip_update = False
-      need_voicemail_update = False
-      need_phone_update = False
-
-      if number and number!=p.number:
-         log.debug('%s!=%s' % (number,p.number))
-         need_sip_update = need_phone_update = True
-
-         sip_server = '192.168.0.5'
-         sip_user = number
-         sip_display_name = ''
-         mwi_subscribe = False
-
-         if user_id!=-9999:
-            u = DBSession.query(User).get(user_id)
-            sip_display_name = u.display_name
-            if u.email_address:
-               need_voicemail_update = True
-               mwi_subscribe = False
-
-      if need_phone_update and gs:
-         gs.configure( p.password, server + '/phones/firmware', 
-            server + '/phones/config', '192.168.0.5',
-            server + ':8080/phonebook/gs_phonebook_xml', '', '192.168.0.5', '192.168.0.5',
-            sip_server, sip_user, sip_display_name, mwi_subscribe)
-
-      # Save phone info to database
       if p.department_id!=dptm_id:
          if dptm_id==-9999:
             p.department_id = None
@@ -631,45 +562,26 @@ class Phone_ctrl(RestController):
             p.department_id = dptm_id
 
       if p.user_id!=user_id:
-         need_sip_update = True
+         log.debug('User_id has changed, %d -> %d' % (p.user_id, user_id))
          if user_id==-9999:
             p.user_id = None
          else:
             p.user_id = user_id
-            u = DBSession.query(User).get(user_id)
-            if u.email_address:
-               need_voicemail_update = True
-               mwi_subscribe = 1
 
-      if p.number!=number:
-         need_sip_update = True
-         if number=='':
-            p.number = None
-         else:
-            p.number = number
-
-      if p.context!=contexts[context][1]:
-         log.debug('New context %s' % contexts[context][1])
-         need_sip_update = True
-         p.context = contexts[context][1]
+      x = ','.join([str(x) for x in contexts])
+      if p.contexts != x:
+         log.debug('New contexts !')
+         p.contexts = x
 
       x = ','.join([str(x) for x in callgroups])
-      if p.callgroups!=x:
-         need_sip_update = True
+      if p.callgroups != x:
          p.callgroups = x
 
       x = ','.join([str(x) for x in pickupgroups])
-      if p.pickupgroups!=x:
-         need_sip_update = True
+      if p.pickupgroups != x:
          p.pickupgroups = x
 
-      if need_sip_update:
-         # XXX sip_update()
-         pass
-
-      if need_voicemail_update:
-         # XXX voicemail_update()
-         pass
+      asterisk_update(p, old_number)
 
       flash(u'Téléphone modifié')
       redirect('/phones/')
@@ -682,7 +594,6 @@ class Phone_ctrl(RestController):
       log.info('delete ' + kw['_id'])
       p = DBSession.query(Phone).get(kw['_id'])
       number = p.number
-      sip_id = p.sip_id
       DBSession.delete(p)
       flash(u'Téléphone supprimé', 'notice')
 
@@ -692,7 +603,7 @@ class Phone_ctrl(RestController):
             'Family': 'exten', 'Key': number})
 
       # Update Asterisk config files
-      actions = [ ('DelCat', sip_id) ]
+      actions = [ ('DelCat', p.sip_id) ]
       Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
          'chan_sip', actions)
       Globals.manager.update_config(directory_asterisk  + 'extensions.conf', 

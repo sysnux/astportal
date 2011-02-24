@@ -67,7 +67,7 @@ class Phone(DeclarativeBase):
    sip_id = Column(Unicode(), nullable=False, unique=True)
    mac = Column(Unicode()) # MAC can be null (DECT)
    password = Column(Unicode())
-   context = Column(Unicode())
+   contexts = Column(Unicode())
    callgroups = Column(Unicode())
    pickupgroups = Column(Unicode())
    number = Column(Unicode(16), unique=True)
