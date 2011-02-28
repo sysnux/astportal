@@ -352,7 +352,7 @@ class Phonebook_ctrl(RestController):
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.display_name, e.phone[0].number)
+</Contact>''' % (e.display_name, e.phone[0].exten)
 
       xml += '</AddressBook>\n'
 
@@ -363,7 +363,7 @@ class Phonebook_ctrl(RestController):
    def echo(self):
       if len(request.identity['user'].phone)<1:
          return dict(status=2)
-      chan = request.identity['user'].phone[0].number
+      chan = request.identity['user'].phone[0].exten
       log.debug('Echo test for extension ' + chan)
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel
@@ -377,16 +377,16 @@ class Phonebook_ctrl(RestController):
 
 
    @expose('json')
-   def originate(self, number):
+   def originate(self, exten):
       '''
       '''
       if len(request.identity['user'].phone)<1:
          return dict(status=2)
-      chan = request.identity['user'].phone[0].number
-      log.debug('Call from extension %s to %s' % (chan, number))
+      chan = request.identity['user'].phone[0].exten
+      log.debug('Call from extension %s to %s' % (chan, exten))
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel
-            number.encode('iso-8859-1'), # Extension
+            exten.encode('iso-8859-1'), # Extension
             context='interne',
             priority='1',
             caller_id='AstPortal <501040>'

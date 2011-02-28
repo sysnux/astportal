@@ -65,24 +65,25 @@ class Phone(DeclarativeBase):
    __tablename__ = 'phone'
    phone_id = Column(Integer, autoincrement=True, primary_key=True)
    sip_id = Column(Unicode(), nullable=False, unique=True)
-   mac = Column(Unicode()) # MAC can be null (DECT)
+   mac = Column(Unicode()) # MAC can be null (eg. DECT)
    password = Column(Unicode())
    contexts = Column(Unicode())
    callgroups = Column(Unicode())
    pickupgroups = Column(Unicode())
-   number = Column(Unicode(16), unique=True)
+   exten = Column(Unicode(16), unique=True)
+   dnis = Column(Unicode(16), unique=True)
    department_id = Column(Integer, ForeignKey('department.dptm_id'), nullable=False)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    created = Column(DateTime, nullable=False, default=datetime.now)
-   department = relation('Department', backref=backref('phones', order_by=number))
+   department = relation('Department', backref=backref('phones', order_by=exten))
    user = relation('User', backref=backref('phone'))
 
 #   def __init__(self, num, did):
-#      self.number = num
+#      self.exten = num
 #      self.department_id = did
    def __repr__(self):
-      return '<Phone: number="%s", department="%s">' % (
-            self.number, self.department_id)
+      return '<Phone: exten="%s", user="%s">' % (
+            self.exten, self.user_id)
 
 class Phonebook(DeclarativeBase):
    '''
@@ -124,4 +125,19 @@ UNION
    phone3 = Column(Unicode())
    private = Column(Boolean())
    user_id = Column(Integer)
+
+
+class Sound(DeclarativeBase):
+   ''' Definition of a sound
+   '''
+   __tablename__ = 'sound'
+   sound_id = Column(Integer, primary_key=True)
+   name = Column(Unicode(64), nullable=False, unique=True)
+   comment = Column(Unicode())
+   owner_id = Column(Integer, ForeignKey('tg_user.user_id'))
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   def __repr__(self):
+      return '<Sound: name="%s", comment="%s">' % (
+            self.name, self.comment)
+
 

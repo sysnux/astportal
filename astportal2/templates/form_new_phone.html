@@ -70,8 +70,10 @@ function created(x) {
    $("#wait_msg").hide();
    $("#wait").hide();
    data = $.parseJSON(x);
-   if (data.status=='bad_number') {
-      alert('Numéro déjà utilisé !');
+   if (data.status=='bad_exten') {
+      alert('Poste déjà utilisé !');
+   } else if (data.status=='bad_dnis') {
+      alert('Numéro direct déjà utilisé !');
    } else {
       $(location).attr('href','/phones/');
    }

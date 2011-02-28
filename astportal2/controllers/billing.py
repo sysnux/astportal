@@ -39,13 +39,13 @@ def check_access(cdrs):
       for d in [d.department for d in request.identity['user'].phone]:
          for p in d.phones:
             phones.append(p)
-      src = [p.number for p in phones]
-      dst = [p.number for p in phones]
+      src = [p.exten for p in phones]
+      dst = [p.exten for p in phones]
       cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
 
    elif in_group('Utilisateurs'):
-      src = [p.number for p in request.identity['user'].phone]
-      dst = [p.number for p in request.identity['user'].phone]
+      src = [p.exten for p in request.identity['user'].phone]
+      dst = [p.exten for p in request.identity['user'].phone]
       cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
 
    else:
@@ -130,8 +130,8 @@ class Billing_form(TableForm):
          help_text = u'Maintenez la touche "Ctrl" appuyée pour sélectionner plusieurs téléphones',
          name = 'phones',
          label_text = u'Téléphones',
-         options = [(p.number, p.number + ' ' + phone_user_display_name(p)) 
-            for p in DBSession.query(Phone).filter(Phone.number!=None).order_by(Phone.number)]),
+         options = [(p.exten, p.exten + ' ' + phone_user_display_name(p)) 
+            for p in DBSession.query(Phone).filter(Phone.exten!=None).order_by(Phone.exten)]),
       Spacer(),
       ]
 
@@ -297,7 +297,7 @@ class Billing_ctrl(BaseController):
             func.sum(CDR.ttc).label('ttc'),
             Phone.department_id)
 
-      cdrs = cdrs.outerjoin((Phone,CDR.src==Phone.number))
+      cdrs = cdrs.outerjoin((Phone,CDR.src==Phone.exten))
       cdrs = check_access(cdrs)
 
       # Outgoing calls go through:
@@ -332,9 +332,9 @@ class Billing_ctrl(BaseController):
       if department!='ALL':
          d = DBSession.query(Department).get(department)
          filter.append(u'service=%s' % d.name)
-         phones = DBSession.query(Phone.number)
+         phones = DBSession.query(Phone.exten)
          phones = phones.filter(Phone.department_id==department).all()
-         cdrs = cdrs.filter(CDR.src.in_([p.number for p in phones]))
+         cdrs = cdrs.filter(CDR.src.in_([p.exten for p in phones]))
 
       elif phones:
             if type(phones)!=type([]):
@@ -392,7 +392,7 @@ class Billing_ctrl(BaseController):
       phones_dict = {}
       for p in DBSession.query(Phone):
          dptm = p.department.comment if p.department else u'Non affecté'
-         phones_dict[p.number] = (phone_user_display_name(p), dptm)
+         phones_dict[p.exten] = (phone_user_display_name(p), dptm)
 
       tmpl_context.grid = grid
       tmpl_context.form = new_csv_form

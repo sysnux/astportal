@@ -9,10 +9,10 @@ from astportal2.model import DBSession, Phone, User
 from tg import config
 directory_asterisk = config.get('directory.asterisk')
 
-def asterisk_update(p, old_number=None):
+def asterisk_update(p, old_exten=None, old_dnis=None):
    '''Update Asterisk configuration files
 
-   Parameter: p=Phone object, old_number=previous phone number
+   Parameter: p=Phone object, old_exten=previous phone exten
    Files updated (if needed): sip.conf, voicemail.conf, extensions.conf
    '''
 
@@ -33,57 +33,71 @@ def asterisk_update(p, old_number=None):
       cidname = u.display_name
    else:
       cidname = ''      
-   cidnum = p.number if p.number else ''
+   cidnum = p.exten if p.exten else ''
    if cidname or cidnum:
       actions.append(('Append', p.sip_id, 'callerid', '%s <%s>' % (cidname,cidnum)))
-   if u.email_address and p.number:
-      actions.append(('Append', p.sip_id, 'mailbox', '%s@astportal' % p.number))
-   # ... then really update
+   if p.user_id and u.email_address and p.exten:
+      actions.append(('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten))
+   # ... then really update (delete + add)
    Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
          None, [('DelCat', p.sip_id)])
    res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
          'chan_sip', actions)
    log.debug('Update sip.conf returns %s' % res)
 
-   if p.number is None:
-      Globals.manager.send_action({'Action': 'DBdel',
-         'Family': 'exten', 'Key': p.number})
-   else:
+   Globals.manager.send_action({'Action': 'DBdel',
+         'Family': 'exten', 'Key': old_exten})
+   if p.exten is not None:
       Globals.manager.send_action({'Action': 'DBput',
-         'Family': 'exten', 'Key': p.number, 'Val': p.sip_id})
+         'Family': 'exten', 'Key': p.exten, 'Val': p.sip_id})
 
-   if u.email_address:
+   if p.user_id and u.email_address is not None:
       vm = '>%s,%s,%s' \
             % (u.password, cidname, u.email_address)
       actions = [
-         ('Append', 'astportal', p.number, vm),
+         ('Append', 'astportal', p.exten, vm),
          ]
-      if old_number is None:
-         old_number = p.number
+      if old_exten is None:
+         old_exten = p.exten
       Globals.manager.update_config(
          directory_asterisk  + 'voicemail.conf', 
-         None, [('Delete', 'astportal', old_number)])
+         None, [('Delete', 'astportal', old_exten)])
       res = Globals.manager.update_config(
          directory_asterisk  + 'voicemail.conf', 
          'app_voicemail_plain', actions)
       log.debug('Update voicemail.conf returns %s' % res)
 
+   # Always delete old outgoing contexts
+   Globals.manager.update_config(
+         directory_asterisk  + 'extensions.conf', None, [('DelCat', p.sip_id)])
    if p.contexts is not None:
-      # Create contexts
+      # Create outgoing contexts
       log.debug('Contexts %s' % p.contexts)
       actions = [
          ('NewCat', p.sip_id),
          ]
       for c in p.contexts.split(','):
          actions.append(('Append', p.sip_id, 'include', '>%s' % c))
-      Globals.manager.update_config(
-         directory_asterisk  + 'extensions.conf', None, [('DelCat', p.sip_id)])
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', None, actions)
-      Globals.manager.send_action({'Action': 'Command',
-         'Command': 'dialplan reload'})
-      log.debug('Update extensions.conf returns %s' % res)
+      log.debug('Update outgoing extensions.conf returns %s' % res)
 
+   # Always delete old dnis entry
+   Globals.manager.update_config(
+         directory_asterisk  + 'extensions.conf', 
+         None, [('Delete', 'dnis', 'exten', None, 
+            '%s,1,Macro(stdexten,%s)' % (old_dnis, p.sip_id))])
+   if p.dnis is not None:
+      # Create dnis entry
+      res = Globals.manager.update_config(
+         directory_asterisk  + 'extensions.conf', 
+         None, [('Append', 'dnis', 'exten', '>%s,1,Macro(stdexten,%s)' % (
+            p.dnis,p.sip_id))])
+      log.debug('Update dnis extensions.conf returns %s' % res)
+
+   # Allways reload dialplan
+   Globals.manager.send_action({'Action': 'Command',
+      'Command': 'dialplan reload'})
 
 class Status(object):
    '''Asterisk Status:

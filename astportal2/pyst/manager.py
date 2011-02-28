@@ -637,6 +637,10 @@ class Manager(object):
             elif len(a)==4:
                 cdict['Var-%06d' % i] = a[2]
                 cdict['Value-%06d' % i] = a[3]
+            elif len(a)==5:
+                cdict['Var-%06d' % i] = a[2]
+                cdict['Value-%06d' % i] = a[3]
+                cdict['Match-%06d' % i] = a[4]
             i += 1
 
         return self.send_action( cdict )

@@ -96,9 +96,12 @@ class New_phone_form(AjaxForm):
    ''' New phone form
    '''
    fields = [
-      TextField('number', validator=Int,
+      TextField('exten', validator=Int,
          not_empty = False,
-         label_text=u'Numéro', help_text=u'Entrez le numéro du téléphone'),
+         label_text=u'Poste', help_text=u'Entrez le numéro interne'),
+      TextField('dnis', validator=Int,
+         not_empty = False,
+         label_text=u'Numéro direct', help_text=u'Entrez le numéro direct (SDA)'),
       CheckBoxTable('contexts',  validator=Int,
          options = _contexts,
          not_empty = False,
@@ -146,8 +149,11 @@ class Edit_phone_form(TableForm):
    ''' Edit phone form
    '''
    fields = [
-      TextField('number', #validator=Int,
+      TextField('exten', #validator=Int,
          label_text=u'Numéro', help_text=u'Entrez le numéro du téléphone'),
+      TextField('dnis', #validator=Int,
+         not_empty = False,
+         label_text=u'Numéro direct', help_text=u'Entrez le numéro direct (SDA)'),
       CheckBoxList('contexts',
          options = _contexts,
          label_text=u'Contexte', help_text=u'Droits d\'appels'),
@@ -178,16 +184,16 @@ class Edit_phone_form(TableForm):
 edit_phone_form = Edit_phone_form('edit_form_phone')
 
 
-def peer_info(sip_id=None, number=None):
-   '''Find peer by id or number return ip address and user agent
+def peer_info(sip_id=None, exten=None):
+   '''Find peer by id or exten return ip address and user agent
    '''
 
    if sip_id is not None and 'SIP/'+sip_id in Globals.asterisk.peers:
       log.debug('peer_info sip_id  %s' % sip_id)
       peer = sip_id
-   elif number is not None and 'SIP/'+number in Globals.asterisk.peers:
-      log.debug('peer_info number  %s' % number)
-      peer = number
+   elif exten is not None and 'SIP/'+exten in Globals.asterisk.peers:
+      log.debug('peer_info exten  %s' % exten)
+      peer = exten
    else:
       log.warning('%s not registered ?' % sip_id)
       peer = None
@@ -219,7 +225,7 @@ def row(p):
    user = Markup(u'<a href="/users/%d/edit/">%s</a>' % \
       (p.user.user_id, p.user.display_name)) if p.user else None
 
-   ip, ua = peer_info(p.sip_id, p.number)
+   ip, ua = peer_info(p.sip_id, p.exten)
    if ua and ua.startswith('Grandstream GXP'):
             ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, 'GXP', ip))
 
@@ -230,10 +236,10 @@ def row(p):
    action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
    action += u'&nbsp;&nbsp;&nbsp;'
    action += u'<a href="#" onclick="del(\''+ str(p.phone_id) + \
-         u'\',\'Suppression du téléphone ' + str(p.number) + u'\')" title="Supprimer">'
+         u'\',\'Suppression du téléphone ' + str(p.exten) + u'\')" title="Supprimer">'
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
-   return [Markup(action), ip, ua, p.password, p.number, user , dptm]
+   return [Markup(action), ua, p.exten, p.dnis, user , dptm]
 
 
 class Phone_ctrl(RestController):
@@ -253,15 +259,14 @@ class Phone_ctrl(RestController):
       #Globals.manager.send_action('IAXpeers')
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u'Téléphones',
-         sortname='number',
-         colNames = [u'Action', u'Adresse IP', u'Modèle', u'Mot de passe',
-            u'Numéro', u'Utilisateur', u'Service'],
+         sortname='exten',
+         colNames = [u'Action', u'Modèle', u'Poste',
+            u'Numéro direct', u'Utilisateur', u'Service'],
          colModel = [ 
-            { 'display': u'Action', 'width': 80, 'align': 'center', 'search': False },
-            { 'name': 'ip', 'width': 80 },
-            { 'name': 'ua', 'width': 100 },
-            { 'name': 'password', 'width': 80 },
-            { 'name': 'number', 'width': 80 },
+            { 'width': 80, 'align': 'center', 'search': False, 'sortable': False },
+            { 'name': 'ua', 'width': 140, 'search': False, 'sortable': False },
+            { 'name': 'exten', 'width': 60 },
+            { 'name': 'dnis', 'width': 60 },
             { 'name': 'user_id', 'width': 120, 'search': False },
             { 'name': 'department_id', 'width': 120, 'search': False } ],
          navbuttons_options = {'view': False, 'edit': False, 'add': True,
@@ -421,18 +426,25 @@ class Phone_ctrl(RestController):
       ''' Create phone:
 
       Create provisionning file.
-      If a number is attached to the phone, create exten in Asterisk database.
+      If a exten is attached to the phone, create exten in Asterisk database.
       If a user is attached to the phone, add callerid to phone ; if the user has
       email, add voicemail info to sip.conf and add entry in voicemail.conf
       Create entry in Asterisk sip.conf.
       '''
 
-      # Check phone number is not already used
-      if kw['number']:
-         log.debug('Check number ' +  kw['number'])
-         p = DBSession.query(Phone).filter(Phone.number==kw['number']).all()
+      # Check exten is not already used
+      if kw['exten']:
+         log.debug('Check exten ' +  kw['exten'])
+         p = DBSession.query(Phone).filter(Phone.exten==kw['exten']).all()
          if len(p):
-            return dict(status='bad_number')
+            return dict(status='bad_exten')
+
+      # Check dnis is not already used
+      if kw['dnis']:
+         log.debug('Check dnis ' +  kw['exten'])
+         p = DBSession.query(Phone).filter(Phone.exten==kw['dnis']).all()
+         if len(p):
+            return dict(status='bad_dnis')
 
       # Generate SIP id and secret
       while True:
@@ -464,7 +476,8 @@ class Phone_ctrl(RestController):
       p.sip_id = sip_id
       p.mac = kw['mac']
       p.password = pwd
-      if kw['number']: p.number = kw['number']
+      if kw['exten']: p.exten = kw['exten']
+      if kw['dnis']: p.exten = kw['dnis']
       if kw['dptm_id']!='-9999': p.department_id = kw['dptm_id']
       if kw['user_id']!='-9999': p.user_id = kw['user_id']
       if 'callgroups' in kw:
@@ -487,27 +500,28 @@ class Phone_ctrl(RestController):
             server_config + ':8080/phonebook/gs_phonebook_xml', '', '', '',
             sip_server, sip_id, sip_display_name, mwi_subscribe)
 
-      flash(u'Nouveau téléphone "%s" créé' % (kw['number']))
+      flash(u'Nouveau téléphone "%s" créé' % (kw['exten']))
       return {'status': 'created'}
 
 
    @expose(template="astportal2.templates.form_new")
    def edit(self, id=None, phone_id=None, dptm_id=None, user_id=None, 
-         number=None, **kw):
+         exten=None, **kw):
       ''' Display edit phone form
       '''
       ident = ''
       log.debug('Edit')
       p = DBSession.query(Phone).get(id) if id else DBSession.query(Phone).get(phone_id)
       v = {'phone_id': p.phone_id,
-         'number': p.number,
+         'exten': p.exten,
+         'dnis': p.dnis,
          'contexts': p.contexts.split(',') if  p.contexts else None,
          'callgroups': p.callgroups.split(',') if  p.callgroups else None,
          'pickupgroups': p.pickupgroups.split(',') if  p.pickupgroups else None,
          'dptm_id': p.department_id,
          'user_id': p.user_id,
          '_method': 'PUT'}
-      if p.number: ident = p.number
+      if p.exten: ident = p.exten
       elif p.mac: ident = p.mac
 
       tmpl_context.form = edit_phone_form
@@ -517,28 +531,29 @@ class Phone_ctrl(RestController):
       def validate(self, params, state):
          log.debug(params)
          f = edit_phone_form
-         # Check phone number
-         if params['number']: 
-            p = DBSession.query(Phone).filter(Phone.number==params['number'])
+         # Check phone exten
+         if params['exten']: 
+            p = DBSession.query(Phone).filter(Phone.exten==params['exten'])
             p = p.filter(Phone.phone_id!=params['phone_id']).all()
             if len(p):
-               log.warning('Number exists %s, cannot update phone %s' % (params['number'],params['phone_id']))
-               flash(u'Le numéro "%s" est déjà utilisé' % (params['number']),'error')
+               log.warning('Number exists %s, cannot update phone %s' % (params['exten'],params['phone_id']))
+               flash(u'Le numéro "%s" est déjà utilisé' % (params['exten']),'error')
                raise Invalid('XXXX', 'ZZZ', state)
          return f.validate(params, state)
 
    @validate(edit_form_valid(), error_handler=edit)
    @expose()
-   def put(self, phone_id, dptm_id, user_id, number, contexts,
+   def put(self, phone_id, dptm_id, user_id, exten, dnis, contexts,
          callgroups=None, pickupgroups=None):
       ''' Update phone 
 
-      User and number information is independant from phone, there is no need
+      User and exten information is independant from phone, there is no need
       to modify provisionning file.
-      If a number is attached to the phone, create exten in Asterisk database.
+      Create or update entry in Asterisk sip.conf.
+      If a exten is attached to the phone, create exten in Asterisk database.
       If a user is attached to the phone, add callerid to SIP account ; if 
       the user has email, add voicemail info to sip.conf and add entry in 
-      voicemail.conf. Create or update entry in Asterisk sip.conf.
+      voicemail.conf.
       '''
       log.info('update %d' % phone_id)
       log.debug('Contexts %s' % contexts)
@@ -546,14 +561,22 @@ class Phone_ctrl(RestController):
       log.debug('Pickupgroups %s' % pickupgroups)
 
       p = DBSession.query(Phone).get(phone_id)
-      old_number = p.number
+      old_exten = p.exten
+      old_dnis = p.dnis
 
-      if number!=p.number:
-         log.debug('Number has changed, %s -> %s' % (p.number, number))
-         if number=='':
-            p.number = None
+      if exten!=p.exten:
+         log.debug('Exten has changed, %s -> %s' % (p.exten, exten))
+         if exten=='':
+            p.exten = None
          else:
-            p.number = number
+            p.exten = exten
+
+      if dnis!=p.dnis:
+         log.debug('DNIS has changed, %s -> %s' % (p.dnis, dnis))
+         if dnis=='':
+            p.dnis = None
+         else:
+            p.dnis = dnis
 
       if p.department_id!=dptm_id:
          if dptm_id==-9999:
@@ -562,7 +585,6 @@ class Phone_ctrl(RestController):
             p.department_id = dptm_id
 
       if p.user_id!=user_id:
-         log.debug('User_id has changed, %d -> %d' % (p.user_id, user_id))
          if user_id==-9999:
             p.user_id = None
          else:
@@ -581,7 +603,7 @@ class Phone_ctrl(RestController):
       if p.pickupgroups != x:
          p.pickupgroups = x
 
-      asterisk_update(p, old_number)
+      asterisk_update(p, old_exten, old_dnis)
 
       flash(u'Téléphone modifié')
       redirect('/phones/')
@@ -593,14 +615,14 @@ class Phone_ctrl(RestController):
       '''
       log.info('delete ' + kw['_id'])
       p = DBSession.query(Phone).get(kw['_id'])
-      number = p.number
+      exten = p.exten
       DBSession.delete(p)
       flash(u'Téléphone supprimé', 'notice')
 
-      if number:
+      if exten:
          # Update Asterisk DataBase
          Globals.manager.send_action({'Action': 'DBdel',
-            'Family': 'exten', 'Key': number})
+            'Family': 'exten', 'Key': exten})
 
       # Update Asterisk config files
       actions = [ ('DelCat', p.sip_id) ]
@@ -608,8 +630,8 @@ class Phone_ctrl(RestController):
          'chan_sip', actions)
       Globals.manager.update_config(directory_asterisk  + 'extensions.conf', 
          'dialplan', actions)
-      if number:
-         actions = [ ('Delete', 'astportal', number) ]
+      if exten:
+         actions = [ ('Delete', 'astportal', exten) ]
          Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
             'app_voicemail_plain', actions)
 
