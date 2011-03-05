@@ -56,7 +56,7 @@ def row(d):
    Parameter: Department object
    '''
    if d.phones:
-      phones = ', '.join([p.number for p in d.phones]) #()[:80] + '...'
+      phones = ', '.join([p.exten for p in d.phones]) #()[:80] + '...'
    else:
       phones = ''
 

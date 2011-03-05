@@ -88,7 +88,8 @@ def row(u):
    Parameter: User object
    '''
    if u.phone:
-      phone = ', '.join(['<a href="/phones/%s/edit">%s</a>' % (p.phone_id,p.number) for p in u.phone])
+      phone = ', '.join(['<a href="/phones/%s/edit">%s (%s)</a>' % (
+         p.phone_id, p.exten, p.dnis) for p in u.phone])
    else:
       phone = ''
 
@@ -127,7 +128,7 @@ class User_ctrl(RestController):
          redirect( str(request.identity['user'].user_id) + '/edit')
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u'Utilisateurs',
-            colNames = [u'Action', u'Compte', u'Nom', u'email', u'Téléphone', u'Groupes'],
+            colNames = [u'Action', u'Compte', u'Nom', u'email', u'Poste', u'Groupes'],
             colModel = [
                { 'sortable': False, 'search': False, 'width': 80, 'align': 'center' },
                { 'name': 'user_name', 'width': 80 },

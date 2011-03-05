@@ -14,7 +14,7 @@ class Grandstream:
    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
    params = dict(
 # Admin password for web interface
-P2 = '0000',
+P2 = 'admin',
 # No Key Entry Timeout. Default - 4 seconds.
 P85 = 3,
 # Use # as Dial Key. 0 - no, 1 - yes
@@ -123,7 +123,7 @@ P399 = 'french',
                logged_in = True
                self.type = 1
       if not logged_in:
-         log.warning('Login failed (check password?)')
+         log.warning('Login failed (check password? %s)', pwd)
          return False
       return True
 

@@ -226,11 +226,6 @@ def row(p):
       (p.user.user_id, p.user.display_name)) if p.user else None
 
    ip, ua = peer_info(p.sip_id, p.exten)
-   if ua and ua.startswith('Grandstream GXP'):
-            ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, 'GXP', ip))
-
-   else:
-            ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
 
    action =  u'<a href="'+ str(p.phone_id) + u'/edit" title="Modifier">'
    action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
@@ -262,22 +257,46 @@ class Phone_ctrl(RestController):
          sortname='exten',
          colNames = [u'Action', u'Modèle', u'Poste',
             u'Numéro direct', u'Utilisateur', u'Service'],
-         colModel = [ 
+         colModel = [
             { 'width': 80, 'align': 'center', 'search': False, 'sortable': False },
             { 'name': 'ua', 'width': 140, 'search': False, 'sortable': False },
             { 'name': 'exten', 'width': 60 },
             { 'name': 'dnis', 'width': 60 },
             { 'name': 'user_id', 'width': 120, 'search': False },
-            { 'name': 'department_id', 'width': 120, 'search': False } ],
+            { 'name': 'department_id', 'width': 120, 'search': False },
+            ],
          navbuttons_options = {'view': False, 'edit': False, 'add': True,
             'del': False, 'search': True, 'refresh': True, 
             'addfunc': js_callback('add'),
-            }
+            },
+         subGrid = True,
+         subGridUrl = 'fetch_detail',
+         subGridModel = [{
+            'name': [u'Compte SIP', u'Secret SIP', u'Adresse IP', u'Adresse MAC'],
+            'width': [100, 100, 100, 100]
+            }],
          )
       tmpl_context.grid = grid
       tmpl_context.form = None
       return dict( title=u'Liste des téléphones', debug='')
 
+
+   @expose('json')
+   def fetch_detail(self, **kw):
+      log.debug('fetch_detail')
+      log.debug(kw)
+      p = DBSession.query(Phone).get(kw['id'])
+      ip, ua = peer_info(p.sip_id)
+      if ip == 'None': 
+         ip = ''
+      else:
+         if ua and ua.startswith('Grandstream GXP'):
+            ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, 'GXP', ip))
+         else:
+            ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
+      data = [ { 'id'  : p.phone_id, 
+         'cell': (p.sip_id, p.password, ip, p.mac) }]
+      return dict(page=1, total=1, rows=data)
 
    @expose('json')
    @require(in_group('admin',
@@ -441,8 +460,8 @@ class Phone_ctrl(RestController):
 
       # Check dnis is not already used
       if kw['dnis']:
-         log.debug('Check dnis ' +  kw['exten'])
-         p = DBSession.query(Phone).filter(Phone.exten==kw['dnis']).all()
+         log.debug('Check dnis ' +  kw['dnis'])
+         p = DBSession.query(Phone).filter(Phone.dnis==kw['dnis']).all()
          if len(p):
             return dict(status='bad_dnis')
 
@@ -477,7 +496,7 @@ class Phone_ctrl(RestController):
       p.mac = kw['mac']
       p.password = pwd
       if kw['exten']: p.exten = kw['exten']
-      if kw['dnis']: p.exten = kw['dnis']
+      if kw['dnis']: p.dnis = kw['dnis']
       if kw['dptm_id']!='-9999': p.department_id = kw['dptm_id']
       if kw['user_id']!='-9999': p.user_id = kw['user_id']
       if 'callgroups' in kw:
