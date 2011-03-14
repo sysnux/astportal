@@ -16,9 +16,11 @@ from genshi import Markup
 from os import system, unlink
 import logging
 log = logging.getLogger(__name__)
+import re
 
 from astportal2.model import DBSession, Sound, User, Group
 from astportal2.lib.myjqgrid import MyJqGrid
+from astportal2.lib.app_globals import Globals
 
 dir_tmp = '/tmp'
 dir_moh = '/var/lib/asterisk/moh/astportal'
@@ -58,8 +60,8 @@ edit_sound_form = TableForm(
    hover_help = True
    )
 
-def process_file(wav, id):
-      ''' Convert and move to asterisk dir, with name "id.wav'
+def process_file(wav, id, name):
+      ''' Convert and move to asterisk dir, with name "name.wav'
       '''
 
       # Temporarily save uploaded audio file
@@ -71,7 +73,7 @@ def process_file(wav, id):
          return u'Le fichier doit être de type son !'
 
       orig = '%s/%d_%s' % (dir_tmp, id, filename)
-      final = '%s/%d.wav' % (dir_moh, id)
+      final = '%s/%s.wav' % (dir_moh, re.sub(r'\W', '_', name))
       out = open(orig, 'w')
       out.write(filedata.read())
       out.close()
@@ -81,12 +83,15 @@ def process_file(wav, id):
       log.debug('sox command: <%s>' % cmd)
       ret = system(cmd)
 
-      # remove uploaded file
-      unlink(orig)
-
       if ret:
          log.error('executing <%s> returns <%d>' % (cmd,ret))
          return u"Erreur lors de la conversion WAV, le son n'a pas été ajouté !"
+
+      else:
+         # remove uploaded file
+         unlink(orig)
+         Globals.manager.send_action({'Action': 'Command',
+            'Command': 'moh reload'})
 
       return None
 
@@ -240,7 +245,7 @@ class MOH_ctrl(RestController):
          flash(u'Impossible de créer le son (vérifier son nom)', 'error')
          redirect('/moh/')
 
-      ret = process_file(kw['file'], s.sound_id)
+      ret = process_file(kw['file'], s.sound_id, s.name)
 
       if ret:
          flash(ret,'error')
@@ -278,7 +283,7 @@ class MOH_ctrl(RestController):
       if kw.has_key('owner_id'):
          s.owner_id = kw['owner_id']
       s.comment = kw['comment']
-      ret = process_file(kw['file'], id)
+      ret = process_file(kw['file'], id, s.name)
 
       if ret:
          flash(ret,'error')
@@ -298,9 +303,11 @@ class MOH_ctrl(RestController):
       DBSession.delete(DBSession.query(Sound).get(id))
       # remove uploaded file
       try:
-         unlink('%s/%s.wav' % (moh_dir, id))
+         unlink('%s/%s.wav' % (dir_moh, id))
       except:
          pass
+      Globals.manager.send_action({'Action': 'Command',
+         'Command': 'moh reload'})
       flash(u'Son supprimé', 'notice')
       redirect('/moh/')
 
@@ -309,7 +316,7 @@ class MOH_ctrl(RestController):
    def listen(self, id, **kw):
       ''' Listen record
       '''
-      fn = '%s/%s.wav' % (moh_dir, id)
+      fn = '%s/%s.wav' % (dir_moh, id)
       import os
       try:
          st = os.stat(fn)

@@ -106,7 +106,7 @@ class New_phone_form(AjaxForm):
          options = _contexts,
          not_empty = False,
          default = ('urgent','internal','services'),
-         label__text=u'Droits d\'appels'),
+         label_text=u'Droits d\'appels', help_text='Autorisations pour les appels sortants'),
       CheckBoxTable('callgroups', validator=Int,
          options = _callgroups,
          label_text=u'Groupes d\'appels', 
@@ -150,13 +150,13 @@ class Edit_phone_form(TableForm):
    '''
    fields = [
       TextField('exten', #validator=Int,
-         label_text=u'Numéro', help_text=u'Entrez le numéro du téléphone'),
+         label_text=u'Poste', help_text=u'Entrez le numéro interne'),
       TextField('dnis', #validator=Int,
          not_empty = False,
-         label_text=u'Numéro direct', help_text=u'Entrez le numéro direct (SDA)'),
+         label_text=u'Numéro direct', help_text=u'Entrez le numéro direct (SDA, 6 chiffres)'),
       CheckBoxList('contexts',
          options = _contexts,
-         label_text=u'Contexte', help_text=u'Droits d\'appels'),
+         label_text=u'Droits d\'appels', help_text='Autorisations pour les appels sortants'),
       CheckBoxList('callgroups', validator=Int,
          options = _callgroups,
          label_text=u'Groupes d\'appels', 
@@ -195,7 +195,7 @@ def peer_info(sip_id=None, exten=None):
       log.debug('peer_info exten  %s' % exten)
       peer = exten
    else:
-      log.warning('%s not registered ?' % sip_id)
+      log.warning('%s:%s not registered ?' % (sip_id, exten))
       peer = None
 
    if peer:
@@ -286,7 +286,7 @@ class Phone_ctrl(RestController):
       log.debug('fetch_detail')
       log.debug(kw)
       p = DBSession.query(Phone).get(kw['id'])
-      ip, ua = peer_info(p.sip_id)
+      ip, ua = peer_info(p.sip_id, p.exten)
       if ip == 'None': 
          ip = ''
       else:
@@ -356,6 +356,7 @@ class Phone_ctrl(RestController):
 
       total = phones.count()/rows + 1
       column = getattr(Phone, sidx)
+      log.debug('sidx=%s, col=%s' % (sidx,column))
       phones = phones.order_by(getattr(column,sord)()).offset(offset).limit(rows)
 
       data = [ { 'id'  : p.phone_id, 'cell': row(p) } for p in phones ]

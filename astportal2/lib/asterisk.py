@@ -8,6 +8,7 @@ log = logging.getLogger(__name__)
 from astportal2.model import DBSession, Phone, User
 from tg import config
 directory_asterisk = config.get('directory.asterisk')
+default_dnis = config.get('default_dnis')
 
 def asterisk_update(p, old_exten=None, old_dnis=None):
    '''Update Asterisk configuration files
@@ -18,7 +19,7 @@ def asterisk_update(p, old_exten=None, old_dnis=None):
 
    actions = [
             ('NewCat', p.sip_id),
-            ('Append', p.sip_id, 'secret', p.password),
+            ('Append', p.sip_id, 'secret', KIRK p.password),
             ('Append', p.sip_id, 'type', 'friend'),
             ('Append', p.sip_id, 'host', 'dynamic'),
             ('Append', p.sip_id, 'context', p.sip_id),
@@ -33,9 +34,9 @@ def asterisk_update(p, old_exten=None, old_dnis=None):
       cidname = u.display_name
    else:
       cidname = ''      
-   cidnum = p.exten if p.exten else ''
+   cidnum = p.dnis if p.dnis else default_dnis
    if cidname or cidnum:
-      actions.append(('Append', p.sip_id, 'callerid', '%s <%s>' % (cidname,cidnum)))
+      actions.append(('Append', p.sip_id, 'callerid', u'%s <%s>' % (cidname,cidnum)))
    if p.user_id and u.email_address and p.exten:
       actions.append(('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten))
    # ... then really update (delete + add)
@@ -52,7 +53,7 @@ def asterisk_update(p, old_exten=None, old_dnis=None):
          'Family': 'exten', 'Key': p.exten, 'Val': p.sip_id})
 
    if p.user_id and u.email_address is not None:
-      vm = '>%s,%s,%s' \
+      vm = u'>%s,%s,%s' \
             % (u.password, cidname, u.email_address)
       actions = [
          ('Append', 'astportal', p.exten, vm),
@@ -83,16 +84,17 @@ def asterisk_update(p, old_exten=None, old_dnis=None):
       log.debug('Update outgoing extensions.conf returns %s' % res)
 
    # Always delete old dnis entry
-   Globals.manager.update_config(
+   res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Delete', 'dnis', 'exten', None, 
             '%s,1,Macro(stdexten,%s)' % (old_dnis, p.sip_id))])
+   log.debug('Delete <%s,1,Macro(stdexten,%s)> returns %s' % (old_dnis,p.sip_id,res))
    if p.dnis is not None:
       # Create dnis entry
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Append', 'dnis', 'exten', '>%s,1,Macro(stdexten,%s)' % (
-            p.dnis,p.sip_id))])
+            p.dnis[2:],p.sip_id))])
       log.debug('Update dnis extensions.conf returns %s' % res)
 
    # Allways reload dialplan
@@ -144,12 +146,6 @@ class Status(object):
          self._handle_PeerStatus(event.headers)
       elif e=='PeerEntry':
          self._handle_PeerEntry(event.headers)
-      elif e=='MessageWaiting':
-         self._handle_MessageWaiting(event.headers)
-      elif e=='Shutdown':
-         self._handle_Shutdown(event.headers)
-      elif e=='Reload':
-         self._handle_Reload(event.headers)
       elif e in ('QueueMember', 'QueueMemberAdded'):
          self._handle_QueueMember(event.headers)
       elif e=='QueueParams':
@@ -172,7 +168,7 @@ class Status(object):
          self._handle_Leave(event.headers)
       elif e == 'CEL':
          self._handle_CEL(event.headers)
-      elif e in ('ExtensionStatus', 'Dial'):
+      elif e in ('ExtensionStatus', 'Dial', 'MessageWaiting', 'Shutdown', 'Reload'):
          log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
       else:
          log.warning('Event not handled "%s"' % e)
@@ -287,7 +283,7 @@ Channel: SIP/100-0000001f
 # Device is ringing #define AST_DEVICE_RINGING	6
 # Device is ringing *and* in use #define AST_DEVICE_RINGINUSE	7
 # Device is on hold #define AST_DEVICE_ONHOLD	8
-   def handle_QueueMember(self, dict):
+   def _handle_QueueMember(self, dict):
       q = dict['Queue']
       m = normalize_member(dict['Name'])
       self.queues[q]['Members'].append(m)
@@ -454,6 +450,8 @@ Channel: SIP/100-0000001f
       #  Oldname: SIP/Doorphone-985e
       #  Newname: SIP/Doorphone-985e<MASQ>
 
+      if 'Oldname' not in dict.keys():
+         return
       old = dict['Oldname']
       new = dict['Newname']
       self.channels[old]['LastUpdate'] = time()

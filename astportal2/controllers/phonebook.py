@@ -20,6 +20,9 @@ from astportal2.model import DBSession, Phonebook, User, Phone, View_phonebook
 from astportal2.lib.app_globals import Globals
 from astportal2.lib.myjqgrid import MyJqGrid
 
+from tg import config
+default_company = config.get('company')
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -92,7 +95,7 @@ def row(pb):
       private = u'Oui' if pb.private else u'Non'
    else:
       action = ''
-      company = 'SysNux'
+      company = default_company
       private = ''
 
    if pb.phone1:
