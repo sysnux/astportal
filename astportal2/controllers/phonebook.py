@@ -312,36 +312,35 @@ class Phonebook_ctrl(RestController):
       list = list.order_by(Phonebook.lastname, Phonebook.firstname)
 
       for e in list:
-         index = 0
          if e.phone1:
             xml += '''<Contact>
-<LastName>%s %s %d</LastName>
+<LastName>%s</LastName>
+<FirstName>%s</FirstName>
   <Phone>
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.lastname, e.firstname, index+1, e.phone1)
-            index += 1
+</Contact>''' % (e.lastname, e.firstname, e.phone1)
 
          if e.phone2:
             xml += '''<Contact>
-<LastName>%s %s %d</LastName>
+<LastName>%s</LastName>
+<FirstName>%s</FirstName>
   <Phone>
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.lastname, e.firstname, index+1, e.phone1)
-            index += 1
+</Contact>''' % (e.lastname, e.firstname, e.phone1)
 
          if e.phone3:
             xml += '''<Contact>
-<LastName>%s %s %d</LastName>
+<LastName>%s</LastName>
+<FirstName>%s</FirstName>
   <Phone>
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.lastname, e.firstname, index+1, e.phone1)
-            index += 1
+</Contact>''' % (e.lastname, e.firstname, e.phone1)
 
 
       # ...then add users
@@ -351,14 +350,16 @@ class Phonebook_ctrl(RestController):
       for e in list:
          xml += '''<Contact>
 <LastName>%s</LastName>
+<FirstName>%s</FirstName>
   <Phone>
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.display_name, e.phone[0].exten)
+</Contact>''' % (e.lastname, e.firstname, e.phone[0].exten)
 
       xml += '</AddressBook>\n'
 
+#      return xml.encode('utf-8', 'replace')
       return xml.encode('iso-8859-1', 'replace')
 
 

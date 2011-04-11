@@ -2,6 +2,7 @@
 
 from astportal2.lib.app_globals import Globals
 from time import time
+import unicodedata
 import logging
 log = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def asterisk_update(p, old_exten=None, old_dnis=None):
 
    actions = [
             ('NewCat', p.sip_id),
-            ('Append', p.sip_id, 'secret', KIRK p.password),
+            ('Append', p.sip_id, 'secret', p.password),
             ('Append', p.sip_id, 'type', 'friend'),
             ('Append', p.sip_id, 'host', 'dynamic'),
             ('Append', p.sip_id, 'context', p.sip_id),
@@ -31,12 +32,12 @@ def asterisk_update(p, old_exten=None, old_dnis=None):
       actions.append(('Append', p.sip_id, 'pickupgroups', p.pickupgroups))
    if p.user_id:
       u = DBSession.query(User).get(p.user_id)
-      cidname = u.display_name
+      cidname = unicodedata.normalize('NFKD', u.display_name).encode('ascii','ignore')
    else:
       cidname = ''      
    cidnum = p.dnis if p.dnis else default_dnis
    if cidname or cidnum:
-      actions.append(('Append', p.sip_id, 'callerid', u'%s <%s>' % (cidname,cidnum)))
+      actions.append(('Append', p.sip_id, 'callerid', '%s <%s>' % (cidname,cidnum) ))
    if p.user_id and u.email_address and p.exten:
       actions.append(('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten))
    # ... then really update (delete + add)
@@ -114,7 +115,7 @@ class Status(object):
       self.members = {}
 
    def handle_shutdown(self, event, manager):
-      log.warning('Recieved shutdown event')
+      log.warning('Received shutdown event')
       Globals.manager.close()
       # XXX We should analize the event and reconnect here
       
@@ -404,9 +405,13 @@ Channel: SIP/100-0000001f
    def _handle_Hangup(self, dict):
       c = dict['Channel']
       if c not in self.channels:
-         log.warning('Hangup: channel "%s" does not exit..' % c)
-         return
-      del self.channels[c]
+         log.warning('Hangup: channel "%s" does not exist..' % c)
+         for chan in channels.keys():
+            if chan in c:
+               log.warning('Hangup: "%s" -> destroy %s' % (c,chan))
+               del self.channels[chan]
+      else:
+         del self.channels[c]
       self.last_update = time()
 
    def _handle_Link(self, dict):

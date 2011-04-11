@@ -24,6 +24,7 @@ from astportal2.lib.asterisk import asterisk_update
 from string import letters, digits
 from random import choice
 from os import system, popen #, rename
+import re
 import logging
 log = logging.getLogger(__name__)
 
@@ -291,7 +292,14 @@ class Phone_ctrl(RestController):
          ip = ''
       else:
          if ua and ua.startswith('Grandstream GXP'):
-            ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, 'GXP', ip))
+            m = re.search('(\d{4})',ua)
+            if m:
+               model = m.groups()[0]
+               gxp_type = 1 if model in ('1200', '2000', '2010', '2020') else 2
+               ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, gxp_type, ip))
+            else:
+               ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
+
          else:
             ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
       data = [ { 'id'  : p.phone_id, 
@@ -300,7 +308,7 @@ class Phone_ctrl(RestController):
 
    @expose('json')
    @require(in_group('admin',
-      msg=u'Seul un membre du groupe administrateur peut afficher la liste des utilisateurs'))
+      msg=u'Seul un membre du groupe administrateur peut afficher la liste des téléphones'))
    def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
@@ -390,8 +398,7 @@ class Phone_ctrl(RestController):
          if len(ret)!=2:
             return dict(status=2, msg=u"Téléphone injoignable, vérifiez l'adresse")
          mac = ret[1]
-      import re
-      match = re.compile('(\w\w:\w\w:\w\w):(\w\w:\w\w:\w\w)').search(mac.lower())
+      match = re.search('(\w\w:\w\w:\w\w):(\w\w:\w\w:\w\w)', mac.lower())
       if not match:
          return dict(status=3, msg=u"Téléphone injoignable, vérifiez l'adresse")
       (vendor,device) = match.groups()
@@ -417,20 +424,21 @@ class Phone_ctrl(RestController):
             return dict(status=6, msg=msg+u'erreur login')
          return dict(status = 0, ip = ip, mac = mac, conf = 'grandstream_configure',
                msg = msg + infos['model'] + ', ' + infos['version'])
+
       elif _vendors[vendor]=='Polycom':
          return dict(status=0, ip=ip, mac=mac, conf='polycom_configure',
                msg=u"Trouvé téléphone Polycom")
 
 
-   @expose('json')
-   def grandstream_configure(self, ip, mac):
-      gs = Grandstream(ip, mac)
-      if not gs.login():
-         return dict(status=1, msg=u'Erreur login')
-      infos = gs.infos()
-      gs.pre_configure(server_sip, server_firmware, server_config,
-            server_config + ':8080/phonebook/gs_phonebook_xml', server_ntp)
-      return dict(status=0, model=infos['model'], version=infos['version'])
+#   @expose('json')
+#   def grandstream_configure(self, ip, mac):
+#      gs = Grandstream(ip, mac)
+#      if not gs.login():
+#         return dict(status=1, msg=u'Erreur login')
+#      infos = gs.infos()
+#      gs.pre_configure(server_sip, server_firmware, server_config,
+#            server_config + ':8080/phonebook/gs_phonebook_xml', server_ntp)
+#      return dict(status=0, model=infos['model'], version=infos['version'])
 
  
 #   class user_form_valid(object):
@@ -446,8 +454,8 @@ class Phone_ctrl(RestController):
       ''' Create phone:
 
       Create provisionning file.
-      If a exten is attached to the phone, create exten in Asterisk database.
-      If a user is attached to the phone, add callerid to phone ; if the user has
+      If an extension is attached to the phone, create exten in Asterisk database.
+      If a user is attached to the phone, add callerid to phone; if the user has
       email, add voicemail info to sip.conf and add entry in voicemail.conf
       Create entry in Asterisk sip.conf.
       '''

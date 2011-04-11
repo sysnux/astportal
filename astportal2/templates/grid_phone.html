@@ -34,9 +34,12 @@ function del(xid,msg) {
 
 function phone_open(ip, pwd, phone_type) {
    with (document.phone_login) {
-      if (phone_type=='GXP') {
+      if (phone_type=='1') {
          P2.value = pwd;
          action = 'http://' + ip + '/dologin.htm';
+      } else if (phone_type=='2') {
+         P2.value = pwd;
+         action = 'http://' + ip + '/cgi-bin/dologin';
       }
       submit();
    }

@@ -74,13 +74,13 @@ def check_access():
       for d in [d.department for d in request.identity['user'].phone]:
          for p in d.phones:
             phones.append(p)
-      src = ['068947' + p.number for p in phones]
-      dst = [p.number for p in phones]
+      src = ['068947' + p.exten for p in phones]
+      dst = [p.exten for p in phones]
       cdrs = DBSession.query(CDR).filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
 
    elif in_group('utilisateurs'):
-      src = ['068947' + p.number for p in request.identity['user'].phone]
-      dst = [p.number for p in request.identity['user'].phone]
+      src = ['068947' + p.exten for p in request.identity['user'].phone]
+      dst = [p.exten for p in request.identity['user'].phone]
       cdrs = DBSession.query(CDR).filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
 
    else:

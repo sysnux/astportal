@@ -128,27 +128,44 @@ P399 = 'french',
       return True
 
    def infos(self):
-      resp = self.get('index.htm')
 
-      buffer = ''
-      for l in resp.readlines():
-         buffer += unicode(l,'ISO-8859-1')
-      html = BeautifulSoup(buffer)
-      try:
-         tables = html.findAll('table')
-         tr = tables[-1].findAll('tr')
-         td = tr[2].findAll('td')
-         model = td[1].contents[0].replace('&nbsp; ','')
-         td = tr[4].findAll('td')
-         soft = td[1].contents[0].replace('&nbsp; ','')
-         soft = soft.replace('&nbsp;','')
-      except:
-         return None
+      if self.type==1:
+         resp = self.get('index.htm')
+         buffer = ''
+         for l in resp.readlines():
+            buffer += unicode(l,'ISO-8859-1')
+         html = BeautifulSoup(buffer)
+         try:
+            content = html('table')[-1]
+            model = ((content('tr')[2])('td')[1]).text.replace('&nbsp; ','').strip()
+            soft = ((content('tr')[4])('td')[1]).text.replace('&nbsp; ','').strip()
+         except:
+            return None
+
+      elif self.type==2:
+         resp = self.get('/cgi-bin/index')
+         buffer = ''
+         for l in resp.readlines():
+            buffer += unicode(l,'UTF-8')
+         html = BeautifulSoup(buffer)
+         try:
+            content = html('table')[2]
+            model = (content('tr')[3])('td')[1].text.strip()
+            soft = (content('tr')[9])('td')[1].text.strip()
+         except:
+            return None
+      
+      log.debug(u'Model <%s>'% model)
+      log.debug(u'Version <%s>'% soft)
+
       return {'model': model.strip(), 'version': soft.strip()}
 
    def update(self, params):
       log.debug('Update...')
-      resp = self.get('update.htm',params)
+      if self.type==1:
+         resp = self.get('update.htm',params)
+      elif self.type==2:
+         resp = self.get('/cgi-bin/update',params)
       log.debug('Update -> %s', resp.msg)
       return resp.msg
 
@@ -156,7 +173,11 @@ P399 = 'french',
       # Reboot
       log.debug('Reboot...')
       t1 = time()
-      resp = self.get('rs.htm')
+
+      if self.type==1:
+         resp = self.get('rs.htm')
+      elif self.type==2:
+         resp = self.get('/cgi-bin/rs')
 
       # While rebooting, phone is reachable, then unreachable, then reachable again
       reachable = True
@@ -230,6 +251,9 @@ P399 = 'french',
       self.params['P73'] = 1
       self.params['P1347'] = '**'
       self.params['P57'] = 8
+
+      if self.type==2:
+         self.params['update'] = 'Mise a jour'
 
       # Generate conf files (text and binary)
       name = tftp_dir + '/phones/config/gs-cfg%s' % self.mac.replace(':','')
