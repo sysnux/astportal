@@ -406,7 +406,7 @@ Channel: SIP/100-0000001f
       c = dict['Channel']
       if c not in self.channels:
          log.warning('Hangup: channel "%s" does not exist..' % c)
-         for chan in channels.keys():
+         for chan in self.channels.keys():
             if chan in c:
                log.warning('Hangup: "%s" -> destroy %s' % (c,chan))
                del self.channels[chan]
