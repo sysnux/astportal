@@ -213,7 +213,7 @@ class Display_CDR(BaseController):
       tmpl_context.form = search_form
       tmpl_context.grid = cdr_grid
       values = {'in_out': in_out, 'date': date, 'number': number, 'hour': hour}
-      from tw.jquery.ui import ui_tabs_js #, jquery_ui_all_js
+      from tw.jquery.ui import ui_tabs_js
       ui_tabs_js.inject()
       return dict( title=u'Journal des appels', debug='', values=values)
 
