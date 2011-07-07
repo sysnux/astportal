@@ -19,7 +19,7 @@ from astportal2.model import DBSession, Phone, Department, User
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.grandstream import Grandstream
 from astportal2.lib.app_globals import Globals
-from astportal2.lib.asterisk import asterisk_update
+from astportal2.lib.asterisk import asterisk_update_phone
 
 from string import letters, digits
 from random import choice
@@ -516,7 +516,7 @@ class Phone_ctrl(RestController):
          p.contexts = ','.join([str(x) for x in kw['contexts']])
       DBSession.add(p)
 
-      asterisk_update(p)
+      asterisk_update_phone(p)
 
       if kw['mac']:
          # Create provisionning file if MAC exists
@@ -631,7 +631,7 @@ class Phone_ctrl(RestController):
       if p.pickupgroups != x:
          p.pickupgroups = x
 
-      asterisk_update(p, old_exten, old_dnis)
+      asterisk_update_phone(p, old_exten, old_dnis)
 
       flash(u'Téléphone modifié')
       redirect('/phones/')

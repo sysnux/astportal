@@ -133,11 +133,33 @@ class Sound(DeclarativeBase):
    __tablename__ = 'sound'
    sound_id = Column(Integer, primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
+   type = Column(Integer, default=0) # 0=moh (class?), 1=sound
    comment = Column(Unicode())
    owner_id = Column(Integer, ForeignKey('tg_user.user_id'))
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
-      return '<Sound: name="%s", comment="%s">' % (
-            self.name, self.comment)
+      return '<Sound: name="%s", comment="%s", type="%s">' % (
+            self.name, self.comment, self.type)
 
+
+class Queue(DeclarativeBase):
+   ''' Definition of a queue
+   '''
+   __tablename__ = 'queue'
+   queue_id = Column(Integer, primary_key=True)
+   name = Column(Unicode(64), nullable=False, unique=True)
+   comment = Column(Unicode())
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   music_id = Column(Integer, ForeignKey('sound.sound_id'))
+   announce_id = Column(Integer, ForeignKey('sound.sound_id'))
+   strategy  = Column(Unicode)
+   wrapuptime = Column(Integer)
+   announce_frequency = Column(Integer)
+   min_announce_frequency = Column(Integer)
+   min_announce_frequency = Column(Integer)
+   announce_holdtime  = Column(Unicode)
+   announce_position  = Column(Unicode)
+   def __repr__(self):
+      return '<Queue: name="%s", comment="%s">' % (
+            self.name, self.comment)
 

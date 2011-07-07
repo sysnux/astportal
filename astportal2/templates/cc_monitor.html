@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:py="http://genshi.edgewall.org/"
+  xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html"/>
+
+<head>
+   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
+   <title py:content="title">Paginate Data Grid</title>
+
+   <script type="text/javascript">
+<![CDATA[
+
+var last=0, count=0, error=0, display_tmo;
+var add_queue=null;
+var queues = new Object();
+var members = new Object();
+
+$(document).ready(function() {
+   update();
+   $('#add_form').hide();
+});
+
+function update() {
+   $.post(
+      "${tg.url('/cc_monitor/update_queues')}",
+      {'last': last},
+      list_queues, 'json');
+   $(document).ajaxError(data_fetch_failed);
+}
+
+function list_queues(data) {
+   if (data) {
+      // Data is null on AstPortal reload
+      clearTimeout(display_tmo);
+      queues = data.queues;
+      members = data.members;
+      last = data.last_update;
+	   display();
+   }
+   update();
+}
+
+function display() {
+   var html = '';
+	var now = new Date();
+   for (q in queues) {
+      html += '<h2>Groupe ' + q + '</h2>';
+      html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
+   }
+   for (m in members) {
+      html += '<h2>Membre ' + m + '</h2>';
+   }
+   $('#queues_list').html(html);
+   // document.getElementById('queues_list').innerHTML = html;
+   display_tmo = setTimeout(display,500);
+}
+
+function data_fetch_failed (e, xhr, settings, exception) {
+   error++;
+   if (error>3) {
+      alert('ERREUR !' + error);
+   } else {
+      // Wait a bit and try again
+      setTimeout(update,1000*error);
+   }
+}
+
+function fetch_exten(queue) {
+   add_queue = queue;
+   $.post(
+      "${tg.url('/cc_monitor/list_exten')}",
+      {}, show_add_form, 'json');
+   $(document).ajaxError(data_fetch_failed);
+}
+
+function show_add_form(data) {
+   $('option', '#add_select').remove();
+   for (p in data.phones) {
+      $('#add_select').append(new Option(data.phones[p][1],data.phones[p][0]));
+   }
+   $('#add_form').show();
+}
+
+function add_member() {
+   $.post(
+      "${tg.url('/cc_monitor/add_member')}",
+      {'queue': add_queue, 'member': $('#add_select').val()},
+      add_member_result, 'json');
+   $(document).ajaxError(data_fetch_failed);
+   add_queue = null;
+   $('#add_form').hide();
+}
+
+function add_member_result(data) {
+   alert(data.res)
+}
+
+function min_sec(millisec) {
+   // Converts millisec to string min:sec (ex 1:23)
+   var sec = Math.ceil(millisec/1000);
+   var min = parseInt(sec/60);
+   sec %= 60;
+   if (sec<10) sec = '0'+sec;
+   return min + ':' + sec;
+}
+
+]]>
+   </script>
+</head>
+<body>
+   <h1 py:content="title">Title</h1>
+   <span py:replace="debug" /><br />
+      <div id="add_form">
+         <select id="add_select"><option>XXX</option></select>
+         <a href="#" onclick="add_member();">Valider</a>
+         <a href="#" onclick="$('#add_form').hide();">Annuler</a>
+      </div>
+      <div id="queues_list">. . .</div>
+   </body>
+</html>

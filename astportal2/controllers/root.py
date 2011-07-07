@@ -26,6 +26,8 @@ from astportal2.controllers.phonebook import Phonebook_ctrl
 from astportal2.controllers.moh import MOH_ctrl
 from astportal2.controllers.stats import Stats_ctrl
 from astportal2.controllers.db_schema import DB_schema
+from astportal2.controllers.queues import Queue_ctrl
+from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
 
 
 class RootController(BaseController):
@@ -53,6 +55,8 @@ class RootController(BaseController):
    phonebook = Phonebook_ctrl()
    moh = MOH_ctrl()
    stats = Stats_ctrl()
+   queues = Queue_ctrl()
+   cc_monitor = CC_Monitor_ctrl()
 
    db_schema = DB_schema()
 

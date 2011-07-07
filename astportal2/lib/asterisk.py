@@ -11,7 +11,7 @@ from tg import config
 directory_asterisk = config.get('directory.asterisk')
 default_dnis = config.get('default_dnis')
 
-def asterisk_update(p, old_exten=None, old_dnis=None):
+def asterisk_update_phone(p, old_exten=None, old_dnis=None):
    '''Update Asterisk configuration files
 
    Parameter: p=Phone object, old_exten=previous phone exten
@@ -102,6 +102,40 @@ def asterisk_update(p, old_exten=None, old_dnis=None):
    Globals.manager.send_action({'Action': 'Command',
       'Command': 'dialplan reload'})
 
+def asterisk_update_queue(q):
+   '''Update Asterisk configuration files
+
+   Parameter: q=Queue object
+   File updated: queues.conf
+   '''
+
+   actions = [
+            ('NewCat', q.name),
+            ('Append', q.name, 'musicclass', q.music_id),
+            ('Append', q.name, 'announce', q.announce_id),
+            ('Append', q.name, 'strategy', q.strategy),
+            ('Append', q.name, 'wrapuptime', q.wrapuptime),
+            ('Append', q.name, 'announce-frequency', q.announce_frequency),
+            ('Append', q.name, 'min-announce-frequency', q.min_announce_frequency),
+            ('Append', q.name, 'announce-holdtime', q.announce_holdtime),
+            ('Append', q.name, 'announce-position', q.announce_position),
+            ]
+
+   # Always delete old queue
+   res = Globals.manager.update_config(
+         directory_asterisk  + 'queues.conf', None, [('DelCat', q.name)])
+   log.debug('Delete queue "%s" returns %s' % (q.name, res))
+
+   # Create queue
+   res = Globals.manager.update_config(
+         directory_asterisk  + 'queues.conf', None, actions)
+   log.debug('Create queue "%s" returns %s' % (q.name, res))
+
+   # Allways reload queues
+   Globals.manager.send_action({'Action': 'Command',
+      'Command': 'queue reload all'})
+
+
 class Status(object):
    '''Asterisk Status:
    Keeps track of channels, peers, queues...
@@ -118,7 +152,10 @@ class Status(object):
       log.warning('Received shutdown event')
       Globals.manager.close()
       # XXX We should analize the event and reconnect here
-      
+
+   def normalize_member(self, member):
+      return member
+
    def handle_event(self, event, manager):
       if 'Event' not in event.headers:
          log.debug('Event without Event ? %s')
@@ -286,7 +323,7 @@ Channel: SIP/100-0000001f
 # Device is on hold #define AST_DEVICE_ONHOLD	8
    def _handle_QueueMember(self, dict):
       q = dict['Queue']
-      m = normalize_member(dict['Name'])
+      m = self.normalize_member(dict['Name'])
       self.queues[q]['Members'].append(m)
       if m in self.members:
          self.members[m]['Queues'].append(q)
@@ -300,7 +337,7 @@ Channel: SIP/100-0000001f
 
    def _handle_AgentConnect(self, dict):
       q = dict['Queue']
-      m = normalize_member(dict['Member'])
+      m = self.normalize_member(dict['Member'])
       self.members[m]['Begin'] = time()
       self.members[m]['Queue'] = dict['Queue']
       self.members[m]['Channel'] = dict['Channel']
@@ -312,7 +349,7 @@ Channel: SIP/100-0000001f
       self.last_update = time()
 
    def _handle_QueueMemberStatus(self, dict):
-      m = normalize_member(dict['MemberName'])
+      m = self.normalize_member(dict['MemberName'])
       s = dict['Status']
       if s in (2, 6):
          self.members[m]['Begin'] = time()
@@ -326,7 +363,7 @@ Channel: SIP/100-0000001f
 
    def _handle_QueueMemberRemoved(self, dict):
       q = dict['Queue']
-      m = normalize_member(dict['Member'])
+      m = self.normalize_member(dict['Member'])
       self.queues[q]['Members'].remove(m)
       del self.members[m]
       self.last_update = time()

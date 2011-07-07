@@ -64,10 +64,11 @@ def row(g):
 
    html =  u'<a href="'+ str(g.group_id) + u'/edit" title="Modifier">'
    html += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
-   html += u'&nbsp;&nbsp;&nbsp;'
-   html += u'<a href="#" onclick="del(\''+ str(g.group_id) + \
+   if not g.group_name.startswith(u'SV ') and not g.group_name=='admin':
+      html += u'&nbsp;&nbsp;&nbsp;'
+      html += u'<a href="#" onclick="del(\''+ str(g.group_id) + \
          u'\',\'Suppression du groupe ' + g.group_name + u'\')" title="Supprimer">'
-   html += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+      html += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    return [Markup(html), g.group_name, g.display_name , users]
 
