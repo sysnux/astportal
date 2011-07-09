@@ -39,6 +39,7 @@ def manager_check():
        Globals.manager.register_event('*', Globals.asterisk.handle_event)
        log.debug('Request status...')
        Globals.manager.status()
+       Globals.manager.send_action({'Action': 'QueueStatus'})
        log.info('Connected to Asterisk manager on "%s"' % man[0][0])
 #       for m in man:
 #          mt = astportal2.manager.manager_thread.manager_thread(m[0], m[1], m[2])

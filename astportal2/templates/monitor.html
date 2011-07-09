@@ -19,6 +19,7 @@ var channels = new Object();
 
 $(document).ready(function() {
    update();
+   display_tmo = setTimeout(display,500);
 });
 
 function update() {
@@ -32,12 +33,12 @@ function update() {
 function list_channels(data) {
    if (data) {
       // Data is null on AstPortal reload
-      clearTimeout(display_tmo);
+//      clearTimeout(display_tmo);
       channels = data.channels;
       last = data.last_update;
-	   display();
+//	   display();
    }
-   update();
+   setTimeout(update,1000);
 }
 
 function display() {

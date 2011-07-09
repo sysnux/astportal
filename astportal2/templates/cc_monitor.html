@@ -8,98 +8,214 @@
 
 <head>
    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
-   <title py:content="title">Paginate Data Grid</title>
+   <title py:content="title">Title</title>
+
+   <style>
+<![CDATA[
+tr.even td.free, tr.odd td.free { background-color: green;}
+tr.even td.inuse, tr.odd td.inuse { background-color: red;}
+tr.even td.ringing, tr.odd td.ringing { background-color: yellow;}
+tr.even td.invalid, tr.odd td.invalid { background-color: grey;}
+]]>
+   </style>
 
    <script type="text/javascript">
 <![CDATA[
 
-var last=0, count=0, error=0, display_tmo;
-var add_queue=null;
-var queues = new Object();
-var members = new Object();
+var last=0, // last_update
+    change=true, // Change in list of queues or members, need rebuild list
+    first_time=true, error=0, display_tmo,
+    add_queue=null,  // List of users for adding members
+    queues = new Object(), // List of queues
+    members = new Object(); // List of members
 
 $(document).ready(function() {
-   update();
    $('#add_form').hide();
+   $(document).ajaxError(ajax_error);
+   if (${auth}) {
+      fetch_updates();
+   }
 });
 
-function update() {
+function fetch_updates() { // Long running request for data updates
    $.post(
       "${tg.url('/cc_monitor/update_queues')}",
       {'last': last},
-      list_queues, 'json');
-   $(document).ajaxError(data_fetch_failed);
+      updates_ready, 'json');
 }
 
-function list_queues(data) {
+function updates_ready(data) {
    if (data) {
       // Data is null on AstPortal reload
-      clearTimeout(display_tmo);
       queues = data.queues;
       members = data.members;
-      last = data.last_update;
-	   display();
+      change = data.change;
+      last = data.last;
+      if (first_time) {
+         change=true;
+         first_time=false;
+         list_queues();
+      }
+      data=null;
    }
-   update();
+   fetch_updates();
 }
 
-function display() {
-   var html = '';
-	var now = new Date();
-   for (q in queues) {
-      html += '<h2>Groupe ' + q + '</h2>';
-      html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
+function list_queues() { // Builds main part of the screen
+
+   if (change) { 
+      // Something has changed (queue or member), need to rebuild the whole screen
+      change = false;
+      var html = '';
+      for (q in queues) { // For each queue, display name and table
+         html += '<h2>Groupe ' + q + '</h2>';
+         var table = '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents</th><th rowspan="2">&Eacute;tat</th>';
+         table += '<th rowspan="2">Durée</th><th colspan="2">Appels reçus</th><th colspan="2">Appel émis</th><th rowspan="2">&Eacute;couter</th>';
+         table += '<th rowspan="2">Enreg.</th rowspan="2"><th rowspan="2">Retirer</th></tr>';
+         table += '<tr><th>Nb</th><th>Total</th><th>Nb</th><th>Total</th></tr>';
+         var i=1, qm=queues[q]['Members'];
+         for (m in qm) { // For each member in this queue
+            var trclass = (i%2) ? 'even':'odd';
+            var id = q + '_' + qm[m].replace(/\W/g,'_');
+            table += '<tr class="' + trclass + '"><td>' + i + '</td>';
+            table += '<td>' + qm[m] + '</td>';
+            //[sclass, sta, dur, nci, tci, nco, tco, lis, rec] = NOT working in chrome !
+            var a = member_status(members[qm[m]]);
+            table += '<td id="sta_' + id + '"class="' + a[0] + '">' + a[1] + '</td>';
+            table += '<td id="dur_' + id + '">' + a[2] + '</td>';
+            table += '<td id="nci_' + id + '">' + a[3] + '</td>';
+            table += '<td id="tci_' + id + '">' + a[4] + '</td>';
+            table += '<td id="nco_' + id + '">' + a[5] + '</td>';
+            table += '<td id="tco_' + id + '">' + a[6] + '</td>';
+            table += '<td id="lis_' + id + '">' + a[7] + '</td>';
+            table += '<td id="rec_' + id + '">' + a[8] + '</td>';
+            table += '<td><input type="checkbox" onclick="remove(\'' + 
+               q + '\',\'' + members[qm[m]]['Location']  + '\',\'' + qm[m] + '\')"/></td>';
+            table += '</tr>';
+            i++;
+         }
+         if (i==1) { // No members !
+            html += '<i>Aucun agent</i><br/>';
+         } else {
+            html += table +'</table>';
+         }
+         html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
+      }
+      $('#queues_list').html(html);
    }
-   for (m in members) {
-      html += '<h2>Membre ' + m + '</h2>';
+
+   else {
+      // No change, just update variable fields
+      for (q in queues) { // For each queue, display name and table
+         var qm = queues[q]['Members'];
+         for (m in qm) { // For each member in this queue
+            var id = q + '_' + qm[m].replace(/\W/g,'_');
+            var a = member_status(members[qm[m]]);
+            $('#sta_' + id).attr('class',a[0]);
+            $('#sta_' + id).html(a[1]);
+            $('#dur_' + id).html(a[2]);
+            $('#nci_' + id).html(a[3]);
+            $('#tci_' + id).html(a[4]);
+            $('#nco_' + id).html(a[5]);
+            $('#tco_' + id).html(a[6]);
+            $('#lis_' + id).html(a[7]);
+            $('#rec_' + id).html(a[8]);
+         }
+      }
    }
-   $('#queues_list').html(html);
-   // document.getElementById('queues_list').innerHTML = html;
-   display_tmo = setTimeout(display,500);
+   display_tmo = setTimeout(list_queues,500);
 }
 
-function data_fetch_failed (e, xhr, settings, exception) {
+function member_status(member) {
+   var now = new Date(), lis = '&nbsp;', rec = '&nbsp;';
+   var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
+   switch (member['Status']) {
+      case '1': // AST_DEVICE_NOT_INUSE
+         sclass='free'; stat='Libre'; dur=''; break; 
+      case '2': // AST_DEVICE_INUSE
+      case '3': // AST_DEVICE_BUSY
+      case '8': // AST_DEVICE_ONHOLD
+         sclass='inuse'; 
+         if (member['Outgoing']) {
+            stat='Appel émis';
+            dur = min_sec(now - new Date(member['OutBegin']*1000));
+         } else {
+            stat='Appel reçu';
+            dur = min_sec(now - new Date(member['InBegin']*1000));
+         }
+         lis = '<input type="checkbox" onclick="listen(\'' + 
+            member['Location'] + '\')"/>';
+         rec = '<input type="radio" onclick="record(\'' + 
+            member['Location'] + '\')"/>';
+         break;
+      case '6': // AST_DEVICE_RINGING
+      case '7': // AST_DEVICE_RINGINUSE
+         sclass='ringing'; stat='Sonnerie'; dur=0; break; 
+      case '4': // AST_DEVICE_INVALID
+      case '5': // AST_DEVICE_UNAVAILABLE
+      default: 
+         sclass='invalid'; stat='Invalide'; dur=0; break;
+   }
+   nci = member['CallsTaken'];
+   tci = min_sec(1000*member['InTotal']);
+   nco = member['CallsOut'];
+   tco = min_sec(1000*member['OutTotal']);
+   return [sclass, stat, dur, nci, tci, nco, tco, lis, rec];
+}
+
+function listen(channel) {
+}
+
+function record(channel) {
+}
+
+function ajax_error (e, xhr, settings, exception) {
    error++;
    if (error>3) {
-      alert('ERREUR !' + error);
+      alert('ERREUR ! ' + error);
+      error=0;
    } else {
       // Wait a bit and try again
-      setTimeout(update,1000*error);
+      setTimeout(fetch_updates,1000*error);
    }
 }
 
-function fetch_exten(queue) {
+function fetch_exten(queue) { // Request exten list
    add_queue = queue;
    $.post(
       "${tg.url('/cc_monitor/list_exten')}",
-      {}, show_add_form, 'json');
-   $(document).ajaxError(data_fetch_failed);
+      {},
+      function (data) { // Populate select and display add member form
+         $('option', '#agent_select').remove();
+         for (p in data.phones) {
+            $('#agent_select').append(new Option(data.phones[p][1],data.phones[p][0]));
+         }
+         $('#add_form').show();
+      },
+      'json');
 }
 
-function show_add_form(data) {
-   $('option', '#add_select').remove();
-   for (p in data.phones) {
-      $('#add_select').append(new Option(data.phones[p][1],data.phones[p][0]));
-   }
-   $('#add_form').show();
-}
-
-function add_member() {
+function add_member() { // Called from click on "Add member" link
    $.post(
       "${tg.url('/cc_monitor/add_member')}",
-      {'queue': add_queue, 'member': $('#add_select').val()},
-      add_member_result, 'json');
-   $(document).ajaxError(data_fetch_failed);
+      {'queue': add_queue, 'member': $('#agent_select').val(),
+      'priority': $('#priority').val()},
+      null, 'json');
    add_queue = null;
    $('#add_form').hide();
 }
 
-function add_member_result(data) {
-   alert(data.res)
+function remove(queue, iface, member) {
+   if (confirm('Retirer "' + member + '" du groupe "' + queue + '"')) {
+      $.post(
+         "${tg.url('/cc_monitor/remove_member')}",
+         {'queue': queue, 'iface': iface, 'member': member},
+         null, 'json');
+   }
 }
 
 function min_sec(millisec) {
-   // Converts millisec to string min:sec (ex 1:23)
+   // Converts millisec to string min:sec (ex 83 -> 1:23)
    var sec = Math.ceil(millisec/1000);
    var min = parseInt(sec/60);
    sec %= 60;
@@ -113,11 +229,15 @@ function min_sec(millisec) {
 <body>
    <h1 py:content="title">Title</h1>
    <span py:replace="debug" /><br />
+
       <div id="add_form">
-         <select id="add_select"><option>XXX</option></select>
+         Agent : <select id="agent_select"></select><br/>
+         Priorité : <input type="text" id="priority" size="4"/><br/>
          <a href="#" onclick="add_member();">Valider</a>
          <a href="#" onclick="$('#add_form').hide();">Annuler</a>
       </div>
-      <div id="queues_list">. . .</div>
+
+      <div id="queues_list"><i>Loading. . .</i></div>
+
    </body>
 </html>

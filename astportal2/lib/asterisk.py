@@ -109,7 +109,15 @@ def asterisk_update_queue(q):
    File updated: queues.conf
    '''
 
-   actions = [
+
+   # Always delete old queue
+   res = Globals.manager.update_config(
+         directory_asterisk  + 'queues.conf', None, [('DelCat', q.name)])
+   log.debug('Delete queue "%s" returns %s' % (q.name, res))
+
+   # Create queue
+   res = Globals.manager.update_config(
+         directory_asterisk  + 'queues.conf', None, [
             ('NewCat', q.name),
             ('Append', q.name, 'musicclass', q.music_id),
             ('Append', q.name, 'announce', q.announce_id),
@@ -119,16 +127,9 @@ def asterisk_update_queue(q):
             ('Append', q.name, 'min-announce-frequency', q.min_announce_frequency),
             ('Append', q.name, 'announce-holdtime', q.announce_holdtime),
             ('Append', q.name, 'announce-position', q.announce_position),
+            ('Append', q.name, 'ringinuse', 'no'),
             ]
-
-   # Always delete old queue
-   res = Globals.manager.update_config(
-         directory_asterisk  + 'queues.conf', None, [('DelCat', q.name)])
-   log.debug('Delete queue "%s" returns %s' % (q.name, res))
-
-   # Create queue
-   res = Globals.manager.update_config(
-         directory_asterisk  + 'queues.conf', None, actions)
+         )
    log.debug('Create queue "%s" returns %s' % (q.name, res))
 
    # Allways reload queues
@@ -143,6 +144,7 @@ class Status(object):
 
    def __init__(self):
       self.last_update = time()
+      self.last_queue_update = time()
       self.peers = {}
       self.channels = {}
       self.queues = {}
@@ -188,8 +190,6 @@ class Status(object):
          self._handle_QueueMember(event.headers)
       elif e=='QueueParams':
          self._handle_QueueParams(event.headers)
-      elif e=='QueueMember':
-         self._handle_QueueMember(event.headers)
       elif e=='AgentConnect':
          self._handle_AgentConnect(event.headers)
       elif e=='QueueMemberStatus':
@@ -274,7 +274,7 @@ Channel: SIP/100-0000001f
          res = Globals.manager.sipshowpeer(peer[4:])
          self.peers[peer]['UserAgent'] = res.get_header('SIP-Useragent')
 
-      self.last_update = time()
+#      self.last_update = time()
 
 
    def _handle_PeerEntry(self,dict):
@@ -297,19 +297,21 @@ Channel: SIP/100-0000001f
             'Address': addr
             }
 
-      self.last_update = time()
+#      self.last_update = time()
 
    def _updateQueues(self, dict):
       pass
 
    def _handle_QueueParams(self, dict):
       self.queues[dict['Queue']] = {
-         'ServicelevelPerf': dict['ServicelevelPerf'], 'Abandoned': int(dict['Abandoned']),
-         'Calls': int(dict['Calls']), 'Max': int(dict['Max']), 'Completed': int(dict['Completed']), 
+         'ServicelevelPerf': dict['ServicelevelPerf'], 
+         'Abandoned': int(dict['Abandoned']),
+         'Calls': int(dict['Calls']), 
+         'Max': int(dict['Max']), 'Completed': int(dict['Completed']), 
          'ServiceLevel': dict['ServiceLevel'], 'Strategy': dict['Strategy'], 
          'Weight': dict['Weight'], 'Holdtime': dict['Holdtime'], 
          'Members': [], 'Wait': [], 'LastUpdate': time()}
-      self.last_update = time()
+      self.last_queue_update = time()
 
 # Agents' status: from include/asterisk/devicestate.h
 # Device is valid but channel didn't know state #define AST_DEVICE_UNKNOWN	0
@@ -323,22 +325,34 @@ Channel: SIP/100-0000001f
 # Device is on hold #define AST_DEVICE_ONHOLD	8
    def _handle_QueueMember(self, dict):
       q = dict['Queue']
-      m = self.normalize_member(dict['Name'])
+      if 'Name' in dict:
+         m = self.normalize_member(dict['Name'])
+      elif 'MemberName' in dict:
+         m = self.normalize_member(dict['MemberName'])
+      else:
+         log.error('QueueMember %s' % dict)
+         return
       self.queues[q]['Members'].append(m)
       if m in self.members:
-         self.members[m]['Queues'].append(q)
+         if not q in self.members[m]['Queues']:
+            self.members[m]['Queues'].append(q)
       else:
-         self.members[m] = {'Status': dict['Status'], 'Begin': time(),
-            'CallsTaken': int(dict['CallsTaken']), 'Penalty': dict['Penalty'],
+         self.members[m] = {'Status': dict['Status'],
+            'Penalty': dict['Penalty'],
             'Membership': dict['Membership'], 'Location': dict['Location'],
             'LastCall': dict['LastCall'], 'Paused': dict['Paused'],
-            'LastUpdate': time(), 'Queues': [q,] }
-      self.last_update = time()
+            'LastUpdate': time(), 'Queues': [q,],
+            'ConnBegin': time(), # Connection time
+            # Counters for outgoing calls
+            'Outgoing': False, 'CallsOut': 0, 'OutBegin': time(), 'OutTotal': 0,
+            # Counters for incoming calls
+            'CallsTaken': int(dict['CallsTaken']), 'InBegin': time(), 'InTotal': 0}
+      self.last_queue_update = time()
 
    def _handle_AgentConnect(self, dict):
       q = dict['Queue']
       m = self.normalize_member(dict['Member'])
-      self.members[m]['Begin'] = time()
+      self.members[m]['ConnBegin'] = time()
       self.members[m]['Queue'] = dict['Queue']
       self.members[m]['Channel'] = dict['Channel']
       self.members[m]['BridgedChannel'] = dict['BridgedChannel']
@@ -346,27 +360,32 @@ Channel: SIP/100-0000001f
       self.members[m]['Holdtime'] = dict['Holdtime']
       self.members[m]['Uniqueid'] = dict['Uniqueid']
       self.members[m]['LastUpdate'] = time()
-      self.last_update = time()
+      self.last_queue_update = time()
 
    def _handle_QueueMemberStatus(self, dict):
       m = self.normalize_member(dict['MemberName'])
       s = dict['Status']
-      if s in (2, 6):
-         self.members[m]['Begin'] = time()
-         self.members[m]['Recording'] = False
+      if s == '2': #AST_DEVICE_INUSE
+         self.members[m]['InBegin'] = time()
       self.members[m]['Status'] = dict['Status']
       self.members[m]['CallsTaken'] = int(dict['CallsTaken'])
       self.members[m]['LastCall'] = dict['LastCall']
       self.members[m]['Paused'] = dict['Paused']
       self.members[m]['LastUpdate'] = time()
-      self.last_update = time()
+      self.last_queue_update = time()
 
    def _handle_QueueMemberRemoved(self, dict):
       q = dict['Queue']
-      m = self.normalize_member(dict['Member'])
+      if 'Member' in dict:
+         m = self.normalize_member(dict['Member'])
+      elif 'MemberName' in dict:
+         m = self.normalize_member(dict['MemberName'])
+      else:
+         log.error('QueueMemberRemoved %s' % dict)
+         return
       self.queues[q]['Members'].remove(m)
       del self.members[m]
-      self.last_update = time()
+      self.last_queue_update = time()
 
    def _handle_QueueEntry(self, dict):
 #/* Event: QueueEntry
@@ -378,13 +397,13 @@ Channel: SIP/100-0000001f
 #Wait: 12 */
       print dict
       self.queues[dict['Queue']]['Wait'][dict['Position']] = time() - dict['Wait']
-      self.last_update = time()
+      self.last_queue_update = time()
 
    def _handle_Join(self, dict):
       print dict
       self.queues[dict['Queue']]['Calls'] += 1
       self.queues[dict['Queue']]['Wait'].append(time())
-      self.last_update = time()
+      self.last_queue_update = time()
 
 
 #-----------------------------------------------------
@@ -398,11 +417,11 @@ Channel: SIP/100-0000001f
    def _handle_QueueCallerAbandon(self, dict):
       print dict
       del self.queues[dict['Queue']]['Wait'][int(dict['Position'])-1]
-      self.last_update = time()
+      self.last_queue_update = time()
 
    def _handle_Leave(self, dict):
       self.queues[dict['Queue']]['Calls'] = int(dict['Count'])
-      self.last_update = time()
+      self.last_queue_update = time()
 #-----------------------------------------------------
 
    def _updateChannels(self, dict):
@@ -421,7 +440,8 @@ Channel: SIP/100-0000001f
          # manager_version=='1.1':
          new_state = dict['ChannelStateDesc']
 
-      if new_state and 'State' in self.channels[c] and self.channels[c]['State'] != new_state:
+      if new_state and 'State' in self.channels[c] and \
+            self.channels[c]['State'] != new_state:
          self.channels[c]['State'] = new_state
          if new_state=='Up':
             self.channels[c]['Begin'] = time()
@@ -437,19 +457,52 @@ Channel: SIP/100-0000001f
       self.channels[dict['Channel']] = {'CallerIDNum': dict['CallerIDNum'], 
             'CallerIDName': dict['CallerIDName'], 'Uniqueid': dict['Uniqueid'],
             'State': state, 'Begin': time()}
+      # Check if channel belongs to a queue member
+      loc = dict['Channel'][:dict['Channel'].find('-')] # SIP/100-000000a6 -> SIP/100
+      for m in self.members:
+         if self.members[m]['Location'] == loc:
+            self.members[m]['Outgoing'] = True
+            self.members[m]['OutBegin'] = time()
+            self.last_queue_update = time()
+            break
+
       self.last_update = time()
+
 
    def _handle_Hangup(self, dict):
       c = dict['Channel']
+
       if c not in self.channels:
-         log.warning('Hangup: channel "%s" does not exist..' % c)
+         log.warning('Hangup: channel "%s" does not exist...' % c)
          for chan in self.channels.keys():
             if chan in c:
                log.warning('Hangup: "%s" -> destroy %s' % (c,chan))
-               del self.channels[chan]
-      else:
+               c = chan
+               break
+         else:
+            log.warning('Hangup: "%s" no channel to destroy' % c)
+
+      # Check if channel belongs to a queue member
+      loc = c[:c.find('-')] # SIP/100-000000a6 -> SIP/100
+      for m in self.members:
+         if self.members[m]['Location'] == loc:
+            log.debug('Hangup: member "%s"' % m)
+            if self.members[m]['Outgoing']:
+               self.members[m]['Outgoing'] = False
+               self.members[m]['CallsOut'] += 1
+               self.members[m]['OutTotal'] += time() - self.members[m]['OutBegin']
+            else:
+               self.members[m]['InTotal'] += time() - self.members[m]['InBegin']
+            self.members[m]['Recording'] = False
+            self.last_queue_update = time()
+            break
+
+      try:
          del self.channels[c]
+      except:
+         log.warning('Hangup: channel "%s" doesn\'t exist ?' % c)
       self.last_update = time()
+
 
    def _handle_Link(self, dict):
       # Event: Link
