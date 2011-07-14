@@ -15,7 +15,7 @@ from tw.forms.validators import NotEmpty, Int, Invalid
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Phone, Department, User
+from astportal2.model import DBSession, Phone, Department, User, Pickup
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.grandstream import Grandstream
 from astportal2.lib.app_globals import Globals
@@ -48,15 +48,6 @@ _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'),
    ('services', u'Services'), ('local', u'Local'), ('islands', u'Iles'), 
    ('gsm', u'GSM'), ('international_ip', u'International IP'),
    ('international_pstn', u'International RTC'))
-
-_callgroups = ((1, u'Groupe 1'), (2, u'Groupe 2'), (3, u'Groupe 3'), 
-   (4, u'Groupe 4'), (5, u'Groupe 5'), (6, u'Groupe 6'), 
-   (7, u'Groupe 7'), (8, u'Groupe 8'), (9, 'Groupe 9'))
-
-_pickupgroups = ((1, u'Groupe 1'), (2, u'Groupe 2'), (3, u'Groupe 3'), 
-   (4, u'Groupe 4'), (5, u'Groupe 5'), (6, u'Groupe 6'), 
-   (7, u'Groupe 7'), (8, u'Groupe 8'), (9, 'Groupe 9'))
-
 
 def departments():
    a = [('-9999',' - - - ')]
@@ -109,11 +100,11 @@ class New_phone_form(AjaxForm):
          default = ('urgent','internal','services'),
          label_text=u'Droits d\'appels', help_text='Autorisations pour les appels sortants'),
       CheckBoxTable('callgroups', validator=Int,
-         options = _callgroups,
+         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
          label_text=u'Groupes d\'appels', 
          not_empty = False),
       CheckBoxTable('pickupgroups', validator=Int,
-         options = _pickupgroups,
+         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
          label_text=u'Groupes d\'interception', 
          not_empty = False),
       SingleSelectField('dptm_id', options = departments,
@@ -159,11 +150,11 @@ class Edit_phone_form(TableForm):
          options = _contexts,
          label_text=u'Droits d\'appels', help_text='Autorisations pour les appels sortants'),
       CheckBoxList('callgroups', validator=Int,
-         options = _callgroups,
+         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
          label_text=u'Groupes d\'appels', 
          help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
       CheckBoxList('pickupgroups', validator=Int,
-         options = _pickupgroups,
+         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
          label_text=u'Groupes d\'interception', 
          help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
       SingleSelectField('dptm_id',

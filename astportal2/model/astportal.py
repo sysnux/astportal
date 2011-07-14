@@ -163,3 +163,16 @@ class Queue(DeclarativeBase):
       return '<Queue: name="%s", comment="%s">' % (
             self.name, self.comment)
 
+
+class Pickup(DeclarativeBase):
+   ''' Definition of pickup groups (Asterisk supports groups 0-63)
+   '''
+   __tablename__ = 'pickup'
+   pickup_id = Column(Integer, primary_key=True)
+   name = Column(Unicode(64), nullable=False, unique=True)
+   comment = Column(Unicode())
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   def __repr__(self):
+      return '<Pickup: name="%s", comment="%s">' % (
+            self.name, self.comment)
+
