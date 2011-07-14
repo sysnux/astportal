@@ -10,6 +10,7 @@ from astportal2.model import DBSession, Phone
 from astportal2.lib.app_globals import Globals
 
 from time import sleep
+import copy
 import unicodedata
 
 import logging
@@ -40,13 +41,16 @@ class CC_Monitor_ctrl(TGController):
    def list_exten(self):
       ''' List exten for adding members to a queue
       '''
+      # Refresh Asterisk peers
+      Globals.manager.sippeers()
+
       phones = []
       for p in DBSession.query(Phone).order_by(Phone.exten):
          if p.exten is None: continue
          exten = p.exten
          if p.user: exten += ' (%s)' % p.user.display_name
          phones.append([p.phone_id, exten])
-      log.info(phones)
+      log.debug(phones)
       return dict(phones=phones)
 
 
@@ -62,8 +66,8 @@ class CC_Monitor_ctrl(TGController):
       elif p.exten is not None and 'SIP/'+p.exten in Globals.asterisk.peers:
          iface = 'SIP/' + p.exten
       else:
-         log.warning('%s:%s not registered ?' % (p.sip_id, p.exten))
-         iface = 'SIP/' + p.sip_id
+         log.error('%s:%s not registered, not adding member ?' % (p.sip_id, p.exten))
+         return dict(res='ko')
 
       user = p.user.display_name if p.user else p.exten
 
@@ -89,19 +93,21 @@ class CC_Monitor_ctrl(TGController):
       ''' Function called on AJAX request made by template.
       Return when new updates available, or timeout
       '''
-      last = float(last) or 0;
+      last = float(last) or 0 # Last template refresh (0 -> page loaded)
       i = 0
       change = False
-      qk = Globals.asterisk.queues.keys()
-      mk = Globals.asterisk.members.keys()
+      queues = copy.deepcopy(Globals.asterisk.queues)
       for i in xrange(50):
-         sleep(1)
          last_update = float(Globals.asterisk.last_queue_update)
          if last_update > last:
-            if qk != Globals.asterisk.queues.keys() or \
-                  mk != Globals.asterisk.members.keys():
+#            log.debug(Globals.asterisk.queues)
+#            log.debug(Globals.asterisk.members)
+            if queues != Globals.asterisk.queues or last == 0:
                change = True
-            break
+               break
+            else:
+               last = last_update
+         sleep(1)
       log.debug(' * * * update_queues returns after sleeping %d sec, change=%s' % (i,change))
 
       if in_group('admin'):
@@ -112,8 +118,6 @@ class CC_Monitor_ctrl(TGController):
             if in_group('SV ' + q):
                queues[q] = Globals.asterisk.queues[q]
 
-      log.debug(queues)
-      log.debug(Globals.asterisk.members)
       return dict(last=last_update, change=change, 
             queues=queues, members=Globals.asterisk.members)
 

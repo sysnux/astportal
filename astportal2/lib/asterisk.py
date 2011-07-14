@@ -133,8 +133,7 @@ def asterisk_update_queue(q):
    log.debug('Create queue "%s" returns %s' % (q.name, res))
 
    # Allways reload queues
-   Globals.manager.send_action({'Action': 'Command',
-      'Command': 'queue reload all'})
+   Globals.manager.send_action({'Action': 'QueueReload'})
 
 
 class Status(object):
@@ -176,7 +175,7 @@ class Status(object):
          self._updateChannels(event.headers)
       elif e=='Hangup':
          self._handle_Hangup(event.headers)
-      elif e=='Link':
+      elif e in ('Link', 'Bridge'):
          self._handle_Link(event.headers)
       elif e=='Unlink':
          self._handle_Unlink(event.headers)
@@ -364,9 +363,14 @@ Channel: SIP/100-0000001f
 
    def _handle_QueueMemberStatus(self, dict):
       m = self.normalize_member(dict['MemberName'])
+      if m not in self.members.keys():
+         log.error('Member "%s" does not exist ?' % m)
+         return
       s = dict['Status']
       if s == '2': #AST_DEVICE_INUSE
          self.members[m]['InBegin'] = time()
+      elif s in ('6','7'): # AST_DEVICE_RINGING	AST_DEVICE_RINGINUSE
+         self.members[m]['Outgoing'] = False
       self.members[m]['Status'] = dict['Status']
       self.members[m]['CallsTaken'] = int(dict['CallsTaken'])
       self.members[m]['LastCall'] = dict['LastCall']
@@ -383,8 +387,12 @@ Channel: SIP/100-0000001f
       else:
          log.error('QueueMemberRemoved %s' % dict)
          return
-      self.queues[q]['Members'].remove(m)
-      del self.members[m]
+      self.queues[q]['Members'].remove(m) # Remove from this queue
+      for q,v in self.queues.iteritems(): # Check if member belongs to other queue
+         if m in v['Members']:
+            break
+      else:
+         del self.members[m] # ...else remove member
       self.last_queue_update = time()
 
    def _handle_QueueEntry(self, dict):
@@ -395,12 +403,11 @@ Channel: SIP/100-0000001f
 #CallerIDNum: snom
 #CallerIDName: Tiare
 #Wait: 12 */
-      print dict
-      self.queues[dict['Queue']]['Wait'][dict['Position']] = time() - dict['Wait']
+      # XXX self.queues[dict['Queue']]['Wait'][int(dict['Position'])-1] = \
+      self.queues[dict['Queue']]['Wait'].append(time() - float(dict['Wait']))
       self.last_queue_update = time()
 
    def _handle_Join(self, dict):
-      print dict
       self.queues[dict['Queue']]['Calls'] += 1
       self.queues[dict['Queue']]['Wait'].append(time())
       self.last_queue_update = time()
@@ -510,11 +517,23 @@ Channel: SIP/100-0000001f
       # Channel2: SIP/Doorphone-5180
       # Uniqueid1: 1091803550.81
       # Uniqueid2: 1091803550.82
+      #Event: Bridge
+      #Privilege: call,all
+      #Bridgestate: Link
+      #Bridgetype: core
+      #Channel1: SIP/5t6JPBw8-00000237
+      #Channel2: SIP/100-00000238
+      #Uniqueid1: 1310601378.784
+      #Uniqueid2: 1310601378.785
+      #CallerID1: '501040'
+      #CallerID2: 100
 
       c1 = dict['Channel1']
       c2 = dict['Channel2']
       self.channels[c1]['Link'] = c2
+      self.channels[c1]['Outgoing'] = True
       self.channels[c2]['Link'] = c1
+      self.channels[c2]['Outgoing'] = False
       self.channels[c1]['LastUpdate'] = time()
       self.channels[c2]['LastUpdate'] = time()
       self.last_update = time()

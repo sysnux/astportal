@@ -58,7 +58,7 @@ function updates_ready(data) {
       }
       data=null;
    }
-   fetch_updates();
+   setTimeout(fetch_updates,500);
 }
 
 function list_queues() { // Builds main part of the screen
@@ -66,21 +66,34 @@ function list_queues() { // Builds main part of the screen
    if (change) { 
       // Something has changed (queue or member), need to rebuild the whole screen
       change = false;
+      var now = new Date();
       var html = '';
+      var j=1;
+      var qt = '<table><tr><th>Agents connectés</th><th>Groupes</th><th>Appels en attente</th><th>Temps en attente</th></tr>'; // Queues table
       for (q in queues) { // For each queue, display name and table
+         var qm=queues[q]['Members'];
+         qt += '<tr class="' + ((j++%2) ? 'even':'odd') + '"><td>' + qm.length + '</td>';
+         qt += '<td>' + q + '</td>';
+         qt += '<td>' + queues[q]['Wait'].length + '</td>';
+         var waiting = '';
+         for (var i=0;  i<queues[q]['Wait'].length; i++) {
+            waiting += (1+i) + ' : ' + min_sec(now - new Date(queues[q]['Wait'][i]*1000));
+         }
+         qt += '<td id=wait_"' + q + '">' + waiting + '</td></tr>';
+
          html += '<h2>Groupe ' + q + '</h2>';
-         var table = '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents</th><th rowspan="2">&Eacute;tat</th>';
+         var table = '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
          table += '<th rowspan="2">Durée</th><th colspan="2">Appels reçus</th><th colspan="2">Appel émis</th><th rowspan="2">&Eacute;couter</th>';
          table += '<th rowspan="2">Enreg.</th rowspan="2"><th rowspan="2">Retirer</th></tr>';
          table += '<tr><th>Nb</th><th>Total</th><th>Nb</th><th>Total</th></tr>';
-         var i=1, qm=queues[q]['Members'];
+         var i=1;
          for (m in qm) { // For each member in this queue
-            var trclass = (i%2) ? 'even':'odd';
+            if (members[qm[m]]==undefined) continue; // XXX
             var id = q + '_' + qm[m].replace(/\W/g,'_');
-            table += '<tr class="' + trclass + '"><td>' + i + '</td>';
-            table += '<td>' + qm[m] + '</td>';
+            table += '<tr class="' + ((i%2) ? 'even':'odd') + '"><td>' + i + '</td>';
+            table += '<td>' + qm[m] + ' (' + members[qm[m]]['Penalty'] + ')' + '</td>';
             //[sclass, sta, dur, nci, tci, nco, tco, lis, rec] = NOT working in chrome !
-            var a = member_status(members[qm[m]]);
+            var a = member_status(members[qm[m]], now);
             table += '<td id="sta_' + id + '"class="' + a[0] + '">' + a[1] + '</td>';
             table += '<td id="dur_' + id + '">' + a[2] + '</td>';
             table += '<td id="nci_' + id + '">' + a[3] + '</td>';
@@ -101,6 +114,7 @@ function list_queues() { // Builds main part of the screen
          }
          html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
       }
+      html += "<h2>File d'atente</h2>" + qt + '</table>';
       $('#queues_list').html(html);
    }
 
@@ -108,9 +122,15 @@ function list_queues() { // Builds main part of the screen
       // No change, just update variable fields
       for (q in queues) { // For each queue, display name and table
          var qm = queues[q]['Members'];
+         var waiting = '';
+         for (var i=0;  i<queues[q]['Wait'].length; i++) {
+            waiting += (1+i) + ' : ' + min_sec(now - new Date(queues[q]['Wait'][i]*1000));
+         }
+         $('#wait_' + q).html(waiting);
          for (m in qm) { // For each member in this queue
+            if (members[qm[m]]==undefined) continue; // XXX
             var id = q + '_' + qm[m].replace(/\W/g,'_');
-            var a = member_status(members[qm[m]]);
+            var a = member_status(members[qm[m]], now);
             $('#sta_' + id).attr('class',a[0]);
             $('#sta_' + id).html(a[1]);
             $('#dur_' + id).html(a[2]);
@@ -126,8 +146,8 @@ function list_queues() { // Builds main part of the screen
    display_tmo = setTimeout(list_queues,500);
 }
 
-function member_status(member) {
-   var now = new Date(), lis = '&nbsp;', rec = '&nbsp;';
+function member_status(member, now) {
+   var lis = '', rec = '';
    var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE

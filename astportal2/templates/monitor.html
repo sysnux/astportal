@@ -33,19 +33,23 @@ function update() {
 function list_channels(data) {
    if (data) {
       // Data is null on AstPortal reload
-//      clearTimeout(display_tmo);
       channels = data.channels;
       last = data.last_update;
-//	   display();
    }
    setTimeout(update,1000);
 }
 
 function display() {
    var table = '';
-	var now = new Date(), total=0;
+	var now = new Date(), tot_chan=0, tot_calls=0;
    for (p in channels) {
-      total++;
+      var c = channels[p];
+      tot_chan++;
+      if (c['Link']!=undefined && !c['Outgoing']) {
+         // Don't display outgoing linked channel
+         tot_calls++;
+         continue
+      }
 		if (begins[p]) {
 			duree = min_sec(now.getTime()-begins[p].getTime());
 		} else {
@@ -54,21 +58,27 @@ function display() {
 		}
       // if (channels[p]['Begin']!=0)
 		table += '<tr>';
-		table += '<td>' + channels[p]['Uniqueid'] + '</td>';
-		table += '<td>' + p + '</td>';
+//		table += '<td>' + c['Uniqueid'] + '</td>';
+//		table += '<td>' + p + '</td>'; // Channel
+		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';
+      if (c['Link']) {
+   		table += '<td>' + channels[c['Link']]['CallerIDName'] + ' ' + channels[c['Link']]['CallerIDNum']  + '</td>';
+      } else {
+         table += '<td>&nbsp;</td>';
+      }
 		table += '<td>' + duree + '</td>';
-		table += '<td>' + channels[p]['CallerIDName'] + ' ' + channels[p]['CallerIDNum'] + '</td>';
-		table += '<td>' + channels[p]['State'] + '</td>';
-		table += '<td>' + channels[p]['Context'] + '</td>';
-		table += '<td>' + channels[p]['Priority'] + '</td>';
+		table += '<td>' + c['State'] + '</td>';
+		table += '<td>' + c['Application'] + ' : ' + c['AppData'] + '</td>';
+		table += '<td>' + c['Context'] + '</td>';
+		table += '<td>' + c['Priority'] + '</td>';
 		table += '</tr>';
    }
-   if (total) {
-      table = '<table><tr><th>Identifiant</th><th>Canal</th><th>Durée</th><th>Appelant</th><th>&Eacute;tat</th><th>Contexte</th><th>Prio</th></tr>' + table;
-      table = '<table><tr><th>Identifiant</th><th>Canal</th><th>Durée</th><th>Appelant</th></tr>' + table;
+   if (tot_chan) {
+      table = '<table><tr><th>Appelant</th><th>Appelé</th><th>&Eacute;tat</th><th>Durée</th><th>Application</th><th>Contexte</th><th>Prio</th></tr>' + table;
       table += '<tr>';
       table += '<th>Total :</th>';
-      table += '<th colspan="6">' + total + ' appel' + ((total>1) ? 's':'') + '</th>';
+      table += '<th colspan="6">' + tot_calls + ' appel' + ((tot_calls>1) ? 's':'');
+      table += ' (' + tot_chan + ' can' + ((tot_chan>1) ? 'aux':'al') + ')</th>';
       table += '</tr>';
    } else {
       table = '<i>Aucun appel en cours</i>';
@@ -106,8 +116,8 @@ function min_sec(millisec) {
    </script>
 </head>
 <body>
-      <h1 py:content="title">Title</h1>
-      <span py:replace="debug" /><br />
-      <div id="channels_list">. . .</div>
-   </body>
+   <h1 py:content="title">Title</h1>
+   <span py:replace="debug" /><br />
+   <div id="channels_list"><i>Loading...</i></div>
+</body>
 </html>
