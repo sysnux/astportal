@@ -178,6 +178,151 @@ def stat_queues(page, rows, offset, sidx, sord, date_filter, queues_filter):
 
    return dict(page=page, total=total, rows=data)
    
+def stat_sla(page, rows, offset, sidx, sord, date_filter, queues_filter, type):
+   # Service Level, connect or abandon (count connect time / 30 s)
+   o = sql.cast(Queue_log.data1 if type=='CONNECT' else Queue_log.data3,
+         types.INT)/30
+   q = DBSession.query(func.count('*').label('count'), 
+         (o).label('qwait')).\
+      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+      filter(Queue_event.event==type).\
+      filter(queues_filter).\
+      group_by(o).order_by(o)
+
+   if date_filter is not None:
+      q = q.filter(date_filter)
+   
+   q = q.offset(offset).limit(rows)
+   total = q.count()/rows + 1
+
+   data = []
+   total_connect = 0
+   for i, r in enumerate(q.all()):
+      total_connect += r.count
+      label = u'< %dm' % ((1+r.qwait)/2) if i%2 \
+            else u'< %dm30s' % ((1+r.qwait)/2)
+      data.append({ 'id'  : i, 'cell': [label, r.count, 0, 0]
+      })
+
+   sum_connect = 0.0
+   for x in data:
+      pc = 100.0 * x['cell'][1] / total_connect
+      sum_connect += pc
+      x['cell'][2] = '%.1f %%' % pc
+      x['cell'][3] = '%.1f %%' % sum_connect
+
+   return dict(page=page, total=total, rows=data)
+
+
+def stat_daily(page, rows, offset, sidx, sord, date_filter, queues_filter):
+   # Day of week distribution
+   xd = (extract('dow', Queue_log.timestamp)).label('dow')
+   q = DBSession.query(xd, (func.count('*')).label('count')).\
+      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+      filter(Queue_event.event=='CONNECT').\
+      filter(queues_filter).\
+      group_by(xd).order_by(xd)
+
+   if date_filter is not None:
+      q = q.filter(date_filter)
+   
+   q = q.offset(offset).limit(rows)
+   total = q.count()/rows + 1
+
+   dow = [ u'dimanche', u'lundi', u'mardi', u'mercredi', 
+         u'jeudi', u'vendredi', u'samedi']
+   data = []
+   total_connect = 0
+   for i, r in enumerate(q.all()):
+      total_connect += r.count
+      data.append({ 'id'  : i, 'cell': [dow[int(r.dow)], r.count, 0]
+      })
+
+   for x in data:
+      pc = 100.0 * x['cell'][1] / total_connect
+      x['cell'][2] = '%.1f %%' % pc
+
+   return dict(page=page, total=total, rows=data)
+
+
+def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
+   # Hourly distribution (30 min sections)
+   xh = (func.floor((extract('hour', Queue_log.timestamp) * 60 + \
+         extract('min', Queue_log.timestamp) ) / 30)).label('xhour')
+
+   h_entrant = DBSession.query(xh, func.count('*').label('entrant')).\
+      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+      filter(Queue_event.event=='ENTRANT').filter(queues_filter)
+   if date_filter is not None:
+      h_entrant = h_entrant.filter(date_filter)
+   h_entrant = h_entrant.group_by(xh).order_by(xh).subquery()
+
+   h_connect = DBSession.query(xh, func.count('*').label('connect')).\
+      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+      filter(Queue_event.event=='CONNECT').filter(queues_filter)
+   if date_filter is not None:
+      h_connect = h_connect.filter(date_filter)
+   h_connect = h_connect.group_by(xh).order_by(xh).subquery()
+
+   h_abandon = DBSession.query(xh, func.count('*').label('abandon')).\
+      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+      filter(Queue_event.event=='ABANDON').filter(queues_filter)
+   if date_filter is not None:
+      h_abandon = h_abandon.filter(date_filter)
+   h_abandon = h_abandon.group_by(xh).order_by(xh).subquery()
+
+   h_closed = DBSession.query(xh, func.count('*').label('closed')).\
+      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+      filter(Queue_event.event=='FERME').filter(queues_filter)
+   if date_filter is not None:
+      h_closed = h_closed.filter(date_filter)
+   h_closed = h_closed.group_by(xh).order_by(xh).subquery()
+
+   h_dissuasion = DBSession.query(xh, func.count('*').label('dissuasion')).\
+      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+      filter(Queue_event.event=='DISSUASION').filter(queues_filter)
+   if date_filter is not None:
+      h_dissuasion = h_dissuasion.filter(date_filter)
+   h_dissuasion = h_dissuasion.group_by(xh).order_by(xh).subquery()
+
+   q = q.offset(offset).limit(rows)
+   total = q.count()/rows + 1
+   data = []
+
+   return dict(page=page, total=total, rows=data)
+
+
+def stat_agents(page, rows, offset, sidx, sord, date_filter, queues_filter):
+   # Agents stats
+
+   # Service
+   service = DBSession.query(Queue_log.timestamp, Queue_log.channel, Queue_event.event).\
+         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+         filter(Queue_event.event.in_(('ADDMEMBER', 'REMOVEMEMBER'))).\
+         order_by(Queue_log.channel, desc(Queue_log.timestamp))
+
+   # Pause
+   pause = DBSession.query(Queue_log.timestamp, Queue_log.channel, Queue_event.event).\
+         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+         filter(Queue_event.event.in_(('PAUSE','UNPAUSE'))).\
+         order_by(Queue_log.channel, desc(Queue_log.timestamp))
+
+   # Calls received per agents
+   calls = DBSession.query(Queue_log.channel, 
+         func.count(Queue_log.channel), 
+         func.avg(sql.cast(Queue_log.data2, types.INT)),
+         func.sum(sql.cast(Queue_log.data2, types.INT))).\
+            filter(Queue_log.queue_event_id==Queue_event.qe_id).\
+            filter(Queue_event.event.in_(('COMPLETECALLER', 'COMPLETEAGENT'))).\
+            group_by(Queue_log.channel)
+
+   q = q.offset(offset).limit(rows)
+   total = q.count()/rows + 1
+   data = []
+
+   return dict(page=page, total=total, rows=data)
+
+
 def period_options():
    ''' Returns date options
    '''
@@ -302,67 +447,6 @@ class CC_Stats_ctrl(BaseController):
    @expose(template='astportal2.templates.cc_stats')
    def do_stat(self, period, begin, end, queues=None, members=None, stat=None):
 
-      # Agents service
-      service = DBSession.query(Queue_log.timestamp, Queue_log.channel, Queue_event.event).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event.in_(('ADDMEMBER', 'REMOVEMEMBER'))).\
-         order_by(Queue_log.channel, desc(Queue_log.timestamp))
-
-      # Agents pause
-      pause = DBSession.query(Queue_log.timestamp, Queue_log.channel, Queue_event.event).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event.in_(('PAUSE','UNPAUSE'))).\
-         order_by(Queue_log.channel, desc(Queue_log.timestamp))
-
-      # Calls per agents
-      calls = DBSession.query(Queue_log.channel, 
-         func.count(Queue_log.channel), 
-         func.avg(sql.cast(Queue_log.data2, types.INT)),
-         func.sum(sql.cast(Queue_log.data2, types.INT))).\
-            filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-            filter(Queue_event.event.in_(('COMPLETECALLER', 'COMPLETEAGENT'))).\
-            group_by(Queue_log.channel)
-
-      # Service Level (count connect time / 30 s)
-      o = sql.cast(Queue_log.data1, types.INT)/30
-      wait = DBSession.query(func.count('*'), 
-            (o).label('qwait')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='CONNECT').\
-         group_by(o).order_by(o)
-
-      # Lost Level (count abandon time / 30 s)
-      o = sql.cast(Queue_log.data3, types.INT)/30
-      lost = DBSession.query(func.count('*'), 
-            (o).label('qwait')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='ABANDON').\
-         group_by(o).order_by(o)
-
-      # Hourly distribution (30 min sections)
-      xh = (func.floor((extract('hour', Queue_log.timestamp) * 60 + \
-            extract('min', Queue_log.timestamp) ) / 30)).label('xhour')
-      h_entrant = DBSession.query(xh, func.count('*').label('entrant')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='ENTRANT').group_by(xh).order_by(xh)
-      h_connect = DBSession.query(xh, func.count('*').label('connect')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='CONNECT').group_by(xh).order_by(xh)
-      h_abandon = DBSession.query(xh, func.count('*').label('abandon')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='ABANDON').group_by(xh).order_by(xh)
-      h_ferme = DBSession.query(xh, func.count('*').label('ferme')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='FERME').group_by(xh).order_by(xh)
-      h_dissuasion = DBSession.query(xh, func.count('*').label('dissuasion')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='DISSUASION').group_by(xh).order_by(xh)
-
-      # Day of week distribution
-      xd = (extract('dow', Queue_log.timestamp)).label('dow')
-      daily = DBSession.query(xd, (func.count('*')).label('count')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='CONNECT').group_by(xd).order_by(xd)
 
       if type(queues) != type([]):
          queues = (queues)
@@ -385,6 +469,8 @@ class CC_Stats_ctrl(BaseController):
             { 'name': 'name', 'width': 60, 'sortable': True},
             { 'name': 'count', 'width': 60, 'align': 'right', 'sortable': True},
          ]
+         tmpl_context.flot_series = '"0,1"' # List of series to plot
+         title = u'Statistiques globales'
 
       elif stat=='queues':
          row_list = (10, 25)
@@ -406,15 +492,63 @@ class CC_Stats_ctrl(BaseController):
             { 'width': 20, 'align': 'right', 'sortable': False},
          ]
          tmpl_context.flot_series = '"0,1,3,5,7"' # List of series to plot
+         title = u'Statistiques par groupes d\'appels'
 
-      elif stat=='sla':
-         q = queues
-      elif stat=='abandon':
-         q = queues
+      elif stat in ('sla','abandon'):
+         row_list = (30,120)
+         caption = flot_label = u'Niveau de service'
+         sortname = 'wait'
+         sortorder = 'asc'
+         colnames = [u'Attente', u'Appels', u'%', u'Cumul (%)']
+         colmodel = [
+            { 'name': 'wait', 'width': 60, 'sortable': True},
+            { 'name': 'count', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+         ]
+         tmpl_context.flot_series = '"0,"' # List of series to plot
+         if stat=='sla':
+            title = u'Niveau de service'
+         else:
+            title = u'Abandons'
+
       elif stat=='daily':
-         q = queues
+         row_list = (30,120)
+         caption = flot_label = u'Niveau de service'
+         sortname = 'wait'
+         sortorder = 'asc'
+         colnames = [u'Jour de la semaine', u'Appels', u'%']
+         colmodel = [
+            { 'name': 'dow', 'width': 60, 'sortable': True},
+            { 'name': 'count', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+         ]
+         tmpl_context.flot_series = '"0,"' # List of series to plot
+         title = u'Distribution quotidienne'
+
       elif stat=='hourly':
-         q = queues
+         row_list = (48,)
+         caption = flot_label = u'Niveau de service'
+         sortname = 'wait'
+         sortorder = 'asc'
+         colnames = [u'Heure', u'Entrant', u'%', u'Fermé', u'%',
+               u'Dissuasion', u'%', u'Abandons', u'%', u'Traités', u'%']
+         colmodel = [
+            { 'name': 'hour', 'width': 60, 'sortable': True},
+            { 'name': 'incoming', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+            { 'name': 'closed', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+            { 'name': 'dissuasion', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+            { 'name': 'abandon', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+            { 'name': 'connect', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'width': 20, 'align': 'right', 'sortable': False},
+         ]
+         tmpl_context.flot_series = '"0,"' # List of series to plot
+         title = u'Distribution quotidienne'
+
       elif stat=='agents':
          q = queues
 
@@ -447,7 +581,7 @@ class CC_Stats_ctrl(BaseController):
       tmpl_context.data_flot = FlotWidget(
             data = [
                { 'data': [],
-               'label': u'Appels mensuels' },
+               'label': u'' },
             ],
             options = {
                'grid': { 'backgroundColor': '#fffaff',
@@ -468,7 +602,7 @@ members=%s
 stat=%s
 ''' % (period, begin, end, queues, members, stat))
 
-      return dict( title=u'Statistique XXX', debug='', values='')
+      return dict( title=title , debug='', values='')
 
 
    @expose('json')
@@ -504,5 +638,21 @@ stat=%s
 
       elif stat=='queues':
          return stat_queues(page, rows, offset, sidx, sord, 
+               date_filter, queues_filter)
+
+      elif stat=='sla':
+         return stat_sla(page, rows, offset, sidx, sord, 
+               date_filter, queues_filter, 'CONNECT')
+
+      elif stat=='abandon':
+         return stat_sla(page, rows, offset, sidx, sord, 
+               date_filter, queues_filter, 'ABANDON')
+
+      elif stat=='daily':
+         return stat_daily(page, rows, offset, sidx, sord, 
+               date_filter, queues_filter)
+
+      elif stat=='hourly':
+         return stat_hourly(page, rows, offset, sidx, sord, 
                date_filter, queues_filter)
 
