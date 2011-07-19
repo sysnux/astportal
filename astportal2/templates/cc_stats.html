@@ -1,0 +1,121 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:py="http://genshi.edgewall.org/"
+  xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html"/>
+
+<head>
+   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
+   <title py:content="title">Jquery FlexiGrid</title>
+   
+   <!--[if IE]><script language="javascript" type="text/javascript" src="excanvas.js"></script><![endif]-->
+
+   <script type="text/javascript">
+//<![CDATA[
+ 
+var previousPoint = null;
+
+$().ready(function () {
+//   $('#data_grid').setGridWidth($('#calls').width()-10, true);
+   $("#data_flot").bind("plothover", flothover);
+});
+
+function flothover(event, pos, item) {
+   $("#x").text(pos.x.toFixed(2));
+   $("#y").text(pos.y.toFixed(2));
+
+   if (item) {
+      if (previousPoint != item.datapoint) {
+         previousPoint = item.datapoint;
+         $("#tooltip").remove();
+         var x = item.datapoint[0].toFixed(2),
+            y = item.datapoint[1]; // .toFixed(2);
+                    
+         showTooltip(item.pageX, item.pageY,
+            item.series.label + ' : ' + y);
+      }
+   } else {
+      $("#tooltip").remove();
+      previousPoint = null;
+   }
+}
+
+function showTooltip(x, y, contents) {
+        $('<div id="tooltip">' + contents + '</div>').css( {
+            position: 'absolute',
+            display: 'none',
+            top: y + 5,
+            left: x + 5,
+            border: '1px solid #fdd',
+            padding: '2px',
+            'background-color': '#fee',
+            opacity: 0.80
+        }).appendTo("body").fadeIn(200);
+}
+
+function load_complete(data) {
+   /* Fonction appelée lors de la mise à jour du composant jqgrid.
+      Mise à jour du graphique avec les données du tableau.  */
+
+   var series = new Array(); // Flot series
+   var plot_data = new Array(); // Flot data
+   var cols = data.rows[0].cell.length; // Columns in the grid -> series in graph
+   for (var col=0; col<cols; col++) {
+      series[col] = new Array(); // Each serie is an array of points (x,y)
+   }
+   for (var row=0; row<data.rows.length; row++) {
+      series[0].push( [row, data.rows[row].cell[0]] );
+      for (var col=1; col<cols; col++) {
+         if (data.rows[row].cell[col]) {
+            series[col].push( [row, parseInt(data.rows[row].cell[col])] );
+         } else {
+            series[col].push( [row, null] );
+         }
+      }
+   }
+   var colnames = $('#data_grid').jqGrid('getGridParam','colNames');
+
+   var flot_series = ${tmpl_context.flot_series}.split(',')
+   for (var i=0; i<flot_series.length; i++) {
+      var col = 1+parseInt(flot_series[i]);
+      plot_data.push({ label: colnames[col], data: series[col] });
+   }
+   var options = {
+      grid: { clickable: true, hoverable: true},
+      lines: { show: true },
+      points: { show: true },
+      xaxis: { ticks: series[0] }
+   };
+   $.plot($('#data_flot'), plot_data, options);
+}
+
+function csv() {
+   with(document.forms[0]) {
+      action = 'csv';
+      submit();
+   }
+}
+
+//]]>
+   </script>
+</head>
+
+<body>
+      <h1 py:content="title">Paginate Data Grid</h1>
+      
+      <!-- Form -->
+      ${tmpl_context.form(values)}
+      Export <a href="#" onclick="csv();">CSV</a>
+
+      <!-- Flot -->
+      <div id='data_flot_div' style="margin:10px auto; width:600px;" py:if="tmpl_context.data_flot">
+         ${tmpl_context.data_flot()}
+      </div>
+
+      <!-- JqGrid -->
+      ${tmpl_context.data_grid()}
+
+   </body>
+</html>

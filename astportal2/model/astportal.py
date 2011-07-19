@@ -164,6 +164,35 @@ class Queue(DeclarativeBase):
             self.name, self.comment)
 
 
+class Queue_log(DeclarativeBase):
+   ''' Definition of a queue
+   '''
+   __tablename__ = 'queue_log'
+   ql_id = Column(Integer, primary_key=True)
+   timestamp = Column(DateTime)
+   uniqueid = Column(Unicode(32), nullable=False, unique=True)
+   queue = Column(Unicode(45), nullable=False, unique=True)
+   channel = Column(Unicode(80), nullable=False, unique=True)
+   data1 = Column(Unicode(80), nullable=False, unique=True)
+   data2 = Column(Unicode(80), nullable=False, unique=True)
+   data3 = Column(Unicode(80), nullable=False, unique=True)
+   queue_event_id = Column(Integer, name='event_qe_id')
+   def __repr__(self):
+      return '<Queue_log: ql_id="%d", uniqueid="%s">' % (
+            self.ql_id, self.uniqueid)
+
+
+class Queue_event(DeclarativeBase):
+   ''' Definition of a queue event
+   '''
+   __tablename__ = 'queue_event'
+   qe_id = Column(Integer, primary_key=True)
+   event = Column(Unicode, nullable=False, unique=True)
+   def __repr__(self):
+      return '<Queue_event: qe_id="%d", event="%s">' % (
+            self.qe_id, self.event)
+
+
 class Pickup(DeclarativeBase):
    ''' Definition of pickup groups (Asterisk supports groups 0-63)
    '''

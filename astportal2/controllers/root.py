@@ -29,6 +29,7 @@ from astportal2.controllers.db_schema import DB_schema
 from astportal2.controllers.queues import Queue_ctrl
 from astportal2.controllers.pickups import Pickup_ctrl
 from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
+from astportal2.controllers.cc_stats import CC_Stats_ctrl
 
 
 class RootController(BaseController):
@@ -59,6 +60,7 @@ class RootController(BaseController):
    queues = Queue_ctrl()
    pickups = Pickup_ctrl()
    cc_monitor = CC_Monitor_ctrl()
+   cc_stats = CC_Stats_ctrl()
 
    db_schema = DB_schema()
 
