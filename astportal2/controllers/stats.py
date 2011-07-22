@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response
+from tg import expose, flash, redirect, tmpl_context, validate, response
 from tg.decorators import allow_only
 from tgext.menu import sidebar
 
