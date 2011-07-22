@@ -74,9 +74,9 @@ def mk_filters(period, begin, end, queues, members):
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
              datetime.datetime.strptime(end, '%d/%m/%Y').date())
 
-   queue_filter = Queue_log.queue.in_(queues)
-   member_filter = Queue_log.queue.in_(members)
-   return date_filter, queue_filter, member_filter
+   queues_filter = Queue_log.queue.in_(queues)
+   members_filter = Queue_log.channel.in_(members)
+   return date_filter, queues_filter, members_filter
 
 
 def stat_global(page, rows, offset, sidx, sord, date_filter, queues_filter):
@@ -104,6 +104,7 @@ def stat_global(page, rows, offset, sidx, sord, date_filter, queues_filter):
       'cell': (r.queue, r.count)
       } for i, r in enumerate(q.all())]
 
+   log.debug(data)
    return dict(page=page, total=total, rows=data)
 
 
@@ -169,6 +170,26 @@ def stat_queues(page, rows, offset, sidx, sord, date_filter, queues_filter):
    if sidx=='name':
       q = q.order_by(Queue_log.queue) if sord=='asc' \
             else q.order_by(desc(Queue_log.queue))
+
+   elif sidx=='incoming':
+      q = q.order_by(func.count('*')) if sord=='asc' \
+            else q.order_by(desc(func.count('*')))
+
+   elif sidx=='connect':
+      q = q.order_by(connect.c.count) if sord=='asc' \
+            else q.order_by(desc(connect.c.count))
+
+   elif sidx=='abandon':
+      q = q.order_by(abandon.c.count) if sord=='asc' \
+            else q.order_by(desc(abandon.c.count))
+
+   elif sidx=='dissuasion':
+      q = q.order_by(dissuasion.c.count) if sord=='asc' \
+            else q.order_by(desc(dissuasion.c.count))
+
+   elif sidx=='closed':
+      q = q.order_by(closed.c.count) if sord=='asc' \
+            else q.order_by(desc(closed.c.count))
 
    q = q.offset(offset).limit(rows)
    total = q.count()/rows + 1
@@ -237,11 +258,18 @@ def stat_daily(page, rows, offset, sidx, sord, date_filter, queues_filter):
       filter(Queue_log.queue_event_id==Queue_event.qe_id).\
       filter(Queue_event.event=='CONNECT').\
       filter(queues_filter).\
-      group_by(xd).order_by(xd)
+      group_by(xd)
 
    if date_filter is not None:
       q = q.filter(date_filter)
    
+   if sidx=='count':
+      q = q.order_by(func.count('*')) if sord=='asc' \
+            else q.order_by(desc(func.count('*')))
+   else:
+      q = q.order_by(xd) if sord=='asc' \
+            else q.order_by(desc(xd))
+
    q = q.offset(offset).limit(rows)
    total = q.count()/rows + 1
 
@@ -322,10 +350,34 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
       outerjoin((h_closed, xh==h_closed.c.xhour)). \
       outerjoin((h_dissuasion, xh==h_dissuasion.c.xhour)). \
       group_by(xh,h_abandon.c.count, h_connect.c.count, 
-            h_dissuasion.c.count, h_closed.c.count).order_by(xh)
-
+            h_dissuasion.c.count, h_closed.c.count)
+   
    if date_filter is not None:
       q = q.filter(date_filter)
+
+   if sidx=='incoming':
+      q = q.order_by(desc(func.count('*'))) if sord=='desc' \
+            else q.order_by(func.count('*'))
+
+   elif sidx=='connect':
+      q = q.order_by(desc(h_connect.c.count)) if sord=='desc' \
+            else q.order_by(h_connect.c.count)
+
+   elif sidx=='abandon':
+      q = q.order_by(desc(h_abandon.c.count)) if sord=='desc' \
+            else q.order_by(h_abandon.c.count)
+
+   elif sidx=='dissuasion':
+      q = q.order_by(desc(h_dissuasion.c.count)) if sord=='desc' \
+            else q.order_by(h_dissuasion.c.count)
+
+   elif sidx=='closed':
+      q = q.order_by(desc(h_closed.c.count)) if sord=='desc' \
+            else q.order_by(h_closed.c.count)
+
+   else:
+      q = q.order_by(desc(xh)) if sord=='desc' \
+            else q.order_by(xh)
 
    q = q.offset(offset).limit(rows)
    total = q.count()/rows + 1
@@ -351,7 +403,7 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
             if x['cell'][7] else ''
       x['cell'][10] = '%.1f %%' % (100.0 * x['cell'][9] / total_in) \
             if x['cell'][9] else ''
-
+   log.debug(data)
    return dict(page=page, total=total, rows=data)
 
 
@@ -362,7 +414,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
    q_service = DBSession.query(Queue_log.timestamp,
          Queue_log.channel, Queue_event.event). \
          filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-         filter(queues_filter). \
+         filter(queues_filter).filter(members_filter). \
          filter(Queue_event.event.in_(('ADDMEMBER', 'REMOVEMEMBER'))). \
          order_by(Queue_log.channel, desc(Queue_log.timestamp))
 
@@ -371,7 +423,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
          Queue_log.channel, Queue_event.event). \
          filter(Queue_log.queue_event_id==Queue_event.qe_id). \
          filter(Queue_event.event.in_(('PAUSE','UNPAUSE'))). \
-         filter(queues_filter). \
+         filter(queues_filter).filter(members_filter). \
          order_by(Queue_log.channel, desc(Queue_log.timestamp))
 
    # Calls received per members
@@ -381,7 +433,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
          func.sum(sql.cast(Queue_log.data2, types.INT)).label('calltime')). \
             filter(Queue_log.queue_event_id==Queue_event.qe_id). \
             filter(Queue_event.event.in_(('COMPLETECALLER', 'COMPLETEmember'))). \
-            filter(queues_filter). \
+            filter(queues_filter).filter(members_filter). \
             group_by(Queue_log.channel)
 
    if date_filter is not None:
@@ -592,6 +644,7 @@ class CC_Stats_ctrl(BaseController):
       if type(members) != type([]):
          members = (members)
       member_filter = Queue_log.channel.in_(members)
+      log.debug('member_filter')
 
 # Dynamic template
 #tg.decorators.override_template(controller, "genshi:myproject.templates.index2")
@@ -621,7 +674,7 @@ class CC_Stats_ctrl(BaseController):
          colmodel = [
             { 'name': 'name', 'width': 60, 'sortable': True},
             { 'name': 'incoming', 'width': 40, 'align': 'right', 'sortable': True},
-            { 'name': 'received', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'name': 'connect', 'width': 40, 'align': 'right', 'sortable': True},
             { 'width': 20, 'align': 'right', 'sortable': False},
             { 'name': 'abandon', 'width': 40, 'align': 'right', 'sortable': True},
             { 'width': 20, 'align': 'right', 'sortable': False},
@@ -640,8 +693,8 @@ class CC_Stats_ctrl(BaseController):
          sortorder = 'asc'
          colnames = [u'Attente', u'Appels', u'%', u'Cumul (%)']
          colmodel = [
-            { 'name': 'wait', 'width': 60, 'sortable': True},
-            { 'name': 'count', 'width': 40, 'align': 'right', 'sortable': True},
+            { 'name': 'wait', 'width': 60, 'sortable': False},
+            { 'name': 'count', 'width': 40, 'align': 'right', 'sortable': False},
             { 'width': 20, 'align': 'right', 'sortable': False},
             { 'width': 20, 'align': 'right', 'sortable': False},
          ]
@@ -723,8 +776,8 @@ class CC_Stats_ctrl(BaseController):
             HiddenField(name='period',default=period),
             HiddenField(name='begin',default=begin),
             HiddenField(name='end',default=end),
-            HiddenField(name='queues',default=queues),
-            HiddenField(name='members',default=members),
+            HiddenField(name='queues',default=';'.join(queues)),
+            HiddenField(name='members',default=';'.join(members)),
             HiddenField(name='stat',default=stat),
          ]
       )
@@ -799,8 +852,8 @@ stat=%s
          kw['queues[]'] if 'queues[]' in kw.keys() else (kw['queues']),
          kw['members[]'] if 'members[]' in kw.keys() else (kw['members']) )
 
-      log.debug('fetch : page=%d, rows=%d, offset=%d, sidx=%s, sord=%s' % (
-         page, rows, offset, sidx, sord))
+      log.debug(kw['members[]'] if 'members[]' in kw.keys() else (kw['members']))
+      log.debug(members_filter)
 
       if stat=='global':
          return stat_global(page, rows, offset, sidx, sord, 
@@ -832,42 +885,63 @@ stat=%s
 
 
    @expose()
-   def csv(self, period, begin, end, queues, members, stat):
+   def csv(self, period, begin, end, stat, queues, members):
       log.debug(
-         'csv: period=%s, begin=%s, end=%s, queues=%s, members=%s, stat=%s, sidx=%s, sord=%s' % (
-         period, begin, end, queues, members, stat, self.sort_index, self.sort_order))
+         'csv: period=%s, begin=%s, end=%s, stat=%s, queues=%s, members=%s, sidx=%s, sord=%s' % (
+         period, begin, end, stat, queues, members, self.sort_index, self.sort_order))
+
+      date_filter, queues_filter, members_filter = mk_filters(period, begin, end,
+         queues.split(';'), members.split(';') )
+
+      log.debug(u'date_filter=%s, queues_filter=%s, members_filter=%s' %(
+         date_filter, queues_filter, members_filter))
 
       if stat=='global':
          colnames = [u'Groupe d\'appels', u'Nombre d\'appels reçus']
          title = u'Statistiques globales'
+         rows = stat_global(0, 1000, 0, self.sort_index, self.sort_order, 
+               date_filter, queues_filter)['rows']
 
       elif stat=='queues':
          colnames = [u'Groupe d\'appels', u'Appels reçus', u'Traités', u'%',
                u'Abandons', u'%', u'Dissuasions', u'%', u'Fermé', u'%']
          title = u'Statistiques par groupes d\'appels'
+         rows = stat_queues(0, 1000, 0, self.sort_index, self.sort_order, 
+               date_filter, queues_filter)['rows']
 
       elif stat in ('sla','abandon'):
          colnames = [u'Attente', u'Appels', u'%', u'Cumul (%)']
          tmpl_context.flot_series = '"0,"' # List of series to plot
          if stat=='sla':
             title = u'Niveau de service'
+            rows = stat_sla(0, 1000, 0, self.sort_index, self.sort_order, 
+               date_filter, queues_filter, 'CONNECT')['rows']
          else:
             title = u'Abandons'
+            rows = stat_sla(0, 1000, 0, self.sort_index, self.sort_order, 
+               date_filter, queues_filter, 'ABANDON')['rows']
 
       elif stat=='daily':
          colnames = [u'Jour de la semaine', u'Appels', u'%']
          title = u'Distribution quotidienne'
+         rows = stat_daily(0, 1000, 0, self.sort_index, self.sort_order, 
+            date_filter, queues_filter,)['rows']
 
       elif stat=='hourly':
          colnames = [u'Heure', u'Entrant', u'%', u'Fermé', u'%',
                u'Dissuasion', u'%', u'Abandons', u'%', u'Traités', u'%']
          title = u'Distribution horaire'
+         rows = stat_hourly(0, 1000, 0, self.sort_index, self.sort_order, 
+            date_filter, queues_filter,)['rows']
 
       elif stat=='members':
          colnames = [u'Agent', u'Services', u'Durée', u'Pauses', u'Durée',
                u'Appels reçus', u'Durée', u'Moyenne', 
                u'Appels émis', u'Durée', u'Moyenne' ]
          title = u'Distribution par agent'
+         rows = stat_members(0, 1000, 0, self.sort_index, self.sort_order, 
+            date_filter, queues_filter, members_filter)['rows']
+         log.debug(rows)
 
       else:
          log.error(u'Unknown stat %s' % stat)
@@ -875,11 +949,16 @@ stat=%s
       csvdata = StringIO.StringIO()
       writer = csv.writer(csvdata)
 
+      # File name + write header
       today = datetime.datetime.today()
       filename = 'statistiques-groupes-' + today.strftime('%Y%m%d') + '.csv'
       writer.writerow([title])
       writer.writerow(['Date', today.strftime('%d/%m/%Y')])
       writer.writerow([c.encode('utf-8') for c in colnames])
+
+      # Write CSV data
+      for r in rows:
+         writer.writerow(r['cell'])
 
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
