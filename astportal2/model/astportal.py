@@ -205,3 +205,64 @@ class Pickup(DeclarativeBase):
       return '<Pickup: name="%s", comment="%s">' % (
             self.name, self.comment)
 
+
+class Action(DeclarativeBase):
+   ''' Definition of an IVR action
+   '''
+   __tablename__ = 'action'
+   action_id = Column(Integer, primary_key=True)
+   name = Column(Unicode(64), nullable=False, unique=True)
+   comment = Column(Unicode())
+   def __repr__(self):
+      return '<Action: name="%s", comment="%s">' % (
+            self.name, self.comment)
+
+
+class Application(DeclarativeBase):
+   ''' Definition of an IVR application
+   Application is defined by name and phone number
+   It belongs to a client, and is created by an administrator
+   '''
+   __tablename__ = 'application'
+   app_id = Column(Integer, primary_key=True)
+   name = Column(Unicode(64), nullable=False, unique=True)
+   dnis = Column(Unicode(16)) # External number
+   exten = Column(Unicode(16)) # Intrenal extension
+   comment = Column(Unicode())
+   begin = Column(DateTime, default=datetime.now)
+   end = Column(DateTime)
+   active = Column(Boolean)
+   owner_id = Column(Integer, ForeignKey('tg_user.user_id'))
+#   owner = relation('User', backref='applications')
+#   owner = relation('User', primaryjoin=('User.user_id'==owner_id), backref='applications')
+   created_by = Column(Integer, ForeignKey('tg_user.user_id'))
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   def __repr__(self):
+      return '<Application: name="%s", comment="%s">' % (
+            self.name, self.comment)
+
+class Scenario(DeclarativeBase):
+   ''' Scenario is the application's dialplan
+   '''
+   __tablename__ = 'scenario'
+   sce_id = Column(Integer, primary_key=True)
+   app_id = Column(Integer, ForeignKey('application.app_id'))
+   context = Column(Unicode(64), nullable=False)
+   extension = Column(Unicode(64), nullable=False)
+   step = Column(Integer, nullable=False)
+   action = Column(Integer, nullable=False)
+   parameters = Column(Unicode(64))
+   comments = Column(Unicode(64))
+   application = relation('Application', backref='scenario')
+
+
+# This is the association table for the many-to-many relationship between
+# sounds and applications
+sound_application_table = Table('sound_application', metadata,
+    Column('sound_id', Integer, ForeignKey('sound.sound_id',
+        onupdate="CASCADE", ondelete="CASCADE")),
+    Column('app_id', Integer, ForeignKey('application.app_id',
+        onupdate="CASCADE", ondelete="CASCADE"))
+)
+
+

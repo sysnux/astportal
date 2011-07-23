@@ -9,6 +9,9 @@
 <head>
    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
    <title py:content="title">Title</title>
+   <link type="text/css" href="/toscawidgets/resources/tw.jquery.base/static/css/ui.all.css" rel="stylesheet" />
+   <script type="text/javascript"
+      src="/toscawidgets/resources/tw.jquery.base/static/javascript/ui/minified/jquery-ui.min.js"></script>
 
    <style>
 <![CDATA[
@@ -30,7 +33,9 @@ var last=0, // last_update
     members = new Object(); // List of members
 
 $(document).ready(function() {
-   $('#add_form').hide();
+   $('#add_form').dialog({ 
+         autoOpen: false,  modal: true, width: '450px',
+         buttons: { "Valider": function() {add_member()}, "Annuler": function() {$('#add_form').dialog('close');}} });
    $(document).ajaxError(ajax_error);
    if (${auth}) {
       fetch_updates();
@@ -210,7 +215,7 @@ function fetch_exten(queue) { // Request exten list
          for (p in data.phones) {
             $('#agent_select').append(new Option(data.phones[p][1],data.phones[p][0]));
          }
-         $('#add_form').show();
+         $('#add_form').dialog('open');
       },
       'json');
 }
@@ -222,7 +227,7 @@ function add_member() { // Called from click on "Add member" link
       'priority': $('#priority').val()},
       null, 'json');
    add_queue = null;
-   $('#add_form').hide();
+   $('#add_form').dialog('close');
 }
 
 function remove(queue, iface, member) {
@@ -251,10 +256,12 @@ function min_sec(millisec) {
    <span py:replace="debug" /><br />
 
       <div id="add_form">
-         Agent : <select id="agent_select"></select><br/>
-         Priorité : <input type="text" id="priority" size="4"/><br/>
-         <a href="#" onclick="add_member();">Valider</a>
-         <a href="#" onclick="$('#add_form').hide();">Annuler</a>
+         <table>
+            <tr><td>Agent :</td>
+               <td><select id="agent_select"></select></td></tr>
+            <tr><td>Priorité :</td>
+               <td><input type="text" id="priority" size="4"/></td></tr>
+         </table>
       </div>
 
       <div id="queues_list"><i>Loading. . .</i></div>

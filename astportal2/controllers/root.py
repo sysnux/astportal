@@ -30,6 +30,7 @@ from astportal2.controllers.queues import Queue_ctrl
 from astportal2.controllers.pickups import Pickup_ctrl
 from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
 from astportal2.controllers.cc_stats import CC_Stats_ctrl
+from astportal2.controllers.application import Application_ctrl
 
 
 class RootController(BaseController):
@@ -59,6 +60,7 @@ class RootController(BaseController):
    stats = Stats_ctrl()
    queues = Queue_ctrl()
    pickups = Pickup_ctrl()
+   applications = Application_ctrl()
    cc_monitor = CC_Monitor_ctrl()
    cc_stats = CC_Stats_ctrl()
 
