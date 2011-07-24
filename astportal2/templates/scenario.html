@@ -45,9 +45,12 @@ var sounds = new Object();
 var sounds_by_id = new Object();
 var texts = new Object();
 var texts_by_id = new Object();
+var queues = new Object();
+var queues_by_id = new Object();
 var labels = new Object();
 var contexts_pos = new Object();
 var current=-1, unload_warning=1;
+var add_edit = 'add';
 
 window.onbeforeunload = function () {
    if (unload_warning)
@@ -56,9 +59,11 @@ window.onbeforeunload = function () {
 
 $(document).ready(
    function() {
+      // Action dialog
       $('#action_form').dialog({ 
          autoOpen: false,  modal: true, width: '450px',
-         buttons: { "Valider": function() {valide_action()}, "Annuler": function() {annule()}} });
+         buttons: { "Valider": function() {valid_action()}, 
+         "Annuler": function() {cancel_action()}} });
 
       // Fill objects (scenario, actions, sounds, ...)
       $.post(
@@ -69,16 +74,18 @@ $(document).ready(
          actions = data.actions;
          sounds = data.sounds;
          texts = data.texts;
-         var o='<option value="-1"> - - - </option>\n';
+         queues = data.queues;
+         var o = '<option value="-1"> - - - </option>\n';
          for (a in actions) {
             actions_by_id[actions[a].action_id] = actions[a].action_name;
             if (actions[a].action_id==0) continue;
+//            if (actions[a].action_id==5) continue;
             o += '<option value="' + actions[a].action_id + '">'; 
             o += actions[a].action_name + ': ' + actions[a].action_comment;
             o += '</option>\n';
          }
          $('select#type_action').html(o);
-         var o='<option value="-1"> - - - </option>\n';
+         o = '<option value="-1"> - - - </option>\n';
          o += '<optgroup label="Sons pré enregistrés">\n';
          for (s in sounds) {
             o += '<option value="s;' + sounds[s].sound_id + '">'; 
@@ -96,6 +103,14 @@ $(document).ready(
             o += '</option>\n';
             texts_by_id[texts[t].text_id] = texts[t].text_name;
          }
+         o = '<option value="-1"> - - - </option>\n';
+         for (q in queues) {
+            queues_by_id[queues[q].queue_id] = queues[q].queue_name;
+            o += '<option value="' + queues[q].queue_id + '">'; 
+            o += queues[q].queue_name + ': ' + queues[q].queue_comment;
+            o += '</option>\n';
+         }
+         $('#20_queuename').html(o);
          o += '</optgroup>\n';
          $('#1_file').html(o);
          $('#3_announce').html(o);
@@ -109,12 +124,12 @@ $(document).ready(
          $('#15_error').html(o);
          $('#15_abandon').html(o);
          $('#11_begin').timeEntry({show24Hours: true,
-            spinnerImage: '/js/spinnerDefault.png',
+            spinnerImage: '/images/spinnerDefault.png',
             spinnerTexts: ['Maintenant', 'Champ précédent', 'Champ suivant', 'Augmenter', 'Diminuer'],
             timeSteps: [1, 5, 1],
             });
          $('#11_end').timeEntry({show24Hours: true,
-            spinnerImage: '/js/spinnerDefault.png',
+            spinnerImage: '/images/spinnerDefault.png',
             spinnerTexts: ['Maintenant', 'Champ précédent', 'Champ suivant', 'Augmenter', 'Diminuer'],
             timeSteps: [1, 5, 1],
             });
@@ -135,16 +150,15 @@ function play_or_tts_to_text(x) {
          return texts_by_id[x.substr(2)];
          break;
       default:
-         return 'INDEFINI';
+         return 'NONE';
    }
 }
 
-function valide_action() {
+function valid_action() {
    var param = '';
    var type = parseInt($("#type_action").val());
    switch (type) {
       case 0: // New context XXX
-         va2dctxt = '';
          break;
 
       case 1:
@@ -226,6 +240,11 @@ function valide_action() {
 
       case 6: // Record
          var p1 = $("#6_announce").val();
+         if (p1==-1) {
+            $('#6_announce').select();
+            alert('Veuillez choisir une annonce !');
+            return;
+         }
          var p2 = parseInt($('#6_duration').val());
          if ($('#6_duration').val()!=p2) {
             $('#6_duration').select();
@@ -332,6 +351,20 @@ function valide_action() {
          param = $("#17_variable").val();
          break;
 
+      case 18: // Holidays
+         var if_true = $('#18_if_true').val();
+         var if_false = $('#18_if_false').val();
+         param = if_true + '::' + if_false;
+         break;
+
+      case 19: // Voicemail
+         param = $("#19_mailbox").val();
+         break;
+
+      case 20: // Queue
+         param = $("#20_queuename").val();
+         break;
+
       case -1:
          alert('Veuillez choisir une action ! ');
          return;
@@ -355,9 +388,11 @@ function valide_action() {
    $('#action_form').dialog('close');
 }
 
-function annule() { 
+function cancel_action() { 
    $('#action_form').dialog('close');
-   scenario.splice(current,1);
+   if (add_or_edit=='add')
+      // Remove empty scenario
+      scenario.splice(current,1);
    display();
 }
 
@@ -388,6 +423,7 @@ function display(redraw) {
       } else {
          divs += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" alt="Ajouter une action"></a>';
          divs += ' <a href="#" onclick="del_action(' + r + ')"><img src="/images/delete.png" border="0" alt="Supprimer cette action"></a>';
+         divs += ' <a href="#" onclick="edit_action(' + r + ')"><img src="/images/edit.png" border="0" alt="Modifier cette action"></a>';
       }
 
       if (r>1 && scenario[r-1].context==scenario[r].context && scenario[r-1].application!='0') {
@@ -468,7 +504,7 @@ function display(redraw) {
          case 7: // Transfert
             var a = scenario[r].parameters.split('::');
             var number=a[0], timeout=a[1], noanswer=a[2], busy=a[3], error=a[4];
-            if (noanswer=='-2') noanwser = 'continuer';
+            if (noanswer==-2) noanswer = 'continuer';
             if (error==-2) error = 'continuer';
             if (busy==-2) busy = 'continuer';
             par = number + ' (' + timeout + ' sec): ' + noanswer + '; ' + busy + '; ' + error;
@@ -485,7 +521,8 @@ function display(redraw) {
             break;
 
          case 10: // Test
-            [variable, ope, value, if_true, if_false] = scenario[r].parameters.split('::');
+            var a = scenario[r].parameters.split('::');
+            var variable=a[0], ope=a[1], value=a[2], if_true=a[3], if_false=a[4];
             var ops = new Object();
             ops['eq'] = ' = ';
             ops['ne'] = ' # ';
@@ -493,7 +530,9 @@ function display(redraw) {
             ops['le'] = ' <= ';
             ops['gt'] = ' > ';
             ops['ge'] = ' >= ';
-            par = variable + ops[ope] + value + ' ? ok: ' + if_true + '; ko: ' + if_false;
+            if (if_true==-2) if_true = 'continuer';
+            if (if_false==-2) if_false = 'continuer';
+            par = variable + ops[ope] + value + ' ? ' + if_true + ', sinon ' + if_false;
             break;
 
          case 13: // Variable
@@ -529,6 +568,25 @@ function display(redraw) {
             par = scenario[r].parameters;
             break;
 
+         case 18: // Holidays
+            act = actions_by_id[app];
+            var a = scenario[r].parameters.split('::');
+            var if_true = a[0], if_false = a[1];
+            if (if_true==-2) if_true = 'Continuer';
+            if (if_false==-2) if_false = 'Continuer';
+            par = '? ' + if_true + ', sinon ' + if_false;
+            break;
+
+         case 19: // Voicemail
+            act = actions_by_id[app];
+            par = scenario[r].parameters;
+            break;
+
+         case 20: // Queue
+            act = actions_by_id[app];
+            par = queues_by_id[scenario[r].parameters];
+            break;
+
          case 11: // Time based test
             var a = scenario[r].parameters.split('::');
             var begin=a[0], end=a[1], dow=a[2], day=a[3], month=a[4], if_true=a[5], if_false=a[6];
@@ -537,8 +595,9 @@ function display(redraw) {
             if (dow) par += 'jour(s): ' + dow + ', ';
             if (day) par += 'date(s): ' + day + ', ';
             if (month) par += 'mois: ' + month;
-            // par += ' ? ok: ' + if_true + '; ko: ' + if_false;
-            par += ' ? ' + if_true;
+            if (if_true==-2) if_true = 'Continuer';
+            if (if_false==-2) if_false = 'Continuer';
+            par += ' ?<br/>' + if_true + ', sinon : ' + if_false;
             break;
 
          case 12: // New context
@@ -564,15 +623,17 @@ function display(redraw) {
    context_opts += label_opts + '</optgroup>';
    $("#scenario").html(divs);
    $('#14_goto').html(context_opts);
+   context_opts += '<optgroup label="Autre">\n';
+   context_opts += '<option value="-2">Continuer</option></optgroup>';
    $('#11_if_false').html(context_opts);
    $('#11_if_true').html(context_opts);
-   context_opts += '<optgroup label="Autre">\n';
-   context_opts += '<option value="-2">Continuer</option>'; // + context_opts;
    $('#7_noanswer').html(context_opts);
    $('#7_busy').html(context_opts);
    $('#7_error').html(context_opts);
    $('#10_if_false').html(context_opts);
    $('#10_if_true').html(context_opts);
+   $('#18_if_false').html(context_opts);
+   $('#18_if_true').html(context_opts);
 
    top=0; context = '';
    for (r=0; r<scenario.length; r++) {
@@ -615,7 +676,145 @@ function display(redraw) {
    update_canvas();
 }
 
+function edit_action(i) {
+   add_or_edit = 'edit';
+   current = i;
+   var app = parseInt(scenario[i].application);
+   var act = actions_by_id[app];
+   switch (app) {
+
+      case 1:
+         $("#1_file").val(scenario[i].parameters);
+         break;
+
+      case 2: // Menu
+         var a = scenario[i].parameters.split('::');
+         $("#3_announce").val(a[0]);
+         $("#3_error").val(a[1]);
+         $("#3_abandon").val(a[2]);
+         $("#3_choice").val(a[3]);
+         break;
+
+      case 3: // Input
+         var a = scenario[i].parameters.split('::');
+         $("#4_announce").val(a[0]);
+         $("#4_error").val(a[1]);
+         $("#4_abandon").val(a[2]);
+         $("#4_var").val(a[3]);
+         $("input[@name='4_input_type']:checked").val(a[4]);
+         $("#4_len").val(a[5]);
+         break;
+
+      case 4: // Hangup
+         break;
+
+      case 5: // TTS
+         $("#2_tts").val(scenario[i].parameters);
+         break;
+
+      case 6: // Record
+         var a = scenario[i].parameters.split('::');
+         $("#6_announce").val(a[0]);
+         $('#6_duration').val(a[1]);
+         $("input[@name='6_bip']:checked").val(a[2]);
+         break;
+
+      case 7: // Transfer
+         var a = scenario[i].parameters.split('::');
+         $("#7_number").val(a[0]);
+         $("#7_timeout").val(a[1]);
+         $("#7_noanswer").val(a[2]);
+         $("#7_busy").val(a[3]);
+         $("#7_error").val(a[4]);
+         break;
+
+      case 8: // Service Web
+         var a = scenario[i].parameters.split('::');
+         $("#8_request").val(a[0]);
+         $("#8_var").val(a[1]);
+         break;
+
+      case 9: // Boucle
+         var a = scenario[i].parameters.split('::');
+         $("#9_action").val(a[0]);
+         $('#9_loop').val(a[1]);
+         break;
+
+      case 10: // Test
+         var a = scenario[i].parameters.split('::');
+         $("#10_var").val(a[0]);
+         $("#10_value").val(a[2]);
+         $("#10_ope").val(a[1]);
+         $("#10_if_true").val(a[3]);
+         $("#10_if_false").val(a[4]);
+         break;
+
+      case 11: // Time based test
+         var a = scenario[i].parameters.split('::');
+         $('#11_begin').val(a[0]);
+         $('#11_end').val(a[1]);
+         $('#11_dow').val(a[2].split(','));
+         $('#11_day').val(a[3].split(','));
+         $('#11_month').val(a[4].split(','));
+         $('#11_if_true').val(a[5]);
+         $('#11_if_false').val(a[6]);
+         break;
+
+      case 12: // Bloc
+         break;
+
+      case 13: // Variable
+         var a = scenario[i].parameters.split('::');
+         $("#13_name").val(a[0]);
+         $("#13_predefined").val(a[1]);
+         $("#13_value").val(a[2]);
+         break;
+
+      case 14: // Goto
+         $("#14_goto").val(scenario[i].parameters);
+         break;
+
+      case 15: // Select
+         var a = scenario[i].parameters.split('::');
+         $("#15_announce").val(a[0]);
+         $("#15_error").val(a[1]);
+         $("#15_abandon").val(a[2]);
+         $("#15_choice").val(a[3]);
+         $("#15_var").val(a[4]);
+         break;
+
+      case 16: // Label
+         $("#16_name").val(scenario[i].parameters);
+         break;
+
+      case 17: // Save to database
+        $("#17_variable").val(scenario[i].parameters);
+         break;
+
+      case 18: // Holidays
+         var a = scenario[i].parameters.split('::');
+         $('#18_if_true').val(a[0]);
+         $('#18_if_false').val(a[1]);
+         break;
+
+      case 19: // Voicemail
+         $("#19_mailbox").val(scenario[i].parameters);
+         break;
+
+      case 20: //Queue
+         $("#20_queuename").val(scenario[i].parameters);
+         break;
+
+   }
+   $("#comments").val(scenario[i].comments);
+   $("#type_action").val(app);
+   action_parameters();
+   $('#action_form').dialog('open');
+   unload_warning=1;
+}
+
 function add_action(i) {
+   add_or_edit = 'add';
    scenario.splice(i+1,0,new Object);
    scenario[i+1].context = scenario[i].context;
    scenario[i+1].extension = '';
@@ -634,9 +833,8 @@ function add_action(i) {
    unload_warning=1;
 }
 
-function action_parameters(s) {
-   var idx = s.selectedIndex;
-   for (i=1; i<s.options.length; i++)
+function action_parameters() {
+   for (i=1; i<$("#type_action")[0].options.length; i++)
       $("#action_params_" + i).hide();
    $("#action_params_" + $("#type_action").val()).show();
 }
@@ -727,15 +925,16 @@ function update_canvas() {
    var offset = $('#canvas').offset();
    var c2d = canvas.getContext("2d");
    c2d.clearRect(0, 0, canvas.width, canvas.height);
+
    for (r=0; r<scenario.length; r++) { // Search for branches
       switch (parseInt(scenario[r].application)) {
 
          case 2: // Menu
-            p = scenario[r].parameters.split('::');
+            var a = scenario[r].parameters.split('::');
             var ctxt = scenario[r].context;
             if (ctxt=='Entrant') ctxt = 'Suite_';
             else ctxt += '_';
-            var choices = p[3].split('');
+            var choices = a[3].split('');
             for (i=0; i<choices.length; i++) {
                canvas_join(c2d, $('#canvas').offset(),
                   $('#row_' + r), $('#'+ctxt+choices[i].replace(/([*#])$/g,'\\$1')) );
@@ -743,7 +942,8 @@ function update_canvas() {
             break;
 
          case 10: // Test
-            [variable, ope, val, if_true, if_false] = scenario[r].parameters.split('::');
+            var a = scenario[r].parameters.split('::');
+            var if_true = a[3], if_false = a[4];
             switch (if_true.substr(0,1)) {
                case '-': break;
                case 'c':
@@ -751,9 +951,8 @@ function update_canvas() {
                         $('#'+if_true.substr(2)) );
                   break;
                case 'l':
-                  target = labels[if_true.substr(2)];
                   canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
-                        $('#row_'+target) );
+                        $('#row_'+labels[if_true.substr(2)]) );
                   break;
                default:
                   alert('update_canvas: unknown Test (true) ' + if_true);
@@ -767,9 +966,8 @@ function update_canvas() {
                         $('#'+if_false.substr(2)) );
                   break;
                case 'l':
-                  target = labels[if_false.substr(2)];
                   canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
-                        $('#row_'+target) );
+                        $('#row_'+labels[if_false.substr(2)]) );
                   break;
                default:
                   alert('update_canvas: unknown Test (false) ' + if_false);
@@ -779,15 +977,19 @@ function update_canvas() {
 
          case 11: // Time based test
             var a = scenario[r].parameters.split('::');
-            var begin=a[0], end=a[1], dow=a[2], day=a[3], month=a[4], if_true=a[5], if_false=a[6];
+            var if_true=a[5], if_false=a[6];
             if (if_true!=-2)
-               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), $('#'+if_true.substr(2)) );
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
+                     $('#'+if_true.substr(2)) );
+            if (if_false!=-2)
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
+                     $('#'+if_false.substr(2)) );
             break;
 
          case 9: // Loop
-            par = scenario[r].parameters.split('::');
+            var a = scenario[r].parameters.split('::');
             canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
-                  $('#'+par[0].substr(2)) );
+                  $('#'+a[0].substr(2)) );
             break;
 
          case 14: // Goto
@@ -806,6 +1008,18 @@ function update_canvas() {
                   break;
             }
             break;
+
+         case 18: // Holidays
+            var a = scenario[r].parameters.split('::');
+            var if_true=a[0], if_false=a[1];
+            if (if_true!=-2)
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
+                     $('#'+if_true.substr(2)) );
+            if (if_false!=-2)
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
+                     $('#'+if_false.substr(2)) );
+            break;
+
       }
    }
 }
@@ -817,19 +1031,21 @@ function update_canvas() {
 <body>
    <h1 py:content="title">Titre</h1>
    <span py:replace="debug"/><br />
-      N'oubliez pas de <span style="font-weight: bold;"><a href="#" onclick="valide();">valider</a></span> après modification du scénario. <a href="#" onclick="display(true)">Redessiner</a> l'écran.
-      <!--input type="button" onclick="valide();" value="Valider"/>
-      <input type="button" onclick="valide();" value="Valider"/--><br/>
+      N'oubliez pas de <span style="font-weight: bold;">
+         <a href="#" onclick="valide();">valider</a></span> 
+      après modification du scénario. 
+      <a href="#" onclick="display(true)">Redessiner</a> l'écran.
+      <br/>
 	   <canvas id="canvas"></canvas>
       <div id="scenario"></div>
 
 <!-- Dialogue nouvelle action -->
 <div id="action_form" title="Nouvelle action">
       Action:
-   <select id="type_action" onchange="action_parameters(this)">
+   <select id="type_action" onchange="action_parameters()">
    </select>
 
-   <!-- Annonce: 1 -->
+   <!-- Playback: 1 -->
    <div id="action_params_1" style="display: none">
       Sélectionnez le fichier à jouer:
       <select id="1_file">
@@ -850,7 +1066,7 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Sélection: 15 -->
+   <!-- Select: 15 -->
    <div id="action_params_15" style="display: none">
       <table>
          <tr><td>Message annonce:</td>
@@ -866,7 +1082,7 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Saisie: 3 -->
+   <!-- Input: 3 -->
    <div id="action_params_3" style="display: none">
       <table>
          <tr><td>Message annonce:</td>
@@ -887,17 +1103,17 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Racroché: 4 -->
+   <!-- Hangup: 4 -->
    <div id="action_params_4" style="display: none">
       <i>Aucun paramètre</i>
    </div>
 
-   <!-- Synthèse: 5 -->
+   <!-- Text to speech: 5 -->
    <div id="action_params_5" style="display: none">
       Entrez le texte: <input type="text" id="2_tts"/>
    </div>
 
-   <!-- Enregistrement: 6 -->
+   <!-- Record: 6 -->
    <div id="action_params_6" style="display: none">
       <table>
          <tr><td>Message annonce:</td>
@@ -911,7 +1127,7 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Transfert: 7 -->
+   <!-- Transfer: 7 -->
    <div id="action_params_7" style="display: none">
       <table>
          <tr><td>Numéro appelé:</td>
@@ -927,7 +1143,7 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Service web: 8 -->
+   <!-- Web service: 8 -->
    <div id="action_params_8" style="display: none">
       <table>
          <tr><td>Requête HTTP:</td>
@@ -937,7 +1153,7 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Boucle: 9 -->
+   <!-- Loop: 9 -->
    <div id="action_params_9" style="display: none">
       <table>
          <tr><td>Action à répéter:</td>
@@ -948,7 +1164,7 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Décision: 10 -->
+   <!-- Test variable: 10 -->
    <div id="action_params_10" style="display: none">
       <table>
          <tr><td>Nom variable:</td>
@@ -971,7 +1187,7 @@ function update_canvas() {
       </table>
    </div>
 
-   <!-- Planification: 11 -->
+   <!-- Date / time based test: 11 -->
    <div id="action_params_11" style="display: none">
       <table>
          <tr><td>Plage horaire:</td>
@@ -1038,10 +1254,8 @@ function update_canvas() {
                   </select></td></tr>
          <tr><td>Si vrai:</td>
             <td><select id="11_if_true"></select></td></tr>
-         <!--
          <tr><td>Si faux:</td>
             <td><select id="11_if_false"></select></td></tr>
-         -->
       </table>
    </div>
 
@@ -1078,10 +1292,32 @@ function update_canvas() {
       <input type="text" id="16_name"/>
    </div>
 
-   <!-- Label: 17 -->
+   <!-- Save variable / value to database: 17 -->
    <div id="action_params_17" style="display: none">
       Nom de la variable à sauvegarder:
       <input type="text" id="17_variable"/>
+   </div>
+
+   <!-- Holidays: 18 -->
+   <div id="action_params_18" style="display: none">
+      <table>
+         <tr><td>Si vrai:</td>
+            <td><select id="18_if_true"></select></td></tr>
+         <tr><td>Si faux:</td>
+            <td><select id="18_if_false"></select></td></tr>
+      </table>
+   </div>
+
+   <!-- Voicemail: 19 -->
+   <div id="action_params_19" style="display: none">
+      Nom de la boîte vocale:
+      <input type="text" id="19_mailbox"/>
+   </div>
+
+   <!-- Queue: 20 -->
+   <div id="action_params_20" style="display: none">
+      Nom du groupe d'appel:
+      <select id="20_queuename"></select>
    </div>
 
    <div>

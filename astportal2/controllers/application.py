@@ -9,15 +9,13 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group, not_anonymous
 
 from astportal2.lib.myjqgrid import MyJqGrid
-#from tw.jquery import ui, ui_dialog
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, CheckBox, CalendarDateTimePicker, TextArea
 from tw.forms.validators import NotEmpty, Int, DateConverter, DateTimeConverter
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Application, User, Group, Action, Scenario, Sound, User
-#from astportal2.asterisk import extensions
+from astportal2.model import DBSession, Application, User, Group, Action, Scenario, Sound, User, Queue
 
 from datetime import datetime
 import re
@@ -360,22 +358,30 @@ class Application_ctrl(RestController):
       Fetch data from DB, return the list of rows + total + current page
       '''
 
-      actions = [{'action_id': x.action_id, 'action_name': x.name, 'action_comment': x.comment}
+      actions = [{'action_id': x.action_id, 'action_name': x.name, 
+         'action_comment': x.comment}
          for x in DBSession.query(Action).order_by(Action.name)]
 
       owner = DBSession.query(Application.owner_id).get(id)[0]
 
-      sounds = [{'sound_id': x.sound_id, 'sound_name': x.name, 'sound_comment': x.comment}
+      sounds = [{'sound_id': x.sound_id, 'sound_name': x.name, 
+         'sound_comment': x.comment}
          for x in DBSession.query(Sound).filter(Sound.owner_id==owner).order_by(Sound.name)]
 
       texts = []
 
-      scenario = [{'sce_id': x.sce_id, 'context': x.context, 'extension': x.extension, 
-         'priority': x.step, 'application': x.action, 'parameters': x.parameters, 
+      queues = [{'queue_id': x.queue_id, 'queue_name': x.name, 
+         'queue_comment': x.comment}
+         for x in DBSession.query(Queue).order_by(Queue.name)]
+
+      scenario = [{'sce_id': x.sce_id, 'context': x.context, 
+         'extension': x.extension, 'priority': x.step, 
+         'application': x.action, 'parameters': x.parameters, 
          'comments': x.comments, 'target': 0}
          for x in DBSession.query(Scenario).filter(Scenario.app_id==id).order_by(Scenario.context).order_by(Scenario.step)]
 
-      return dict(scenario=scenario, sounds=sounds, texts=texts, actions=actions)
+      return dict(scenario=scenario, sounds=sounds, texts=texts, 
+            actions=actions, queues=queues)
 
 
 
@@ -671,14 +677,32 @@ def generate_dialplan():
          prio +=1
          continue
 
-      elif action==11: # Timed test
+      elif action==11: # Date / time test
          (begin, end, dow, days, months, if_true, if_false) = parameters.split('::')
+         log.debug(u'Date / time test: if_true=%s, if_false=%s' % (if_true, 
+            if_false))
+         if if_true=='-2': # Continue
+            if_true='' 
+         elif if_true[0]=='c': # Jump to context
+            if_true = u'App_%s_%s,s,1' % (app_id, if_true[2:])
+         elif if_true[0]=='l': # Jump to label in context
+            (c,l) = if_true[2:].split(',')
+            if_true = u'App_%s_%s,s,%s' % (app_id, c, l)
+
+         if if_false=='-2': # Continue
+            if_false='' 
+         elif if_false[0]=='c': # Jump to context
+            if_false = u'App_%s_%s,s,1' % (app_id, if_false[2:])
+         elif if_false[0]=='l': # Jump to label in context
+            (c,l) = if_false[2:].split(',')
+            if_false = u'App_%s_%s,s,%s' % (app_id, c, l)
+
          time = begin + '-' + end if begin!='' and end!='' else '*'
          dow = dow.replace(',', '&') if dow!='' else '*'
          days = days.replace(',', '&') if days!='' else '*'
          months = months.replace(',', '&') if months!='' else '*'
-         svi_out.write(u'exten => s,%d,GotoIfTime(%s,%s,%s,%s?App_%s_%s,s,1)\n' % 
-               (prio, time, dow, days, months, app_id, if_true[2:]))
+         svi_out.write(u'exten => s,%d,GotoIfTime(%s,%s,%s,%s?%s:%s)\n' % 
+               (prio, time, dow, days, months, if_true, if_false))
          prio +=1
          continue
 
@@ -710,6 +734,57 @@ def generate_dialplan():
       elif action==17: # Store variable to database
          svi_out.write(u"exten => s,%d,Set(SVI_DATA()=%s\\,'%s'\\,'${%s}')\n" % 
                (prio, app_id, parameters, parameters) )
+         prio += 1
+         continue
+
+      elif action==18: # Holidays
+#         for h in DBSession.query(Holidays):
+#            svi_out.write(u"exten => s,%d,GotoIfTime(*,*,%s,%s?true)\n" % 
+#               (prio, h.day, h.month) )
+#            prio += 1
+#            svi_out.write(u"exten => s,%d,Set(holiday=false)\n" % (prio))
+#            prio += 1
+#            svi_out.write(u"exten => s,%d(),Return)\n" % (prio))
+#            prio += 1
+#            svi_out.write(u"exten => s,%d(true),Set(holiday=true)\n" % (prio))
+#            prio += 1
+#            svi_out.write(u"exten => s,%d(),Return)\n" % (prio))
+#            prio += 1
+
+         (if_true, if_false) = parameters.split('::')
+         if if_true=='-2': # Continue
+            if_true='' 
+         elif if_true[0]=='c': # Jump to context
+            if_true = u'App_%s_%s,s,1' % (app_id, if_true[2:])
+         elif if_true[0]=='l': # Jump to label in context
+            (c,l) = if_true[2:].split(',')
+            if_true = u'App_%s_%s,s,%s' % (app_id, c, l)
+
+         if if_false=='-2': # Continue
+            if_false='' 
+         elif if_false[0]=='c': # Jump to context
+            if_false = u'App_%s_%s,s,1' % (app_id, if_false[2:])
+         elif if_false[0]=='l': # Jump to label in context
+            (c,l) = if_false[2:].split(',')
+            if_false = u'App_%s_%s,s,%s' % (app_id, c, l)
+
+         svi_out.write(u"exten => s,%d,Gosub(Holidays,s,1)\n" % (prio) )
+         prio += 1
+         svi_out.write(u'exten => s,%d,GotoIf($[ ${holiday} = true ]?%s:%s)\n' % 
+               (prio, if_true, if_false))
+         prio +=1
+         
+         continue
+
+      elif action==19: # Voicemail
+         svi_out.write(u"exten => s,%d,Voicemail(%s,s)\n" % 
+               (prio, parameters) )
+         prio += 1
+         continue
+
+      elif action==20: # Queue
+         svi_out.write(u"exten => s,%d,Queue(%s)\n" % 
+               (prio, parameters) )
          prio += 1
          continue
 
