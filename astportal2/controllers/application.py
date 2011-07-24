@@ -2,7 +2,7 @@
 # Application CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request
+from tg import expose, flash, redirect, tmpl_context, validate, request, response
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -23,6 +23,41 @@ from os import rename, system
 import logging
 log = logging.getLogger(__name__)
 
+# ReportLab -> PDF
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.linecharts import HorizontalLineChart
+from reportlab.platypus import *
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.rl_config import defaultPageSize
+from reportlab.lib.units import inch, cm
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.graphics.widgets.markers import makeMarker
+
+PAGE_HEIGHT=defaultPageSize[1]
+styles = getSampleStyleSheet()
+title = "Statistiques d'accès au Serveur Vocal Interactif"
+author = "Calédonienne de Services Bancaires"
+url = "http://www.csb.nc"
+email = "svi@csb.nc"
+
+
+def header(txt, style=styles['Heading1'], klass=Paragraph, sep=0.3):
+    s = Spacer(0.2*inch, sep*inch)
+    para = klass(txt, style)
+    sect = [s, para]
+    result = KeepTogether(sect)
+    return result
+
+def p(txt):
+    return header(txt, style=styles['Normal'], sep=0.1)
+
+def pre(txt):
+    s = Spacer(0.1*inch, 0.1*inch)
+    p = Preformatted(txt, styles['Code'])
+    precomps = [s,p]
+    result = KeepTogether(precomps)
+    return result
 
 def play_or_tts(typ, val, brk=None):
    ''' Choose Playback / Background or RealSpeak 
@@ -418,6 +453,87 @@ class Application_ctrl(RestController):
       result = generate_dialplan()
       return dict(result=result)
 
+
+   @expose()
+   def pdf_export(self, id, **kw):
+      if 'scenario[]' in kw.keys():
+         scenario = kw['scenario[]']
+
+      elif 'scenario' in kw.keys():
+         scenario = kw['scenario'].split('||')
+
+      else: #if 'scenario[]' not in kw.keys():
+         log.error('pdf_export: no scenario id %s' % (id) )
+         scenario = None
+         return dict(result=0) # XXX ?
+
+      log.info('id %s, type %s' % (id, type(scenario)) )
+      log.debug('scenario <%s>' % scenario)
+
+      if type(scenario)!=type([]):
+            scenario = (scenario,)
+
+      elements = []
+
+      filename = 'test.pdf'
+      pdf = SimpleDocTemplate('/tmp/' + filename, pagesize=A4)
+      elements.append(header(title))
+      elements.append(header(author, sep=0.1, style=styles['Normal']))
+      elements.append(header(url, sep=0.1, style=styles['Normal']))
+      elements.append(header(email, sep=0.1, style=styles['Normal']))
+      elements.append(header("Applications"))
+      elements.append(p('XXX'))
+#      if not (year=='' or month==''):
+#         elements.append(header("Mois"))
+#         elements.append(p('%02d/%04d' % (m,y)))
+      elements.append(PageBreak())
+
+      action = {}
+      for a in DBSession.query(Action):
+         action['%s' % a.action_id] = a.name
+
+      data = []
+      old_context = old_exten = None
+      elements.append(header(u'Scénario de l\'application %s' % 'XXX'))
+      for s in scenario:
+         (comments, context, exten, prio, action_id, param) = s.split('::',5)
+         if old_context==context: 
+            context=''
+         else:
+            if old_context is not None:
+               t=Table(data) #, len(data)*[2*cm], len(data[0])*[1*cm])
+               t.setStyle(TableStyle([('FONTSIZE', (0,0),(-1,-1),12),
+						('INNERGRID', (-1,-1), (0,0), 0.5, colors.blue), 
+						('BOX', (0,0),(-1,-1), 0.5, colors.red) ]))
+               elements.append(t)
+               data = []
+            old_context=context
+            old_exten=None
+         if old_exten==exten: exten=''
+         else: old_exten=exten
+         data.append([context, exten, action[action_id], comments])
+
+      pdf.build(elements)
+
+      fn = '/tmp/%s' % (filename)
+      import os
+      try:
+         st = os.stat(fn)
+         f = open(fn)
+      except:
+         flash(u'Fichier sonore introuvable: %s' % fn, 'error')
+         redirect('/moh/')
+      rh = response.headers
+      rh['Pragma'] = 'public' # for IE
+      rh['Expires'] = '0'
+      rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
+      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Content-Type'] = 'application/pdf'
+      rh['Content-disposition'] = u'attachment; filename="%s"; size=%d;' % (fn, st.st_size)
+      rh['Content-Transfer-Encoding'] = 'binary'
+      return f.read()
+
+
 def generate_dialplan():
    ''' Generate dialplan from database
    '''
@@ -744,11 +860,11 @@ def generate_dialplan():
 #            prio += 1
 #            svi_out.write(u"exten => s,%d,Set(holiday=false)\n" % (prio))
 #            prio += 1
-#            svi_out.write(u"exten => s,%d(),Return)\n" % (prio))
+#            svi_out.write(u"exten => s,%d,Return()\n" % (prio))
 #            prio += 1
 #            svi_out.write(u"exten => s,%d(true),Set(holiday=true)\n" % (prio))
 #            prio += 1
-#            svi_out.write(u"exten => s,%d(),Return)\n" % (prio))
+#            svi_out.write(u"exten => s,%d,Return()\n" % (prio))
 #            prio += 1
 
          (if_true, if_false) = parameters.split('::')
@@ -768,7 +884,7 @@ def generate_dialplan():
             (c,l) = if_false[2:].split(',')
             if_false = u'App_%s_%s,s,%s' % (app_id, c, l)
 
-         svi_out.write(u"exten => s,%d,Gosub(Holidays,s,1)\n" % (prio) )
+         svi_out.write(u"exten => s,%d,Gosub(holidays,s,1)\n" % (prio) )
          prio += 1
          svi_out.write(u'exten => s,%d,GotoIf($[ ${holiday} = true ]?%s:%s)\n' % 
                (prio, if_true, if_false))
@@ -784,7 +900,7 @@ def generate_dialplan():
 
       elif action==20: # Queue
          svi_out.write(u"exten => s,%d,Queue(%s)\n" % 
-               (prio, parameters) )
+               (prio, DBSession.query(Queue.name).get(int(parameters))[0]) )
          prio += 1
          continue
 
@@ -817,4 +933,3 @@ def generate_dialplan():
    
    # /function generate_dialplan
    return result
-

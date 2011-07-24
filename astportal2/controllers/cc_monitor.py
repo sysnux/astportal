@@ -82,7 +82,7 @@ class CC_Monitor_ctrl(TGController):
    def remove_member(self, queue, member, iface):
       ''' Remove a member from a queue
       '''
-      log.info('Removing member "%s" from queue "%s"', member, queue)
+      log.info('Removing member "%s (%s)" from queue "%s"', member, iface, queue)
       Globals.manager.send_action({'Action': 'QueueRemove', 
          'Queue': queue, 'Interface': iface})
       return dict(res='ok')

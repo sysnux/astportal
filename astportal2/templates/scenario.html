@@ -862,12 +862,16 @@ function del_action(i) {
    unload_warning=1;
 }
 
-function valide() {
+function submit() {
    // Convert array of objects to array of arrays 
    var sce = new Array();
    for (i in scenario) {
-      sce.push([scenario[i].comments, scenario[i].context, scenario[i].extension, 
-            scenario[i].priority, scenario[i].application, scenario[i].parameters].join('::'))
+      sce.push([scenario[i].comments, 
+            scenario[i].context, 
+            scenario[i].extension, 
+            scenario[i].priority, 
+            scenario[i].application, 
+            scenario[i].parameters].join('::'))
    }
    $.post(
       'save_scenario',
@@ -886,6 +890,23 @@ function valide() {
       'json'
    );
    return true;
+}
+
+function pdf_export() {
+   // Convert array of objects to array of arrays 
+   var sce = new Array();
+   for (i in scenario) {
+      sce.push([scenario[i].comments, 
+            scenario[i].context, 
+            scenario[i].extension, 
+            scenario[i].priority, scenario[i].application, 
+            scenario[i].parameters].join('::'))
+   }
+   with (document.pdf_export_form) {
+      id.value = ${tmpl_context.app_id};
+      scenario.value = sce.join('||');
+      submit();
+   }
 }
 
 function canvas_join(c2d, offset, src, tgt) {
@@ -1032,9 +1053,10 @@ function update_canvas() {
    <h1 py:content="title">Titre</h1>
    <span py:replace="debug"/><br />
       N'oubliez pas de <span style="font-weight: bold;">
-         <a href="#" onclick="valide();">valider</a></span> 
+         <a href="#" onclick="submit();">valider</a></span> 
       après modification du scénario. 
       <a href="#" onclick="display(true)">Redessiner</a> l'écran.
+      Exporter au format <a href="#" onclick="pdf_export(true)">PDF</a> .
       <br/>
 	   <canvas id="canvas"></canvas>
       <div id="scenario"></div>
@@ -1324,6 +1346,9 @@ function update_canvas() {
       Commentaire: <input type="text" name="comments" id="comments"/>
    </div>
 </div>
-
+<form name="pdf_export_form" action="pdf_export" method="post">
+   <input type="hidden" name="id"/>
+   <input type="hidden" name="scenario"/>
+</form>
 </body>
 </html>
