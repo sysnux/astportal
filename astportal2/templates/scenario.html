@@ -75,6 +75,7 @@ $(document).ready(
          sounds = data.sounds;
          texts = data.texts;
          queues = data.queues;
+         contexts_pos = data.positions;
          var o = '<option value="-1"> - - - </option>\n';
          for (a in actions) {
             actions_by_id[actions[a].action_id] = actions[a].action_name;
@@ -315,6 +316,12 @@ function valid_action() {
             alert('Veuillez définir le nom du bloc à créer !');
             return;
          }
+         for (s in scenario) {
+            if (scenario[s].context==param) {
+               alert('Nom de bloc déjà utilisé !');
+               return;
+            }
+         }
          var ctxt = scenario[current-1].context;
          if (ctxt=='Entrant') ctxt = 'Suite_';
          else ctxt += '_';
@@ -419,15 +426,15 @@ function display(redraw) {
       divs += '<tr id="row_' + r + '" '+ row_style + '><td>';
 
       if (r==0) { // Incoming context -> delete forbidden !
-         divs += ' <a href="#" onclick="add_action(0)"><img src="/images/add.png" border="0" alt="Ajouter une action"></a>';
+         divs += ' <a href="#" onclick="add_action(0)"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
       } else {
-         divs += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" alt="Ajouter une action"></a>';
-         divs += ' <a href="#" onclick="del_action(' + r + ')"><img src="/images/delete.png" border="0" alt="Supprimer cette action"></a>';
-         divs += ' <a href="#" onclick="edit_action(' + r + ')"><img src="/images/edit.png" border="0" alt="Modifier cette action"></a>';
+         divs += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
+         divs += ' <a href="#" onclick="del_action(' + r + ')"><img src="/images/delete.png" border="0" title="Supprimer cette action"></a>';
+         divs += ' <a href="#" onclick="edit_action(' + r + ')"><img src="/images/edit.png" border="0" title="Modifier cette action"></a>';
       }
 
       if (r>1 && scenario[r-1].context==scenario[r].context && scenario[r-1].application!='0') {
-         divs += ' <a href="#" onclick="up_action(' + r + ')"><img src="/images/view-sort-ascending.png" border="0" alt="Monter cette action"></a>';
+         divs += ' <a href="#" onclick="up_action(' + r + ')"><img src="/images/view-sort-ascending.png" border="0" title="Monter cette action"></a>';
       }
 
       if (r>0 && scenario[r-1].context==scenario[r].context) {
@@ -438,7 +445,7 @@ function display(redraw) {
 
       if (r>0 && r<scenario.length-1 && scenario[r].application!='0' 
             && scenario[r].context==scenario[r+1].context) {
-         divs += ' <a href="#" onclick="down_action(' + r + ')"><img src="/images/view-sort-descending.png" border="0" alt="Descendre cette action"></a>';
+         divs += ' <a href="#" onclick="down_action(' + r + ')"><img src="/images/view-sort-descending.png" border="0" title="Descendre cette action"></a>';
       }
 
       divs += '</td>';
@@ -597,7 +604,7 @@ function display(redraw) {
             if (month) par += 'mois: ' + month;
             if (if_true==-2) if_true = 'Continuer';
             if (if_false==-2) if_false = 'Continuer';
-            par += ' ?<br/>' + if_true + ', sinon : ' + if_false;
+            par += ' ? ' + if_true + ', sinon : ' + if_false;
             break;
 
          case 12: // New context
@@ -609,11 +616,15 @@ function display(redraw) {
             par = '&nbsp;';
             break;
       }
+      var par2=par;
+      if (par2.length>20) par2 = par2.substr(0,17) + '...';
       divs += '<td style="padding: 5px">' + act + '</td>';
-      divs += '<td style="padding: 5px">' + par + '</td>';
-      if (scenario[r].comments)
-         divs += '<td style="padding: 5px">' + scenario[r].comments + '</td>';
-      else
+      divs += '<td style="padding: 5px" title="'+ par + '">' + par2 + '</td>';
+      if (scenario[r].comments) {
+         var comments = scenario[r].comments;
+         if (comments.length>20) comments = comments.substr(0,17) + '...';
+         divs += '<td style="padding: 5px" title="' + scenario[r].comments + '">' + comments + '</td>';
+      } else
          divs += '<td style="padding: 5px">&nbsp;</td>';
       divs += '</tr>\n';
    }
@@ -873,9 +884,15 @@ function submit() {
             scenario[i].application, 
             scenario[i].parameters].join('::'))
    }
+   var positions = new Array();
+   for (i in contexts_pos) {
+      positions.push([i, 
+            contexts_pos[i]['top'], 
+            contexts_pos[i]['left']].join('::'))
+   }
    $.post(
       'save_scenario',
-      {'id': ${tmpl_context.app_id}, 'scenario': sce},
+      {'id': ${tmpl_context.app_id}, 'scenario': sce, 'positions': positions},
       function(data,status){
          if (status=='success') {
             if (data.result==0)
@@ -921,20 +938,46 @@ function canvas_join(c2d, offset, src, tgt) {
    var b = parseInt(200*Math.random());
    c2d.fillStyle = c2d.strokeStyle = 'rgb('+r+','+g+','+b+')';
 
-   // Link = 3 segments
+   // Line begin: on left or right side of table ?
+   if (src.offset.left+src.width()>=tgt.offset.left) {
+      var src_left = src.offset.left-offset.left;
+      var src_top = src.offset.top-offset.top;
+      var src_corner = src_left-25;
+   } else {
+      var src_left = src.offset.left+src.width()-offset.left;
+      var src_top = src.offset.top-offset.top;
+      var src_corner = src_left+25;
+   }
+
+   // Line end: on left or right side of table ?
+   if (tgt.offset.left+tgt.width()>=src.offset.left) {
+      var tgt_left = tgt.offset.left-offset.left-4;
+      var tgt_top = tgt.offset.top-offset.top;
+      var tgt_arrow = tgt_left-8;
+      var tgt_corner = tgt_left-15;
+   } else {
+      var tgt_left = tgt.offset.left+tgt.width()-offset.left+8;
+      var tgt_top = tgt.offset.top-offset.top;
+      var tgt_arrow = tgt_left+8;
+      var tgt_corner = tgt_left+15;
+   }
+
+   /* Link = 3 segments :      -- src 
+                               \
+                                `-> tgt */
    c2d.beginPath();
-   c2d.moveTo(src.offset.left-offset.left, src.offset.top-offset.top+10);
-   c2d.lineTo(src.offset.left-offset.left-25, src.offset.top-offset.top+10);
-   c2d.lineTo(tgt.offset.left-offset.left-15, tgt.offset.top-offset.top+10);
-   c2d.lineTo(tgt.offset.left-offset.left, tgt.offset.top-offset.top+10);
+   c2d.moveTo(src_left, src_top+10);
+   c2d.lineTo(src_corner, src_top+10);
+   c2d.lineTo(tgt_corner, tgt_top+10);
+   c2d.lineTo(tgt_left, tgt_top+10);
    c2d.stroke();
    c2d.closePath();
 
-   // Arrow at destination
+   // Arrow at target
    c2d.beginPath();
-   c2d.lineTo(tgt.offset.left-offset.left-8, tgt.offset.top-offset.top+14);
-   c2d.lineTo(tgt.offset.left-offset.left-8, tgt.offset.top-offset.top+6);
-   c2d.lineTo(tgt.offset.left-offset.left, tgt.offset.top-offset.top+10);
+   c2d.lineTo(tgt_arrow, tgt_top+14);
+   c2d.lineTo(tgt_arrow, tgt_top+6);
+   c2d.lineTo(tgt_left, tgt_top+10);
    c2d.fill();
    c2d.closePath();
 }
@@ -1052,11 +1095,11 @@ function update_canvas() {
 <body>
    <h1 py:content="title">Titre</h1>
    <span py:replace="debug"/><br />
-      N'oubliez pas de <span style="font-weight: bold;">
-         <a href="#" onclick="submit();">valider</a></span> 
+      N'oubliez pas de
+      <span style="font-weight: bold;"><a href="#" onclick="submit();">valider</a></span> 
       après modification du scénario. 
-      <a href="#" onclick="display(true)">Redessiner</a> l'écran.
-      Exporter au format <a href="#" onclick="pdf_export(true)">PDF</a> .
+      <a href="#" onclick="display(true)">Redessiner</a> l'écran. 
+      <a href="#" onclick="pdf_export(true)">Exporter</a> au format PDF. 
       <br/>
 	   <canvas id="canvas"></canvas>
       <div id="scenario"></div>

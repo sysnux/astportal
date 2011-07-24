@@ -409,26 +409,35 @@ class Application_ctrl(RestController):
          'queue_comment': x.comment}
          for x in DBSession.query(Queue).order_by(Queue.name)]
 
-      scenario = [{'sce_id': x.sce_id, 'context': x.context, 
+      scenario = []
+      positions = {}
+      for x in DBSession.query(Scenario).filter(Scenario.app_id==id).order_by(Scenario.context).order_by(Scenario.step):
+         scenario.append({'sce_id': x.sce_id, 'context': x.context, 
          'extension': x.extension, 'priority': x.step, 
          'application': x.action, 'parameters': x.parameters, 
-         'comments': x.comments, 'target': 0}
-         for x in DBSession.query(Scenario).filter(Scenario.app_id==id).order_by(Scenario.context).order_by(Scenario.step)]
+         'comments': x.comments, 'target': 0})
+         if x.top and x.left:
+            context = 'context_' + x.context
+            positions[context] = {'top': x.top, 'left': x.left}
 
       return dict(scenario=scenario, sounds=sounds, texts=texts, 
-            actions=actions, queues=queues)
-
+            actions=actions, queues=queues, positions=positions)
 
 
    @expose('json')
    def save_scenario(self, id, **kw):
+
+      positions = {}
+      for p in kw['positions[]']:
+         (context, top, left) = p.split('::')
+         positions[context] = (int(float(top)), int(float(left)))
 
       if kw.has_key('scenario[]'):
          scenario = kw['scenario[]']
       else:
          scenario = None
          # return dict(result=0) # XXX ?
-      log.info('id %s, scenario %s (type %s)' % (id, scenario, type(scenario)) )
+      log.info('save_scenario %s, type %s' % (id, type(scenario)) )
       application = DBSession.query(Application).get(int(id))
 
       # 1. Delete old entries
@@ -436,22 +445,23 @@ class Application_ctrl(RestController):
 
       # 2. Create new ones
       if scenario:
-         if type(scenario)==type([]):
-            for s in scenario:
-               sc = Scenario()
-               (c,i,e,p,a,m) = s.split('::',5)
-               (sc.comments, sc.app_id, sc.context, sc.extension, sc.step, sc.action, 
-                  sc.parameters) = (c, id, i, e, (1+int(p)) or 0, a, m)
-               DBSession.add(sc)
-         else:
+         if type(scenario)!=type([]):
+            scenario = (scenario,)
+         for s in scenario:
             sc = Scenario()
-            (c,i,e,p,a,m) = scenario.split('::',5)
+            (c,i,e,p,a,m) = s.split('::',5)
+            p = (1+int(p))
             (sc.comments, sc.app_id, sc.context, sc.extension, sc.step, sc.action, 
-               sc.parameters) = (c, id, i, e, (1+int(p)) or 0, a, m)
+               sc.parameters) = (c, id, i, e, p, a, m)
+            if p==1 :
+               i = 'context_%s' % i 
+               log.debug(u'position %s' % i)
+               if i in positions.keys():
+                  sc.top = positions[i][0]
+                  sc.left = positions[i][1]
             DBSession.add(sc)
 
-      result = generate_dialplan()
-      return dict(result=result)
+      return dict(result=generate_dialplan())
 
 
    @expose()
@@ -495,6 +505,7 @@ class Application_ctrl(RestController):
       data = []
       old_context = old_exten = None
       elements.append(header(u'Scénario de l\'application %s' % 'XXX'))
+      even_odd = 0
       for s in scenario:
          (comments, context, exten, prio, action_id, param) = s.split('::',5)
          if old_context==context: 
@@ -502,16 +513,25 @@ class Application_ctrl(RestController):
          else:
             if old_context is not None:
                t=Table(data) #, len(data)*[2*cm], len(data[0])*[1*cm])
-               t.setStyle(TableStyle([('FONTSIZE', (0,0),(-1,-1),12),
-						('INNERGRID', (-1,-1), (0,0), 0.5, colors.blue), 
-						('BOX', (0,0),(-1,-1), 0.5, colors.red) ]))
+               tstyles = [('FONTSIZE', (0,0),(-1,-1),10),
+#						('INNERGRID', (0,0), (-1,-1), 0.5, colors.blue), 
+						('LINEABOVE', (0,0), (-1,-1), 0.5, colors.blue), 
+						('BOX', (0,0),(-1,-1), 0.5, colors.red), 
+#						('INNERGRID', (0,0), (-1,-1), 0.5, colors.blue), 
+						('LINEABOVE', (0,0), (-1,-1), 0.5, colors.blue), 
+						('BOX', (0,0),(-1,-1), 0.5, colors.red),
+                  ('ROWBACKGROUNDS', (0,0),(-1,-1), (colors.white, 
+                     colors.grey, colors.lightgrey, colors.lightblue))]
+               t.setStyle(tstyles)
                elements.append(t)
+               elements.append(Spacer(0.1*inch, 0.1*inch))
                data = []
+               even_odd += 1
             old_context=context
             old_exten=None
          if old_exten==exten: exten=''
          else: old_exten=exten
-         data.append([context, exten, action[action_id], comments])
+         data.append([context, action[action_id], param, comments])
 
       pdf.build(elements)
 

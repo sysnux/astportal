@@ -253,6 +253,8 @@ class Scenario(DeclarativeBase):
    action = Column(Integer, nullable=False)
    parameters = Column(Unicode(64))
    comments = Column(Unicode(64))
+   top = Column(Integer)
+   left = Column(Integer)
    application = relation('Application', backref='scenario')
 
 
