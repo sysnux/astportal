@@ -76,6 +76,7 @@ $(document).ready(
          texts = data.texts;
          queues = data.queues;
          contexts_pos = data.positions;
+
          var o = '<option value="-1"> - - - </option>\n';
          for (a in actions) {
             actions_by_id[actions[a].action_id] = actions[a].action_name;
@@ -104,14 +105,6 @@ $(document).ready(
             o += '</option>\n';
             texts_by_id[texts[t].text_id] = texts[t].text_name;
          }
-         o = '<option value="-1"> - - - </option>\n';
-         for (q in queues) {
-            queues_by_id[queues[q].queue_id] = queues[q].queue_name;
-            o += '<option value="' + queues[q].queue_id + '">'; 
-            o += queues[q].queue_name + ': ' + queues[q].queue_comment;
-            o += '</option>\n';
-         }
-         $('#20_queuename').html(o);
          o += '</optgroup>\n';
          $('#1_file').html(o);
          $('#3_announce').html(o);
@@ -124,6 +117,16 @@ $(document).ready(
          $('#15_announce').html(o);
          $('#15_error').html(o);
          $('#15_abandon').html(o);
+
+         o = '<option value="-1"> - - - </option>\n';
+         for (q in queues) {
+            queues_by_id[queues[q].queue_id] = queues[q].queue_name;
+            o += '<option value="' + queues[q].queue_id + '">'; 
+            o += queues[q].queue_name + ': ' + queues[q].queue_comment;
+            o += '</option>\n';
+         }
+         $('#20_queuename').html(o);
+
          $('#11_begin').timeEntry({show24Hours: true,
             spinnerImage: '/images/spinnerDefault.png',
             spinnerTexts: ['Maintenant', 'Champ précédent', 'Champ suivant', 'Augmenter', 'Diminuer'],
@@ -194,9 +197,7 @@ function valid_action() {
          }
          param = p1 + '::' + p2 + '::' + p3 + '::' + p4;
          var choices = p4.split('');
-         var ctxt = scenario[current-1].context;
-         if (ctxt=='Entrant') ctxt = 'Suite_';
-         else ctxt += '_';
+         var ctxt = scenario[current-1].context + '_Menu_';
          for (i=0; i<choices.length; i++) {
             var s = new Object();
             s.context = ctxt + choices[i];
@@ -322,11 +323,8 @@ function valid_action() {
                return;
             }
          }
-         var ctxt = scenario[current-1].context;
-         if (ctxt=='Entrant') ctxt = 'Suite_';
-         else ctxt += '_';
          var s = new Object();
-         s.context = ctxt + param;
+         s.context = param;
          s.extension = 's';
          s.priority = 0;
          s.application = 0;
@@ -579,6 +577,10 @@ function display(redraw) {
             act = actions_by_id[app];
             var a = scenario[r].parameters.split('::');
             var if_true = a[0], if_false = a[1];
+            if (if_true==-1 || if_false==1) {
+               alert('Vérifiez les actions');
+               return;
+            }
             if (if_true==-2) if_true = 'Continuer';
             if (if_false==-2) if_false = 'Continuer';
             par = '? ' + if_true + ', sinon ' + if_false;
@@ -995,9 +997,7 @@ function update_canvas() {
 
          case 2: // Menu
             var a = scenario[r].parameters.split('::');
-            var ctxt = scenario[r].context;
-            if (ctxt=='Entrant') ctxt = 'Suite_';
-            else ctxt += '_';
+            var ctxt = scenario[r].context + '_Menu_';
             var choices = a[3].split('');
             for (i=0; i<choices.length; i++) {
                canvas_join(c2d, $('#canvas').offset(),

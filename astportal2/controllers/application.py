@@ -23,41 +23,6 @@ from os import rename, system
 import logging
 log = logging.getLogger(__name__)
 
-# ReportLab -> PDF
-from reportlab.graphics.shapes import Drawing
-from reportlab.graphics.charts.linecharts import HorizontalLineChart
-from reportlab.platypus import *
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.rl_config import defaultPageSize
-from reportlab.lib.units import inch, cm
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.graphics.widgets.markers import makeMarker
-
-PAGE_HEIGHT=defaultPageSize[1]
-styles = getSampleStyleSheet()
-title = "Statistiques d'accès au Serveur Vocal Interactif"
-author = "Calédonienne de Services Bancaires"
-url = "http://www.csb.nc"
-email = "svi@csb.nc"
-
-
-def header(txt, style=styles['Heading1'], klass=Paragraph, sep=0.3):
-    s = Spacer(0.2*inch, sep*inch)
-    para = klass(txt, style)
-    sect = [s, para]
-    result = KeepTogether(sect)
-    return result
-
-def p(txt):
-    return header(txt, style=styles['Normal'], sep=0.1)
-
-def pre(txt):
-    s = Spacer(0.1*inch, 0.1*inch)
-    p = Preformatted(txt, styles['Code'])
-    precomps = [s,p]
-    result = KeepTogether(precomps)
-    return result
 
 def play_or_tts(typ, val, brk=None):
    ''' Choose Playback / Background or RealSpeak 
@@ -361,7 +326,9 @@ class Application_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete application from DB
       '''
+      id = int(kw['_id'])
       a = DBSession.query(Application).get(id)
+      log.info(u'Delete application %d' % id)
 
       # 1. Delete scenario
       DBSession.query(Scenario).filter(Scenario.app_id==a.app_id).delete()
@@ -372,9 +339,9 @@ class Application_ctrl(RestController):
       # 3. Recreate extensions
       result = generate_dialplan()
       if result==0:
-         flash(u'Application modifiée')
+         flash(u'Application supprimée')
       else:
-         flash(u'Application modifiée',error)
+         flash(u'Application supprimée',error)
       redirect('/applications/')
 
    @expose(template="astportal2.templates.scenario")
@@ -483,66 +450,58 @@ class Application_ctrl(RestController):
       if type(scenario)!=type([]):
             scenario = (scenario,)
 
-      elements = []
-
-      filename = 'test.pdf'
-      pdf = SimpleDocTemplate('/tmp/' + filename, pagesize=A4)
-      elements.append(header(title))
-      elements.append(header(author, sep=0.1, style=styles['Normal']))
-      elements.append(header(url, sep=0.1, style=styles['Normal']))
-      elements.append(header(email, sep=0.1, style=styles['Normal']))
-      elements.append(header("Applications"))
-      elements.append(p('XXX'))
-#      if not (year=='' or month==''):
-#         elements.append(header("Mois"))
-#         elements.append(p('%02d/%04d' % (m,y)))
-      elements.append(PageBreak())
-
-      action = {}
+      action_by_id = {}
       for a in DBSession.query(Action):
-         action['%s' % a.action_id] = a.name
+         action_by_id['%s' % a.action_id] = a.name
 
-      data = []
-      old_context = old_exten = None
-      elements.append(header(u'Scénario de l\'application %s' % 'XXX'))
-      even_odd = 0
-      for s in scenario:
-         (comments, context, exten, prio, action_id, param) = s.split('::',5)
-         if old_context==context: 
-            context=''
-         else:
-            if old_context is not None:
-               t=Table(data) #, len(data)*[2*cm], len(data[0])*[1*cm])
-               tstyles = [('FONTSIZE', (0,0),(-1,-1),10),
-#						('INNERGRID', (0,0), (-1,-1), 0.5, colors.blue), 
-						('LINEABOVE', (0,0), (-1,-1), 0.5, colors.blue), 
-						('BOX', (0,0),(-1,-1), 0.5, colors.red), 
-#						('INNERGRID', (0,0), (-1,-1), 0.5, colors.blue), 
-						('LINEABOVE', (0,0), (-1,-1), 0.5, colors.blue), 
-						('BOX', (0,0),(-1,-1), 0.5, colors.red),
-                  ('ROWBACKGROUNDS', (0,0),(-1,-1), (colors.white, 
-                     colors.grey, colors.lightgrey, colors.lightblue))]
-               t.setStyle(tstyles)
-               elements.append(t)
-               elements.append(Spacer(0.1*inch, 0.1*inch))
-               data = []
-               even_odd += 1
-            old_context=context
-            old_exten=None
-         if old_exten==exten: exten=''
-         else: old_exten=exten
-         data.append([context, action[action_id], param, comments])
+      prev_context = None
+      nodes = []
+      edges = []
+      label = []
+      for s in DBSession.query(Scenario).filter(Scenario.app_id==id). \
+            order_by(Scenario.context).order_by(Scenario.step):
 
-      pdf.build(elements)
+         if prev_context is None: # First loop
+            log.debug(' * * * First context')
+            prev_context = s.context
 
-      fn = '/tmp/%s' % (filename)
+         elif prev_context!=s.context: # Next context
+            log.debug(' * * * Write context %s' % prev_context)
+            nodes.append(mk_label(label, action_by_id))
+            label = []
+            prev_context = s.context
+
+         edges += mk_edges(s)
+         label.append(s)
+
+      log.debug(' * * * Write last %s' % prev_context)
+      nodes.append(mk_label(label, action_by_id))
+
+      dot = open('/tmp/graphviz.dot', 'w')
+      dot.write('digraph g {\n')
+      for n in nodes:
+         dot.write(n.encode('utf-8'))
+      log.debug('edges: %s' % edges)
+      for e in edges:
+         dot.write(e.encode('utf-8'))
+      dot.write('}\n')
+      dot.close()
+
+      filename = 'graphviz'# XXX use TempFile
+
+      import pygraphviz
+      g = pygraphviz.AGraph('/tmp/%s.dot' % filename)
+      g.layout(prog='dot')
+      g.draw('/tmp/%s.pdf' % filename)
+
+      fn = '/tmp/%s.pdf' % (filename)
       import os
       try:
          st = os.stat(fn)
          f = open(fn)
       except:
-         flash(u'Fichier sonore introuvable: %s' % fn, 'error')
-         redirect('/moh/')
+         flash(u'Erreur à la génération du fichier PDF', 'error')
+         redirect('')
       rh = response.headers
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
@@ -633,7 +592,7 @@ def generate_dialplan():
          (app, param) = play_or_tts(parameters[0], int(parameters[2:]))
 
       elif action==2: # Menu
-         if context=='Entrant': next = 'App_%s_Suite' % app_id
+         if context=='Entrant': next = 'App_%s_Menu' % app_id
          else: next = 'App_%s_%s' % (app_id, context)
          param = parameters.split('::')
          cpt = 'svi_cpt_%s_%d' % (context, prio)
@@ -874,19 +833,6 @@ def generate_dialplan():
          continue
 
       elif action==18: # Holidays
-#         for h in DBSession.query(Holidays):
-#            svi_out.write(u"exten => s,%d,GotoIfTime(*,*,%s,%s?true)\n" % 
-#               (prio, h.day, h.month) )
-#            prio += 1
-#            svi_out.write(u"exten => s,%d,Set(holiday=false)\n" % (prio))
-#            prio += 1
-#            svi_out.write(u"exten => s,%d,Return()\n" % (prio))
-#            prio += 1
-#            svi_out.write(u"exten => s,%d(true),Set(holiday=true)\n" % (prio))
-#            prio += 1
-#            svi_out.write(u"exten => s,%d,Return()\n" % (prio))
-#            prio += 1
-
          (if_true, if_false) = parameters.split('::')
          if if_true=='-2': # Continue
             if_true='' 
@@ -953,3 +899,145 @@ def generate_dialplan():
    
    # /function generate_dialplan
    return result
+
+def mk_edges(s):
+   '''Make DOT edges
+
+   Parameter: scenario object
+   Return: edges list
+   Dot edge format: "node11":f2 -> "node1":f0 [id = 16];
+   '''
+   edges = []
+   id = 0
+   import random
+   colors = 'black chocolate blue forestgreen magenta red turquoise3'.split()
+   color = random.randint(0,len(colors)-1)
+   action = int(s.action)
+   if action==2: # Menu
+      choices = s.parameters.split('::')[3]
+      dst = s.context + '_Menu_';
+      for c in choices:
+         edges.append(u'''"%s":%d -> "%s%s" [color=%s];\n''' % (
+            s.context, s.step, dst, c, colors[color]))
+         color = (1+color)%len(colors)
+
+   elif action==10: # Test
+      if_true, if_false = s.parameters.split('::')[3:5]
+      if if_true.startswith('c'):
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_true[2:], colors[color]))
+         color += 1
+         color = (1+color)%len(colors)
+      elif if_true.startswith('l'):
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_true[2:], colors[color]))
+         color = (1+color)%len(colors)
+
+      if if_false.startswith('c'):
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_false[2:], colors[color]))
+         color = (1+color)%len(colors)
+      elif if_false.startswith('l'):
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_false[2:], colors[color]))
+         color = (1+color)%len(colors)
+
+   elif action==11: # Time based test
+      if_true, if_false = s.parameters.split('::')[5:7]
+      log.debug('action 11: %s %s' % (if_true, if_false))
+      if if_true!='-2':
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_true[2:], colors[color]))
+         color = (1+color)%len(colors)
+      if if_false!='-2':
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_false[2:], colors[color]))
+         color = (1+color)%len(colors)
+
+   elif action==9: # Loop
+      dst = s.parameters.split('::')[0]
+      edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+         s.context, s.step, dst, colors[color]))
+      color = (1+color)%len(colors)
+
+   elif action==14: # Goto
+      if s.parameters.startswith('c'):
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, s.parameters[2:], colors[color]))
+         color = (1+color)%len(colors)
+      elif s.parameters.startswith('l'):
+         c, l = s.parameters[2:].split(',')
+         edges.append(u'''"%s":%d -> "%s":%s [color=%s];\n''' % (
+            s.context, s.step, c, l, colors[color]))
+         color = (1+color)%len(colors)
+
+   elif action==18: # Holidays
+      if_true, if_false = s.parameters.split('::')
+      if if_true!='-2':
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_true[2:], colors[color]))
+         color = (1+color)%len(colors)
+      if if_false!='-2':
+         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
+            s.context, s.step, if_false[2:], colors[color]))
+         color = (1+color)%len(colors)
+
+   return edges
+
+
+def mk_label(scenario, action_by_id):
+   '''Make label for graphviz
+
+   Label format: "context" [
+         label= "{<0>context|<1> action params comments|...}",
+         shape="Mrecord"
+         ];
+   Parameters: list of scenario
+   Returns: string
+   '''
+
+   labels = []
+   for s in scenario:
+      act = int(s.action)
+      if act==16: # Label
+         labels.append(u'<%s>%s %s %s' % (
+               s.parameters, action_by_id[s.action], s.parameters, s.comments))
+
+      elif act==10: # Test
+         (var, ope, val, if_true, if_false) = s.parameters.split('::')
+         #ops = {'eq': '=', 'ne': '#', 'lt': '<', 'le': '<=', 'gt': '>', 'ge': '>='}
+         x = u'%s %s %s' % (var, ope, val)
+         x += u" ?\\n"
+         x += u'Continuer' if if_true=='-2' else if_true[2:]
+         x += ', sinon '
+         x += u'continuer' if if_false=='-2' else if_false[2:]
+         labels.append(u'<%d>%s (%s)' % ( s.step, x, s.comments))
+
+      elif act==11: # Time based test
+         begin, end, dow, days, months, if_true, if_false = s.parameters.split('::')
+         x = begin if begin else u''
+         x += u', %s' % end if end else u''
+         x += u', %s' % dow if dow else u''
+         x += u', %s' % days if days else u''
+         x += u', %s' % months if months else u''
+         x += u" ?\\n"
+         x += u'Continuer' if if_true=='-2' else if_true[2:]
+         x += ', sinon '
+         x += u'continuer' if if_false=='-2' else if_false[2:]
+         labels.append(u'<%d>%s (%s)' % ( s.step, x, s.comments))
+
+      elif act==18: # Holidays
+         if_true, if_false = s.parameters.split('::')
+         x = u'continuer' if if_true=='-2' else if_true[2:]
+         x += ', sinon '
+         x += u'continuer' if if_false=='-2' else if_false[2:]
+         labels.append(u'<%d>%s ? %s %s' % (
+               s.step, action_by_id[s.action], x, s.comments))
+
+      else:
+         labels.append(u'<%d>%s %s %s' % (
+               s.step, action_by_id[s.action], s.parameters, s.comments))
+
+   return u'"%s" [ label= "{<0>%s|%s}", shape="Mrecord"];\n' % (
+         scenario[0].context, scenario[0].context, '|'.join(labels))
+
