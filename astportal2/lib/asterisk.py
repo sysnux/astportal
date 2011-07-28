@@ -148,6 +148,15 @@ class Status(object):
       self.channels = {}
       self.queues = {}
       self.members = {}
+#     members data structure: (see also app_queue.c)
+#        Key: interface
+#        {'Name': 'Status': , 'Penalty': , 'Membership': , 
+#        'Location': , 'LastCall': , 'Paused': Bool, 'LastUpdate': time(), 
+#        'Queues': [q,], 'ConnBegin': time(), # Connection time
+#        # Counters for outgoing calls
+#        'Outgoing': False, 'CallsOut': 0, 'OutBegin': time(), 'OutTotal': 0,
+#        # Counters for incoming calls
+#        'CallsTaken': 0, 'InBegin': time(), 'InTotal': 0}
 
    def handle_shutdown(self, event, manager):
       log.warning('Received shutdown event')
@@ -329,7 +338,7 @@ Channel: SIP/100-0000001f
       elif 'MemberName' in dict:
          m = self.normalize_member(dict['MemberName'])
       else:
-         log.error('QueueMember %s' % dict)
+         log.error('QueueMember without name %s' % dict)
          return
       self.queues[q]['Members'].append(m)
       if m in self.members:

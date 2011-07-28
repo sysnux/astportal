@@ -19,7 +19,7 @@ except ImportError:
              'If you are on python2.4 this library is not part of python. '
              'Please install it. Example: easy_install hashlib')
 
-from sqlalchemy import Table, ForeignKey, Column
+from sqlalchemy import Table, ForeignKey, Column, Sequence
 from sqlalchemy.types import Unicode, Integer, DateTime
 from sqlalchemy.orm import relation, synonym, column_property
 
@@ -64,7 +64,7 @@ class Group(DeclarativeBase):
     __tablename__ = 'tg_group'
     
     #{ Columns
-    group_id = Column(Integer, autoincrement=True, primary_key=True)
+    group_id = Column(Integer, Sequence('group_seq'), autoincrement=True, primary_key=True)
     group_name = Column(Unicode(16), unique=True, nullable=False)
     display_name = Column(Unicode(255))
     created = Column(DateTime, default=datetime.now)
@@ -97,7 +97,7 @@ class User(DeclarativeBase):
     
 
     #{ Columns
-    user_id = Column(Integer, autoincrement=True, primary_key=True)
+    user_id = Column(Integer, Sequence('user_seq'), autoincrement=True, primary_key=True)
     user_name = Column(Unicode(16), unique=True, nullable=False)
     email_address = Column(Unicode(255), unique=True,
                            info={'rum': {'field':'Email'}})
@@ -201,7 +201,7 @@ class Permission(DeclarativeBase):
     __tablename__ = 'tg_permission'
  
     #{ Columns
-    permission_id = Column(Integer, autoincrement=True, primary_key=True)
+    permission_id = Column(Integer, Sequence('permission_seq'), autoincrement=True, primary_key=True)
     permission_name = Column(Unicode(16), unique=True, nullable=False)
     description = Column(Unicode(255))
     

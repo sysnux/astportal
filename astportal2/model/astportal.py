@@ -5,8 +5,8 @@ AstPortal model
 
 from datetime import datetime
 
-from sqlalchemy import Table, Column, ForeignKey
-from sqlalchemy import String, Unicode, Integer, DateTime, Boolean
+from sqlalchemy import Table, Column, ForeignKey, Sequence
+from sqlalchemy import Unicode, Unicode, Integer, DateTime, Boolean
 from sqlalchemy.orm import mapper, relation, backref
 
 #from astportal2.model import metadata
@@ -17,7 +17,7 @@ __all__ = ['Phone','Department']
 
 class CDR(DeclarativeBase):
    __tablename__ = 'cdr'
-   acctid = Column(Integer, primary_key=True)
+   acctid = Column(Integer, Sequence('cdr_seq'), primary_key=True)
    calldate = Column(DateTime, default=datetime.now)
    clid = Column(Unicode(80))
    src = Column(Unicode(80))
@@ -45,9 +45,9 @@ class CDR(DeclarativeBase):
 
 class Department(DeclarativeBase):
    __tablename__ = 'department'
-   dptm_id = Column(Integer, primary_key=True)
+   dptm_id = Column(Integer, Sequence('dptm_seq'), primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
-   comment = Column(Unicode())
+   comment = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
 #mapper(Department, department_table,
 #        properties=dict(phones=relation(Phone, backref='department')))
@@ -63,13 +63,13 @@ class Phone(DeclarativeBase):
    '''
    '''
    __tablename__ = 'phone'
-   phone_id = Column(Integer, autoincrement=True, primary_key=True)
-   sip_id = Column(Unicode(), nullable=False, unique=True)
-   mac = Column(Unicode()) # MAC can be null (eg. DECT)
-   password = Column(Unicode())
-   contexts = Column(Unicode())
-   callgroups = Column(Unicode())
-   pickupgroups = Column(Unicode())
+   phone_id = Column(Integer, Sequence('phone_seq'), autoincrement=True, primary_key=True)
+   sip_id = Column(Unicode(10), nullable=False, unique=True)
+   mac = Column(Unicode(17)) # MAC can be null (eg. DECT)
+   password = Column(Unicode(10))
+   contexts = Column(Unicode(64))
+   callgroups = Column(Unicode(64))
+   pickupgroups = Column(Unicode(64))
    exten = Column(Unicode(16), unique=True)
    dnis = Column(Unicode(16), unique=True)
    department_id = Column(Integer, ForeignKey('department.dptm_id'), nullable=False)
@@ -89,13 +89,13 @@ class Phonebook(DeclarativeBase):
    '''
    '''
    __tablename__ = 'phonebook'
-   pb_id = Column(Integer, autoincrement=True, primary_key=True)
-   firstname = Column(Unicode(), nullable=False)
-   lastname = Column(Unicode(), nullable=False)
-   company = Column(Unicode())
-   phone1 = Column(Unicode(), nullable=False)
-   phone2 = Column(Unicode())
-   phone3 = Column(Unicode())
+   pb_id = Column(Integer, Sequence('phonebook_seq'), autoincrement=True, primary_key=True)
+   firstname = Column(Unicode(32), nullable=False)
+   lastname = Column(Unicode(32), nullable=False)
+   company = Column(Unicode(32))
+   phone1 = Column(Unicode(16), nullable=False)
+   phone2 = Column(Unicode(16))
+   phone3 = Column(Unicode(16))
    private = Column(Boolean())
    created = Column(DateTime, nullable=False, default=datetime.now)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
@@ -131,10 +131,10 @@ class Sound(DeclarativeBase):
    ''' Definition of a sound
    '''
    __tablename__ = 'sound'
-   sound_id = Column(Integer, primary_key=True)
+   sound_id = Column(Integer, Sequence('sound_seq'), primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
    type = Column(Integer, default=0) # 0=moh (class?), 1=sound
-   comment = Column(Unicode())
+   comment = Column(Unicode(80))
    owner_id = Column(Integer, ForeignKey('tg_user.user_id'))
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
@@ -146,19 +146,19 @@ class Queue(DeclarativeBase):
    ''' Definition of a queue
    '''
    __tablename__ = 'queue'
-   queue_id = Column(Integer, primary_key=True)
+   queue_id = Column(Integer, Sequence('queue_seq'), primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
-   comment = Column(Unicode())
+   comment = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
    music_id = Column(Integer, ForeignKey('sound.sound_id'))
    announce_id = Column(Integer, ForeignKey('sound.sound_id'))
-   strategy  = Column(Unicode)
+   strategy  = Column(Unicode(16))
    wrapuptime = Column(Integer)
    announce_frequency = Column(Integer)
    min_announce_frequency = Column(Integer)
    min_announce_frequency = Column(Integer)
-   announce_holdtime  = Column(Unicode)
-   announce_position  = Column(Unicode)
+   announce_holdtime  = Column(Integer)
+   announce_position  = Column(Integer)
    def __repr__(self):
       return '<Queue: name="%s", comment="%s">' % (
             self.name, self.comment)
@@ -168,14 +168,14 @@ class Queue_log(DeclarativeBase):
    ''' Definition of a queue
    '''
    __tablename__ = 'queue_log'
-   ql_id = Column(Integer, primary_key=True)
+   ql_id = Column(Integer, Sequence('queuelog_seq'), primary_key=True)
    timestamp = Column(DateTime)
-   uniqueid = Column(Unicode(32), nullable=False, unique=True)
-   queue = Column(Unicode(45), nullable=False, unique=True)
-   channel = Column(Unicode(80), nullable=False, unique=True)
-   data1 = Column(Unicode(80), nullable=False, unique=True)
-   data2 = Column(Unicode(80), nullable=False, unique=True)
-   data3 = Column(Unicode(80), nullable=False, unique=True)
+   uniqueid = Column(Unicode(32))
+   queue = Column(Unicode(45))
+   channel = Column(Unicode(80))
+   data1 = Column(Unicode(80))
+   data2 = Column(Unicode(80))
+   data3 = Column(Unicode(80))
    queue_event_id = Column(Integer, name='event_qe_id')
    def __repr__(self):
       return '<Queue_log: ql_id="%d", uniqueid="%s">' % (
@@ -183,11 +183,11 @@ class Queue_log(DeclarativeBase):
 
 
 class Queue_event(DeclarativeBase):
-   ''' Definition of a queue event
+   ''' List of queue events
    '''
    __tablename__ = 'queue_event'
    qe_id = Column(Integer, primary_key=True)
-   event = Column(Unicode, nullable=False, unique=True)
+   event = Column(Unicode(80), nullable=False, unique=True)
    def __repr__(self):
       return '<Queue_event: qe_id="%d", event="%s">' % (
             self.qe_id, self.event)
@@ -197,9 +197,9 @@ class Pickup(DeclarativeBase):
    ''' Definition of pickup groups (Asterisk supports groups 0-63)
    '''
    __tablename__ = 'pickup'
-   pickup_id = Column(Integer, primary_key=True)
+   pickup_id = Column(Integer, Sequence('pickup_seq'), primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
-   comment = Column(Unicode())
+   comment = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
       return '<Pickup: name="%s", comment="%s">' % (
@@ -207,12 +207,12 @@ class Pickup(DeclarativeBase):
 
 
 class Action(DeclarativeBase):
-   ''' Definition of an IVR action
+   ''' List of an IVR actions
    '''
    __tablename__ = 'action'
    action_id = Column(Integer, primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
-   comment = Column(Unicode())
+   comment = Column(Unicode(80))
    def __repr__(self):
       return '<Action: name="%s", comment="%s">' % (
             self.name, self.comment)
@@ -224,11 +224,11 @@ class Application(DeclarativeBase):
    It belongs to a client, and is created by an administrator
    '''
    __tablename__ = 'application'
-   app_id = Column(Integer, primary_key=True)
+   app_id = Column(Integer, Sequence('application_seq'), primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
    dnis = Column(Unicode(16)) # External number
    exten = Column(Unicode(16)) # Intrenal extension
-   comment = Column(Unicode())
+   comment = Column(Unicode(80))
    begin = Column(DateTime, default=datetime.now)
    end = Column(DateTime)
    active = Column(Boolean)
@@ -245,7 +245,7 @@ class Scenario(DeclarativeBase):
    ''' Scenario is the application's dialplan
    '''
    __tablename__ = 'scenario'
-   sce_id = Column(Integer, primary_key=True)
+   sce_id = Column(Integer, Sequence('scenario_seq'), primary_key=True)
    app_id = Column(Integer, ForeignKey('application.app_id'))
    context = Column(Unicode(64), nullable=False)
    extension = Column(Unicode(64), nullable=False)

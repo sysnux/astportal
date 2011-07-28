@@ -25,7 +25,11 @@ class CC_Monitor_ctrl(TGController):
    def index(self):
       '''
       '''
-      Globals.manager.send_action({'Action': 'QueueStatus'})
+
+      if Globals.manager is None:
+         flash(u'Vérifier la connexion Asterisk', 'error')
+      else:
+         Globals.manager.send_action({'Action': 'QueueStatus'})
       sv = ['admin']
       for q in Globals.asterisk.queues:
          sv.append('SV ' + q)

@@ -241,9 +241,13 @@ class Phone_ctrl(RestController):
    def get_all(self):
       ''' List all phones
       '''
-      # Refresh Asterisk peers
-      Globals.manager.sippeers()
-      #Globals.manager.send_action('IAXpeers')
+
+      if Globals.manager is None:
+         flash(u'Vérifier la connexion Asterisk', 'error')
+      else:
+         # Refresh Asterisk peers
+         Globals.manager.sippeers()
+         #Globals.manager.send_action('IAXpeers')
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u'Téléphones',
          sortname='exten',
