@@ -1,0 +1,65 @@
+#! /usr/bin/env python
+# -*- coding: iso-8859-1 -*-
+#
+# Small AGI to read (matching) digits, stop on length or * or # and store in variable
+#
+# Synoptics:
+#  s,5,AGI(readvar.agi,foo,1,123*#)
+#  s,5,NoOp(foo = ${foo})
+#  i_5,1,Playback(invalid)
+#  t_5,1,Playback(timeout)
+#
+# Arguments:
+#  . variable: name of variable
+#  . max: length|*|#
+#  . match: digits must match (optionnal)
+
+
+import sys
+from asterisk import *
+a = agi.AGI()
+
+ctxt = a.env['agi_context']
+prio = a.env['agi_priority']
+var_name = sys.argv[1]
+max = sys.argv[2] # '*' or '#' or length
+if len(sys.argv)>3:
+   match = sys.argv[3]
+else:
+   match = None
+a.verbose('readvar 1 %s, %s, %s)' % (var_name, max, match))
+
+if not (max=='*' or max=='#'):
+   try:
+      max = int(max)
+   except:
+      # Syntax error
+      a.goto_on_exit('i_' + prio, 1)
+      a.verbose('ERROR readvar(%s,%s)' % (sys.argv[1], sys.argv[2]))
+      sys.exit(0)
+
+digits=''
+while 1:
+   # Read digit
+   d = a.wait_for_digit(5000)
+
+   if d=='': 
+      # Timeout
+      a.goto_on_exit(ctxt,'t_' + prio,1)
+      sys.exit(0)
+ 
+   if (max=='*' or max=='#') and d==max:
+      # Break digit found
+      break
+ 
+   if not match or d in match:
+      digits += d
+      if len(digits)==max:
+         # Max length
+         break
+   else:
+      a.verbose("readvar digit '%s' not matching, ignored" % d)
+
+a.verbose('readvar %s <- %s)' % (var_name, digits))
+a.set_variable(var_name, digits)
+

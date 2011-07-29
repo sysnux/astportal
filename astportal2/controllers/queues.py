@@ -27,19 +27,25 @@ class Sounds_list(SingleSelectField):
    def update_params(self,d):
       options = []
       for s in DBSession.query(Sound).filter(Sound.type==self.sound_type).order_by(Sound.name):
-         c = s.comment if len(s.comment)<40 else s.comment[:40] + '...'
-         options.append((s.sound_id, u'%s : %s' % (s.name, c)))
+         c = s.name
+         if s.comment is not None:
+            c += u' : ' + s.comment if len(s.comment)<40 \
+               else s.comment[:40] + '...'
+         options.append((s.sound_id, c))
       d['options'] = options
       SingleSelectField.update_params(self, d)
       return d
 
 common_fields = [
    TextField('comment', validator=NotEmpty,
-      label_text=u'Descriptif', help_text=u'Entrez le descriptif du groupe d\'appel'),
-   Sounds_list('music', sound_type=0,
-      label_text=u'Musique d\'attente', help_text=u'Choisissez une musique d\'attente'),
-   Sounds_list('announce', sound_type=1,
-      label_text=u'Annonce agent', help_text=u'Choisissez une annonce à la prise d\'appel'),
+      label_text=u'Descriptif',
+      help_text=u'Entrez le descriptif du groupe d\'appel'),
+   Sounds_list('music', sound_type=0, not_empty=False,
+      label_text=u'Musique d\'attente',
+      help_text=u'Choisissez une musique d\'attente'),
+   Sounds_list('announce', sound_type=1, not_empty=False,
+      label_text=u'Annonce agent',
+      help_text=u'Choisissez une annonce à la prise d\'appel'),
    SingleSelectField('strategy',
       options = [('ringall', u'Tous les agents'),
          ('leastrecent', u'Dernier appel plus ancien'),
@@ -51,14 +57,15 @@ common_fields = [
    TextField('wrapuptime', validator=Int, size=4, default=0,
       label_text=u'Temps de réflexion (sec)', help_text=u''),
    TextField('announce_frequency', validator=Int, size=4, default=0,
-      label_text=u'Fréquence d\'annonce (sec)', help_text=u'Entrez "0" pour supprimer les annonces'),
+      label_text=u'Fréquence d\'annonce (sec)', 
+      help_text=u'Entrez "0" pour supprimer les annonces'),
    TextField('min_announce_frequency', validator=Int, size=4, default=0,
       label_text=u'Fréquence d\'annonce minimale (sec)', help_text=u''),
    SingleSelectField('announce_holdtime',
       options = [ ('no', u'Non'), ('yes', u'Oui'), ('once', u'Une fois')],
       label_text=u'Annonce temps d\'attente', help_text=u''),
    SingleSelectField('announce_position',
-            options = [ ('no', u'Non'), ('yes', u'Oui')],
+      options = [ ('no', u'Non'), ('yes', u'Oui')],
       label_text=u'Annonce position', help_text=u''),
    HiddenField('_method',validator=None), # Needed by RestController
    HiddenField('queue_id',validator=Int),

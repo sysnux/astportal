@@ -33,10 +33,10 @@ def play_or_tts(typ, val, brk=None):
 # XXX         application.sounds.append(DBSession.query(Sound).get(val))
       if brk:
          app = u'Background'
-         param = u'SVI/%d,%s' % (val,brk)
+         param = u'astportal/%d,%s' % (val,brk)
       else:
          app = u'Playback'
-         param = u'SVI/%d' % (val)
+         param = u'astportal/%d' % (val)
 
    elif typ=='t':
 # XXX      if val not in application.texts:
@@ -190,9 +190,9 @@ class Application_ctrl(RestController):
             'addfunc': js_callback('add'), }
       )
 
-      if in_group('admin'):
-         grid.colNames.append(u'Utilisateur')
-         grid.colModel.append({ 'name': 'owner_id', 'width': 100 })
+#      if in_group('admin'):
+#         grid.colNames.append(u'Utilisateur')
+#         grid.colModel.append({ 'name': 'owner_id', 'width': 100 })
 
       tmpl_context.grid = grid
       tmpl_context.form = None
@@ -364,11 +364,12 @@ class Application_ctrl(RestController):
          'action_comment': x.comment}
          for x in DBSession.query(Action).order_by(Action.name)]
 
-      owner = DBSession.query(Application.owner_id).get(id)[0]
+      owner = '' # DBSession.query(Application.owner_id).get(id)[0]
 
       sounds = [{'sound_id': x.sound_id, 'sound_name': x.name, 
          'sound_comment': x.comment}
-         for x in DBSession.query(Sound).filter(Sound.owner_id==owner).order_by(Sound.name)]
+         for x in DBSession.query(Sound). \
+            filter(Sound.type==1).order_by(Sound.name)]
 
       texts = []
 
@@ -394,16 +395,22 @@ class Application_ctrl(RestController):
    @expose('json')
    def save_scenario(self, id, **kw):
 
-      positions = {}
-      for p in kw['positions[]']:
-         (context, top, left) = p.split('::')
-         positions[context] = (int(float(top)), int(float(left)))
-
       if kw.has_key('scenario[]'):
          scenario = kw['scenario[]']
       else:
+         log.error(u'No scenario to save ???')
          scenario = None
-         # return dict(result=0) # XXX ?
+         return dict(result=0) # XXX ?
+
+      positions = {}
+      if type(kw['positions[]'])!=type([]):
+         kw['positions[]'] = (kw['positions[]'],)
+      for p in kw['positions[]']:
+         log.debug(p)
+         (context, top, left) = p.split('::')
+         positions[context] = (int(float(top)), int(float(left)))
+
+
       log.info('save_scenario %s, type %s' % (id, type(scenario)) )
       application = DBSession.query(Application).get(int(id))
 
@@ -521,7 +528,7 @@ def generate_dialplan():
 
    # 3. Generate dialplan
    import codecs
-   svi_out = codecs.open('/etc/asterisk/SVI/svi.conf.new',
+   svi_out = codecs.open('/etc/asterisk/astportal/svi.conf.new',
          mode='w', encoding='iso-8859-1')
    now = datetime.today().strftime('%Y/%m/%d %H:%M:%S')
    svi_out.write(u';\n; Dialplan generated automatically, manual changes will be lost !\n; %s\n;\n\n' % now)
@@ -608,7 +615,7 @@ def generate_dialplan():
          (a, p) = play_or_tts(param[0][0], int(param[0][2:]))
          svi_out.write(u'exten => s,%d,%s(%s,%s)\n' % (prio, a, p, param[3]))
          prio +=1
-         #svi_out.write(u'exten => s,%d,AGI(SVI/readvar.agi,m_%d,1,%s)\n' % (
+         #svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,m_%d,1,%s)\n' % (
          #   prio, sce_id, param[3]))
          svi_out.write(u'exten => s,%d,WaitExten\n' % prio)
          prio +=1
@@ -637,7 +644,7 @@ def generate_dialplan():
          #svi_out.write(u'exten => s,%d,%s(%s,%s)\n' % (prio, a, p, param[3]))
          svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, a, p))
          prio +=1
-         svi_out.write(u'exten => s,%d,AGI(SVI/readvar.agi,%s,1,%s)\n' % (prio, param[4], param[3]))
+         svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,1,%s)\n' % (prio, param[4], param[3]))
          (a, p) = play_or_tts(param[1][0], int(param[1][2:]))
          svi_out.write(u'exten => i_%d,1,%s(%s)\n' % (prio, a, p))
          svi_out.write(u'exten => i_%d,2,Goto(s,a_%d)\n' % (prio, tag))
@@ -667,11 +674,11 @@ def generate_dialplan():
          svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, a, p))
          prio +=1
          if param[4]=='fixed':
-            svi_out.write(u'exten => s,%d,AGI(SVI/readvar.agi,%s,%s)\n' % (prio,param[3],param[5]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s)\n' % (prio,param[3],param[5]))
          elif param[4]=='star':
-            svi_out.write(u'exten => s,%d,AGI(SVI/readvar.agi,%s,*)\n' % (prio,param[3]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,*)\n' % (prio,param[3]))
          elif param[4]=='pound':
-            svi_out.write(u'exten => s,%d,AGI(SVI/readvar.agi,%s,#)\n' % (prio,param[3]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,#)\n' % (prio,param[3]))
          (a, p) = play_or_tts(param[1][0], int(param[1][2:]))
          svi_out.write(u'exten => i_%d,1,%s(%s)\n' % (prio,a, p))
          svi_out.write(u'exten => i_%d,2,Goto(s,a_%d)\n' % (prio,tag))
@@ -887,11 +894,11 @@ def generate_dialplan():
    try:
       # Create new extension file, and use it (reload dialplan)
       try:
-         rename('/etc/asterisk/SVI/svi.conf', '/etc/asterisk/SVI/svi.conf.old')
+         rename('/etc/asterisk/astportal/svi.conf', '/etc/asterisk/astportal/svi.conf.old')
       except:
          pass
-      rename('/etc/asterisk/SVI/svi.conf.new', '/etc/asterisk/SVI/svi.conf')
-      system('/etc/asterisk/SVI/sync.sh')
+      rename('/etc/asterisk/astportal/svi.conf.new', '/etc/asterisk/astportal/svi.conf')
+#      system('/etc/asterisk/astportal/sync.sh')
       result = 0
    except:
       result = 1
@@ -1001,7 +1008,7 @@ def mk_label(scenario, action_by_id):
       act = int(s.action)
       if act==16: # Label
          labels.append(u'<%s>%s %s %s' % (
-               s.parameters, action_by_id[s.action], s.parameters, s.comments))
+               s.parameters, action_by_id['%s' % s.action], s.parameters, s.comments))
 
       elif act==10: # Test
          (var, ope, val, if_true, if_false) = s.parameters.split('::')
@@ -1032,11 +1039,11 @@ def mk_label(scenario, action_by_id):
          x += ', sinon '
          x += u'continuer' if if_false=='-2' else if_false[2:]
          labels.append(u'<%d>%s ? %s %s' % (
-               s.step, action_by_id[s.action], x, s.comments))
+               s.step, action_by_id['%s' % s.action], x, s.comments))
 
       else:
          labels.append(u'<%d>%s %s %s' % (
-               s.step, action_by_id[s.action], s.parameters, s.comments))
+               s.step, action_by_id['%s' % s.action], s.parameters, s.comments))
 
    return u'"%s" [ label= "{<0>%s|%s}", shape="Mrecord"];\n' % (
          scenario[0].context, scenario[0].context, '|'.join(labels))

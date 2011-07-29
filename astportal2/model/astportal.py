@@ -268,3 +268,17 @@ sound_application_table = Table('sound_application', metadata,
 )
 
 
+class Holiday(DeclarativeBase):
+   ''' Definition of holidays
+   '''
+   __tablename__ = 'holiday'
+   holiday_id = Column(Integer, Sequence('holiday_seq'), primary_key=True)
+   name = Column(Unicode(64), nullable=False, unique=True)
+   day = Column(Integer, nullable=False)
+   month = Column(Integer, nullable=False)
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   def __repr__(self):
+      return '<Holiday: name="%s", date="%d/%d">' % (
+            self.name, self.day, self.month)
+
+
