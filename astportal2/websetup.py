@@ -63,6 +63,7 @@ def setup_app(command, conf, vars):
       (u'Jour férié', u'Vérification jour férié'),
       (u'Messagerie', u'Dépôt message vocal'),
       (u'Groupe', u'Transfert groupe d\'appel'),
+      (u'Trace', u'Trace dans journal groupe d\'appel'),
    )
    for i, a in enumerate(actions):
       act = model.Action()

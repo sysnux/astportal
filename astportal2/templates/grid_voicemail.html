@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:py="http://genshi.edgewall.org/"
+  xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html"/>
+
+<head>
+   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
+   <title py:content="title">Jquery Grid</title>
+
+   <script type="text/javascript">
+//<![CDATA[
+      
+$(document).ready(function() {
+   $(window).bind('resize', function() {
+      $('#grid').setGridWidth($('#data').width()-10, true);
+   });
+
+   // Move to dialog
+   $('#move_dialog').dialog({ 
+      autoOpen: false,  modal: true, width: '450px',
+      buttons: { "Valider": function() {valid_move()}, 
+      "Annuler": function() {$('#move_dialog').dialog('close');}} });
+
+});
+
+function change_folder() {
+   $('#folder_form').attr('action', '/voicemail/index');
+   $('#folder_form').submit();
+}
+
+function del(mb, xid, msg) {
+   if (confirm(msg)) {
+      $('#folder_form_id').val(xid);
+      $('#folder_form').attr('action', 'delete');
+      $('#folder_form').submit();
+   }
+}
+
+function listen(mb, id) {
+   $('#folder_form_mb').val(mb);
+   $('#folder_form_id').val(id);
+   $('#folder_form').attr('action', 'listen');
+   $('#folder_form').submit();
+}
+
+var move_mb = move_id = move_from = move_to = null;
+function move(mb,id) {
+   move_mb = mb;
+   move_id = id;
+   move_from = $('#folder_form_folder').val();
+   // Fill move_to select
+   $.post(
+      'fetch_folders',
+      {folder: move_from},
+      function(data,stat) {
+         folders = data.folders;
+         var o = '<option value="-1"> - - - </option>\n';
+         for (f in folders) {
+            o += '<option value="' + f + '">'; 
+            o += folders[f] + '</option>\n';
+         }
+         $('#move_select').html(o);
+         $('#move_dialog').dialog('open');
+      },
+      'json'
+   );
+}
+
+function valid_move() {
+   move_to = $('#move_select').val();
+   $('#move_dialog').dialog('close');
+   $('#folder_form_mb').val(move_mb);
+   $('#folder_form_id').val(move_id);
+   $('#folder_form_to').val(move_to);
+   $('#folder_form').attr('action', 'move');
+   $('#folder_form').submit();
+}
+
+//]]>
+   </script>
+</head>
+
+<body>
+      <h1 py:content="title">Paginate Data Grid</h1>
+      <span py:replace="debug"/><br />
+
+      <!-- Select folder / delete message form -->
+      ${tmpl_context.form(values)}
+
+      <div id="data">
+         <!-- JQuery Grid -->
+         ${tmpl_context.grid()}
+      </div>
+
+      <!-- Move to dialog -->
+      <div id="move_dialog" style="display: none">
+         Déplacer vers :
+         <select id="move_select"></select>
+      </div>
+
+   </body>
+</html>
