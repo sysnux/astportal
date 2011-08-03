@@ -37,6 +37,8 @@ class CDR(DeclarativeBase):
    ut = Column(Integer)
    ht = Column(Integer)
    ttc = Column(Integer)
+   department = Column(Integer)
+   user = Column(Integer)
 
    def __repr__(self):
       return '<CDR: %s "%s" -> "%s" (%d sec)>' % (
@@ -177,6 +179,9 @@ class Queue_log(DeclarativeBase):
    data2 = Column(Unicode(80))
    data3 = Column(Unicode(80))
    queue_event_id = Column(Integer, name='event_qe_id')
+   department = Column(Integer)
+   user = Column(Integer)
+
    def __repr__(self):
       return '<Queue_log: ql_id="%d", uniqueid="%s">' % (
             self.ql_id, self.uniqueid)

@@ -61,7 +61,7 @@ class Voicemail_ctrl(BaseController):
    
 
    @sidebar(u"Messagerie vocale", sortorder=11,
-      icon = '/images/sound_section-large.png')
+      icon = '/images/message.png')
    @expose(template="astportal2.templates.grid_voicemail")
    def index(self, mb=None, id=None, folder='INBOX', to=None):
       ''' List messages

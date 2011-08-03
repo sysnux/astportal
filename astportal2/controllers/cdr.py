@@ -92,10 +92,13 @@ def check_access():
 
 def f_bill(billsec):
    '''Formatted billing'''
-   h = billsec/3600
-   s = billsec-3600*h
-   m = s/60
-   s = s%60
+   if billsec is not None:
+      h = billsec/3600
+      s = billsec-3600*h
+      m = s/60
+      s = s%60
+   else:
+      h = m = s = 0
    return '%d:%02d:%02d' % (h, m, s)
 
 

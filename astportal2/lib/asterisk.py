@@ -85,11 +85,12 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       log.debug('Update outgoing extensions.conf returns %s' % res)
 
    # Always delete old dnis entry
-   res = Globals.manager.update_config(
+   if old_dnis is not None:
+      res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Delete', 'dnis', 'exten', None, 
-            '%s,1,Macro(stdexten,%s)' % (old_dnis, p.sip_id))])
-   log.debug('Delete <%s,1,Macro(stdexten,%s)> returns %s' % (old_dnis,p.sip_id,res))
+            '%s,1,Macro(stdexten,%s)' % (old_dnis[2:], p.sip_id))])
+      log.debug('Delete <%s,1,Macro(stdexten,%s)> returns %s' % (old_dnis,p.sip_id,res))
    if p.dnis is not None:
       # Create dnis entry
       res = Globals.manager.update_config(

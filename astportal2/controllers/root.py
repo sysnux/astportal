@@ -33,6 +33,7 @@ from astportal2.controllers.holidays import Holiday_ctrl
 from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
 from astportal2.controllers.cc_stats import CC_Stats_ctrl
 from astportal2.controllers.application import Application_ctrl
+from astportal2.controllers.forward import Forward_ctrl
 
 
 class RootController(BaseController):
@@ -67,6 +68,7 @@ class RootController(BaseController):
    applications = Application_ctrl()
    cc_monitor = CC_Monitor_ctrl()
    cc_stats = CC_Stats_ctrl()
+   forward = Forward_ctrl()
 
    db_schema = DB_schema()
 

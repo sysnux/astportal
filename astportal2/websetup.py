@@ -18,8 +18,13 @@ def setup_app(command, conf, vars):
    load_environment(conf.global_conf, conf.local_conf)
    # Load the models
    from astportal2 import model
+   print "Dropping tables"
+   model.metadata.drop_all(bind=config['pylons.app_globals'].sa_engine)
+
    print "Creating tables"
    model.metadata.create_all(bind=config['pylons.app_globals'].sa_engine)
+#   for table in (model.User, model.Group, model.Permission, model.CDR, model.Phone, model.Department, model.Phonebook, model.Sound, model.Queue, model.Queue_log, model.Queue_event, model.Pickup, model.Application, model.Scenario, model.Action, model.Holiday):
+#      table.__table__.create(bind=config['pylons.app_globals'].sa_engine)
 
    u = model.User()
    u.user_id = -1

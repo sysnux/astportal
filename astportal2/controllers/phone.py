@@ -45,9 +45,8 @@ _vendors = {
 }
 
 _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'), 
-   ('services', u'Services'), ('local', u'Local'), ('islands', u'Iles'), 
-   ('gsm', u'GSM'), ('international_ip', u'International IP'),
-   ('international_pstn', u'International RTC'))
+   ('services', u'Services'), ('local', u'Local'),
+   ('gsm', u'GSM'), ('international', u'International'))
 
 def departments():
    a = [('-9999',' - - - ')]
