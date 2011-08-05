@@ -241,7 +241,7 @@ class User_ctrl(RestController):
       redirect('/users/')
 
 
-   @sidebar('Compte', sortorder = 4, icon = '/images/user-identity.png')
+   @sidebar('Compte', sortorder = 6, icon = '/images/user-identity.png')
    @expose(template="astportal2.templates.form_new")
    def edit(self, id=None, **kw):
       ''' Display edit user form
@@ -289,6 +289,7 @@ class User_ctrl(RestController):
 
    class user_form_valid(object):
       def validate(self, params, state):
+         log.debug(params)
          f = admin_edit_user_form if in_group('admin') else edit_user_form
          return f.validate(params, state)
 

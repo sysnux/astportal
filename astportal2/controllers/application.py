@@ -167,7 +167,7 @@ class Application_ctrl(RestController):
    allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
 
    @sidebar(u'-- Administration || Applications (SVI)', sortorder = 12,
-      icon = '/images/preferences-desktop-user.png',
+      icon = '/images/code-class.png',
       permission = in_group('admin'))
    @expose(template="astportal2.templates.grid")
    def get_all(self):

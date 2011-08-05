@@ -162,7 +162,7 @@ class Display_CDR(BaseController):
    filtered_cdrs = None
 
 
-   @sidebar(u'Journal des appels',  sortorder = 2,
+   @sidebar(u'Journal des appels',  sortorder = 3,
          icon = '/images/databases_section.png')
    @expose("genshi:astportal2.templates.cdr")
    def index(self, **kw):

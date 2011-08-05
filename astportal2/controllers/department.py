@@ -76,7 +76,7 @@ class Dptm_ctrl(RestController):
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les services')
 
    @sidebar(u'-- Administration || Services',
-      icon = '/images/kdf.png', sortorder = 13)
+      icon = '/images/view-catalog.png', sortorder = 13)
    @expose("genshi:astportal2.templates.grid")
    def get_all(self):
       ''' List all departments

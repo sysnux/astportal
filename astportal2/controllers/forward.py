@@ -67,8 +67,8 @@ def row(cf):
 
 class Forward_ctrl(RestController):
 
-   @sidebar(u"Renvois", sortorder=12,
-      icon = '/images/message.png')
+   @sidebar(u"Renvois", sortorder=2,
+      icon = '/images/edit-redo.png')
    @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List call forwards
@@ -182,15 +182,21 @@ class Forward_ctrl(RestController):
       '''
       exten, cf, to = kw['_id'].split(':')
       log.info('delete %s %s %s' % (exten, cf, to))
-      u = DBSession.query(User). \
+      if in_group('admin'):
+         man = Globals.manager.command('database del %s %s' % (
+            cf, exten))
+         log.debug('admin: database delete %s %s returns %s' % (
+            cf_types, exten, man))
+
+      else:
+         u = DBSession.query(User). \
             filter(User.user_name==request.identity['repoze.who.userid']). \
             one()
-      for phone in u.phone:
-         exten = phone.exten
-         man = Globals.manager.command('database del %s %s' % (
-            cf, phone.exten))
-         log.debug('database put %s %s returns %s' % (
-            cf_types, phone.exten, man))
+         for phone in u.phone:
+            man = Globals.manager.command('database del %s %s' % (
+               cf, exten))
+            log.debug('database delete %s %s returns %s' % (
+               cf_types, exten, man))
 #      flash(u'Une erreur est survenue', 'error')
 
       redirect('/forward/')

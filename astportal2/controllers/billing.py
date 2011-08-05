@@ -269,7 +269,7 @@ class Billing_ctrl(BaseController):
    paginate_limit = 25
 
 
-   @sidebar(u'Facturation', sortorder = 3, icon = '/images/ktimetracker.png')
+   @sidebar(u'Facturation', sortorder = 4, icon = '/images/ktimetracker.png')
    @expose('genshi:astportal2.templates.form_new')
    def index(self, **kw):
       '''Formulaire facturation

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Call center stats controller
 
+from repoze.what.predicates import in_group, in_any_group
 from tg import expose, flash, redirect, tmpl_context, validate, config, response
 from tgext.menu import sidebar
 
@@ -17,6 +18,7 @@ from genshi import Markup
 from astportal2.model import DBSession, Queue_log, Queue_event, Phone
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.base import BaseController
+from astportal2.lib.app_globals import Globals
 
 from sqlalchemy import desc, func, sql, types, outerjoin, extract, and_
 
@@ -630,7 +632,18 @@ class CC_Stats_ctrl(BaseController):
    def index(self):
       ''' Display Stats form
       '''
-      tmpl_context.form = stats_form
+      if Globals.manager is None:
+         flash(u'Vérifier la connexion Asterisk', 'error')
+      else:
+         Globals.manager.send_action({'Action': 'QueueStatus'})
+      sv = ['admin']
+      for q in Globals.asterisk.queues:
+         sv.append('SV ' + q)
+      if not in_any_group(*sv):
+         tmpl_context.form = TableForm(submit_text=None)
+         flash(u'Accès interdit !', 'error')
+      else:
+         tmpl_context.form = stats_form
       return dict( title=u'Statistiques des groupes d\'appels', debug='', values='')
 
 

@@ -81,7 +81,7 @@ class Holiday_ctrl(RestController):
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les jours fériés')
 
    @sidebar(u'-- Administration || Jours fériés',
-      icon = '/images/kdf.png', sortorder = 16)
+      icon = '/images/view-calendar-journal.png', sortorder = 16)
    @expose("genshi:astportal2.templates.grid")
    def get_all(self):
       ''' List all holidays

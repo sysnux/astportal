@@ -54,8 +54,9 @@ class Stats_ctrl(BaseController):
    stats_type = None
    stats_req = None
 
-   @sidebar(u"Statistiques",# sortorder=9,
-      icon = '/images/office-chart-area-stacked.png')
+   @sidebar(u"-- Administration || Statistiques globales", sortorder=19,
+      icon = '/images/office-chart-area-stacked.png',
+      permission = in_group('admin'))
    @expose(template="astportal2.templates.stats")
    def index(self, selected=None, daily=None):
 

@@ -117,8 +117,10 @@ function csv() {
       <h1 py:content="title">Paginate Data Grid</h1>
       
       <!-- Form -->
-      ${tmpl_context.form(values)}
-      Export <a href="#" onclick="csv();">CSV</a>
+      <span py:if="tmpl_context.form">
+         ${tmpl_context.form(values)}
+         Export <a href="#" onclick="csv();">CSV</a>
+      </span>
 
       <!-- Flot -->
       <div id='data_flot_div' style="margin:10px auto; width:600px;" py:if="tmpl_context.data_flot">

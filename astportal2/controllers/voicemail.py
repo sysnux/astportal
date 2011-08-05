@@ -26,7 +26,7 @@ from astportal2.lib.base import BaseController
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
-dir_vm = '/var/spool/asterisk/voicemail/default'
+dir_vm = '/var/spool/asterisk/voicemail/astportal'
 folders = dict(INBOX = u'Nouveaux',
       Old = u'Anciens',
       Work = u'Travail',
@@ -60,7 +60,7 @@ def row(vm, folder):
 class Voicemail_ctrl(BaseController):
    
 
-   @sidebar(u"Messagerie vocale", sortorder=11,
+   @sidebar(u"Messagerie vocale", sortorder=3,
       icon = '/images/message.png')
    @expose(template="astportal2.templates.grid_voicemail")
    def index(self, mb=None, id=None, folder='INBOX', to=None):
@@ -248,7 +248,7 @@ class Voicemail_ctrl(BaseController):
       ''' Listen message
       '''
       name = 'msg%04d.wav' % int(id)
-      fn = '%s/%d/%s/%s' % (dir_vm, mb, folder, name)
+      fn = '%s/%s/%s/%s' % (dir_vm, mb, folder, name)
       try:
          st = stat(fn)
          f = open(fn)

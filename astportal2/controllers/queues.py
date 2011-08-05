@@ -180,14 +180,14 @@ class Queue_ctrl(RestController):
       q = Queue()
       q.name = kw['name']
       q.comment = kw['comment']
-      q.music_id = kw['music']
-      q.announce_id = kw['announce']
+      q.music_id = int(kw['music'])
+      q.announce_id = int(kw['announce'])
       q.strategy = kw['strategy']
-      q.wrapuptime = kw['wrapuptime']
-      q.announce_frequency = kw['announce_frequency']
-      q.min_announce_frequency = kw['min_announce_frequency']
-      q.announce_holdtime = kw['announce_holdtime']
-      q.announce_position = kw['announce_position']
+      q.wrapuptime = int(kw['wrapuptime'])
+      q.announce_frequency = int(kw['announce_frequency'])
+      q.min_announce_frequency = int(kw['min_announce_frequency'])
+      q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
+      q.announce_position = 1 if kw['announce_position']=='yes' else 0
       DBSession.add(q)
 
       # Create new users group for supervisors
@@ -229,14 +229,14 @@ class Queue_ctrl(RestController):
       log.info('update %d' % queue_id)
       q = DBSession.query(Queue).get(queue_id)
       q.comment = kw['comment']
-      q.music_id = kw['music']
-      q.announce_id = kw['announce']
+      q.music_id = int(kw['music'])
+      q.announce_id = int(kw['announce'])
       q.strategy = kw['strategy']
-      q.wrapuptime = kw['wrapuptime']
-      q.announce_frequency = kw['announce_frequency']
-      q.min_announce_frequency = kw['min_announce_frequency']
-      q.announce_holdtime = kw['announce_holdtime']
-      q.announce_position = kw['announce_position']
+      q.wrapuptime = int(kw['wrapuptime'])
+      q.announce_frequency = int(kw['announce_frequency'])
+      q.min_announce_frequency = int(kw['min_announce_frequency'])
+      q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
+      q.announce_position = 1 if kw['announce_position']=='yes' else 0
       flash(u'Groupe d\'appel modifié')
 
       # Update Asterisk queue
