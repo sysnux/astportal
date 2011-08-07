@@ -245,16 +245,20 @@ class Display_CDR(BaseController):
       total = cdrs.count()/rows + 1
       column = getattr(CDR, sidx)
       cdrs = cdrs.order_by(getattr(column,sord)()).offset(offset).limit(rows)
-      data = [
-            {
-               'id'  : cdr.acctid,
-               'cell': [
-                  cdr.calldate, cdr.src, cdr.dst,
-                  f_disp(cdr.disposition),
-                  f_bill(cdr.billsec), rec_link(cdr)
-                  ]
-               } for cdr in cdrs.all()
+      data = []
+      for cdr in cdrs.all():
+         src = cdr.src
+         if src and in_group('admin'): src = src[:-3] + '***'
+         dst = cdr.dst
+         if dst and in_group('admin'): dst = cdr.dst[:-3] + '***'
+         data.append({
+            'id'  : cdr.acctid,
+            'cell': [
+               cdr.calldate, src, dst,
+               f_disp(cdr.disposition),
+               f_bill(cdr.billsec), rec_link(cdr)
             ]
+         })
 
       return dict(page=page, total=total, rows=data)
 
