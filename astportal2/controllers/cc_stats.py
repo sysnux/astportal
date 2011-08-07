@@ -86,7 +86,7 @@ def stat_global(page, rows, offset, sidx, sord, date_filter, queues_filter):
    q = DBSession.query(Queue_log.queue, 
       func.count(Queue_log.queue).label('count')).\
       filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='ENTRANT').\
+      filter(Queue_event.event=='INCOMING').\
       filter(queues_filter).group_by(Queue_log.queue)
 
    if date_filter is not None:
@@ -145,7 +145,7 @@ def stat_queues(page, rows, offset, sidx, sord, date_filter, queues_filter):
    closed = DBSession.query(Queue_log.queue.label('queue'), 
          func.count('*').label('count')).\
          filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='FERME')
+         filter(Queue_event.event=='CLOSED')
    if date_filter is not None:
       closed = closed.filter(date_filter)
    closed = closed.filter(queues_filter).group_by(Queue_log.queue).subquery()
@@ -298,7 +298,7 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
 
 #   h_incoming = DBSession.query(xh, func.count('*').label('incoming')).\
 #      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-#      filter(Queue_event.event=='ENTRANT').filter(queues_filter)
+#      filter(Queue_event.event=='INCOMING').filter(queues_filter)
 #   if date_filter is not None:
 #      h_incoming = h_incoming.filter(date_filter)
 #   h_incoming = h_incoming.group_by(xh).order_by(xh).subquery()
@@ -325,7 +325,7 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
          xh, func.count('*').label('count')).\
       filter(queues_filter). \
       filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='FERME').filter(queues_filter)
+      filter(Queue_event.event=='CLOSED').filter(queues_filter)
    if date_filter is not None:
       h_closed = h_closed.filter(date_filter)
    h_closed = h_closed.group_by(xh).subquery()
@@ -345,7 +345,7 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
             h_dissuasion.c.count.label('dissuasion'), 
             h_closed.c.count.label('closed')).\
       filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-      filter(Queue_event.event=='ENTRANT').filter(queues_filter). \
+      filter(Queue_event.event=='INCOMING').filter(queues_filter). \
       filter(queues_filter). \
       outerjoin((h_connect, xh==h_connect.c.xhour)). \
       outerjoin((h_abandon, xh==h_abandon.c.xhour)). \

@@ -125,3 +125,35 @@ class CC_Monitor_ctrl(TGController):
       return dict(last=last_update, change=change, 
             queues=queues, members=Globals.asterisk.members)
 
+
+   @expose('json')
+   def listen(self, channel):
+      if len(request.identity['user'].phone)<1:
+         return dict(status=2)
+      chan = request.identity['user'].phone[0].exten
+      log.debug('ChanSpy from extension %s to %s' % (chan, channel))
+      res = Globals.manager.originate(
+            'SIP/' + chan.encode('iso-8859-1'), # Channel
+            exten.encode('iso-8859-1'), # Extension
+            application='ChanSpy',
+            data='SIP/' + channel,
+            )
+      log.debug(res)
+      status = 0 if res=='Success' else 1
+      return dict(status=status)
+
+
+   @expose('json')
+   def record(self, channel):
+      if len(request.identity['user'].phone)<1:
+         return dict(status=2)
+      chan = request.identity['user'].phone[0].exten
+      log.debug('Record from extension %s to %s' % (chan, channel))
+      res = Globals.manager.send_action(
+            {'Action': 'Monitor', 'Mix': 1,
+               'Channel': channel,
+               'File': 'record.wav'})
+      log.debug(res)
+      status = 0 if res=='Success' else 1
+      return dict(status=status)
+

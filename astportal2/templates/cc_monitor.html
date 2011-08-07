@@ -189,12 +189,24 @@ function member_status(member, now) {
 }
 
 function listen(channel) {
+   $.post(
+      "${tg.url('/cc_monitor/listen')}",
+      {'channel': channel},
+      function (data) { // 
+      },
+      'json');
 }
 
 function record(channel) {
+   $.post(
+      "${tg.url('/cc_monitor/record')}",
+      {'channel': channel},
+      function (data) { // 
+      },
+      'json');
 }
 
-function ajax_error (e, xhr, settings, exception) {
+function ajax_error(e, xhr, settings, exception) {
    error++;
    if (error>3) {
       alert('ERREUR ! ' + error);
