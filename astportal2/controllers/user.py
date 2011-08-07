@@ -2,61 +2,69 @@
 # User CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, require
+from tg import expose, flash, redirect, tmpl_context, validate, request, require, config
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group, not_anonymous
 
 from tw.api import js_callback
-from tw.forms import TableForm, LabelHiddenField, SingleSelectField, TextField, CheckBoxList, PasswordField, HiddenField, TextArea
-from tw.forms.validators import NotEmpty, Email, Int
+from tw.forms import TableForm, LabelHiddenField, SingleSelectField, TextField, CheckBoxList, PasswordField, HiddenField, TextArea, Label
+from tw.forms.validators import Schema, NotEmpty, Email, Int, Regex, FieldsMatch
 
 from genshi import Markup
 
 from astportal2.model import DBSession, User, Phone, Group, Department
 from astportal2.lib.myjqgrid import MyJqGrid
+from astportal2.lib.app_globals import Globals
 
+import unicodedata
 import logging
 log = logging.getLogger(__name__)
 
 
+directory_asterisk = config.get('directory.asterisk')
+
 # Common fields for user form, used by admin or not
 common_fields = [
-         TextField('firstname',
-            label_text=u'Prénom', validator=NotEmpty,
-            help_text=u'Entrez le prénom de l\'utilisateur'),
-         TextField('lastname', validator=NotEmpty,
-            label_text=u'Nom de famille',
-            help_text=u'Entrez le nom de famille de l\'utilisateur'),
-         TextField('email_address', validator=Email,
-            label_text=u'Adresse email',
-            help_text=u'Entrez l\'adresse email de l\'utisateur'),
-         PasswordField('pwd1', validator=NotEmpty,
-            label_text=u'Mot de passe',
-            help_text=u'Entrez le mot de passe'),
-         PasswordField('pwd2', validator=NotEmpty,
-            label_text=u'Confirmation mot de passe',
-            help_text=u'Entrez à nouveau le mot de passe'),
-         HiddenField('_method',validator=None), # Needed by RestController
-         HiddenField('user_id',validator=Int),
-         ]
+   TextField('firstname',
+      label_text=u'Prénom', validator=NotEmpty,
+      help_text=u'Entrez le prénom de l\'utilisateur'),
+   TextField('lastname', validator=NotEmpty,
+      label_text=u'Nom de famille',
+      help_text=u'Entrez le nom de famille de l\'utilisateur'),
+   TextField('email_address', validator=Email,
+      label_text=u'Adresse email',
+      help_text=u'Entrez l\'adresse email de l\'utisateur'),
+   PasswordField('pwd1', validator=Regex(r'\d{4,16}', not_empty=True),
+      label_text=u'Mot de passe',
+      help_text=u'Entrez le mot de passe'),
+   PasswordField('pwd2', validator=Regex(r'\d{4,16}', not_empty=True),
+      label_text=u'Confirmation mot de passe',
+      help_text=u'Entrez à nouveau le mot de passe'),
+   Label( text = u'(Le mot de passe ne doit contenir que des chiffres ; il est visible par les administrateurs)'),
+   HiddenField('_method',validator=None), # Needed by RestController
+   HiddenField('user_id',validator=Int),
+   ]
 
 
 # Fields for admin
 admin_form_fields = []
 admin_form_fields.extend(common_fields)
 admin_form_fields.insert(0, TextField('user_name', validator=NotEmpty,
-            label_text=u'Compte',
-            help_text=u'Entrez le nom d\'utilisateur'))
+   label_text=u'Compte',
+   help_text=u'Entrez le nom d\'utilisateur'))
 admin_form_fields.append( CheckBoxList('groups', validator=Int,
-            options=DBSession.query(Group.group_id, 
-               Group.group_name).order_by(Group.group_name),
-            label_text=u'Groupes', 
-            help_text=u'Cochez les groupes auxquels appartient l\'utilisateur') )
+   options=DBSession.query(Group.group_id, 
+      Group.group_name).order_by(Group.group_name),
+   label_text=u'Groupes', 
+   help_text=u'Cochez les groupes auxquels appartient l\'utilisateur') )
 
 # New user form (only for admin)
 new_user_form = TableForm(
+   validator = Schema(
+      chained_validators = [FieldsMatch('pwd1', 'pwd2')]
+   ),
    fields = admin_form_fields,
    submit_text = u'Valider...',
    action = 'create',
@@ -65,6 +73,9 @@ new_user_form = TableForm(
 
 # Edit user form for admin
 admin_edit_user_form = TableForm(
+   validator = Schema(
+      chained_validators = [FieldsMatch('pwd1', 'pwd2')]
+   ),
    fields = admin_form_fields,
    submit_text = u'Valider...',
    action = '/users/',
@@ -77,6 +88,9 @@ user_fields.extend(common_fields)
 user_fields.append(LabelHiddenField( 'groups',
    label_text=u'Groupes', suppress_label=False))
 edit_user_form = TableForm(
+   validator = Schema(
+      chained_validators = [FieldsMatch('pwd1', 'pwd2')]
+   ),
    fields = user_fields,
    submit_text = u'Valider...',
    action = '/users/',
@@ -106,11 +120,13 @@ def row(u):
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    if u.email_address:
-      email = u'<a href="mailto:' + u.email_address + '">' + u.email_address + '</a>'
+      email = u'<a href="mailto:' + u.email_address 
+      email += '">' + u.email_address + '</a>'
    else:
       email = ''
    
-   return [Markup(action), u.user_name, u.display_name, Markup(email), Markup(phone), groups]
+   return [Markup(action), u.user_name, u.display_name, 
+         Markup(email), Markup(phone), groups]
 
 
 class User_ctrl(RestController):
@@ -224,7 +240,7 @@ class User_ctrl(RestController):
    @require(in_group('admin',
       msg=u'Seul un membre du groupe administrateur peut créer un utilisateur'))
    @expose()
-   def create(self, **kw):
+   def create(self, pwd1, pwd2, **kw):
       ''' Add new user to DB
       '''
       log.info('new ' + kw['user_name'])
@@ -233,9 +249,11 @@ class User_ctrl(RestController):
       u.firstname = kw['firstname']
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
-      u.password = kw['pwd1']
+      u.password = pwd1
       #u.phone = [DBSession.query(Phone).get(kw['phone_id'])]
-      u.groups = DBSession.query(Group).filter(Group.group_id.in_(kw['groups'])).all()
+      if 'groups' in kw.keys():
+         u.groups = DBSession.query(Group).\
+               filter(Group.group_id.in_(kw['groups'])).all()
       DBSession.add(u)
       flash(u'Nouvel utilisateur "%s" créé' % (kw['user_name']))
       redirect('/users/')
@@ -278,8 +296,8 @@ class User_ctrl(RestController):
             'firstname': fn,
             'lastname': ln,
             'email_address': u.email_address,
-            'pwd1': '      ',
-            'pwd2': '      ',
+            'pwd1': u.password,
+            'pwd2': u.password,
             'phone_id': phone,
             'groups': groups,
             '_method': 'PUT' }
@@ -306,12 +324,31 @@ class User_ctrl(RestController):
       u.firstname = kw['firstname']
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
-      if kw['pwd1'] and kw['pwd1'] != '      ':
-         u.password = kw['pwd1']
-      #u.phone = [p]
+      u.password = kw['pwd1'] 
+
+      # Update voicemail
+      import unicodedata
+      cidname = unicodedata.normalize('NFKD', u.display_name). \
+            encode('ascii','ignore')
+      if u.email_address:
+         for p in u.phone:
+            vm = u'>%s,%s,%s' \
+               % (u.password, cidname, u.email_address)
+            actions = [
+               ('Append', 'astportal', p.exten, vm),
+            ]
+            Globals.manager.update_config(
+               directory_asterisk  + 'voicemail.conf', 
+               None, [('Delete', 'astportal', p.exten)])
+            res = Globals.manager.update_config(
+               directory_asterisk  + 'voicemail.conf', 
+               'app_voicemail_plain', actions)
+            log.debug('Update voicemail.conf returns %s' % res)
+
       if kw.has_key('user_name'): # Modification par administrateur
          u.user_name = kw['user_name']
-         u.groups = DBSession.query(Group).filter(Group.group_id.in_(kw['groups'])).all()
+         u.groups = DBSession.query(Group). \
+               filter(Group.group_id.in_(kw['groups'])).all()
       flash(u'Utilisateur modifié')
       redirect('/users/')
 
