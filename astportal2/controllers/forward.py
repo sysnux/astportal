@@ -2,7 +2,7 @@
 # Forward controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response, config
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, require
 from tg.controllers import CUSTOM_CONTENT_TYPE
 from tg.controllers import RestController
 from tgext.menu import sidebar
@@ -10,7 +10,7 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group, not_anonymous, in_any_group
 
 from tw.api import js_callback
-from tw.forms import TableForm, SingleSelectField, HiddenField, RadioButtonList
+from tw.forms import TableForm, SingleSelectField, HiddenField, RadioButtonList, TextField, Label
 from tw.forms.validators import NotEmpty, Int
 
 from genshi import Markup
@@ -31,26 +31,52 @@ cf_types = dict(CFIM = u'immédiat',
       CFUN = u'sur non réponse',
       CFBS = u'sur occupation')
 
-new_forward_form = TableForm(
-   'folder_form',
-   name = 'folder_form',
-   fields = [
+common_fields = [
       RadioButtonList('cf_types',
          options = [(k,v) for k,v in cf_types.iteritems()],
          label_text = u'Type de renvoi : ',
          help_text = u'Cochez le type de renvoi'),
       SingleSelectField('to_intern',
-         label_text = u'Poste : ',
+         label_text = u'Poste destination: ',
          options=DBSession.query(Phone.exten, Phone.exten).order_by(Phone.exten),
          help_text = u'Numéro interne'),
-#            TextField('to_extern', label_text = u'Destination : ',
-#               help_text = u'Numéro extérieur'),
       HiddenField('_method',validator=None), # Needed by RestController
-   ],
-   submit_text = u'Valider...',
-   action = 'create',
+   ]
+
+external_fields = []
+external_fields.extend(common_fields)
+external_fields.insert(1,
+   Label( text = u'Choisissez la destination du renvoi poste interne ou numéro extérieur (prioritaire)'))
+external_fields.append(
+   TextField('to_extern', label_text = u'Numéro extérieur : ',
+      help_text = u'Numéro extérieur'),
+   )
+
+admin_fields = []
+admin_fields.extend(external_fields)
+admin_fields.insert(0,
+      SingleSelectField('exten',
+         label_text = u'Poste à renvoyer : ',
+         options=DBSession.query(Phone.exten, Phone.exten).order_by(Phone.exten),
+         help_text = u'Poste interne'),
+   )
+class Forward_form(TableForm):
+   'folder_form'
+   name = 'folder_form'
+   fields = common_fields
+   submit_text = u'Valider...'
+   action = 'create_user'
    hover_help = True
-)
+new_forward_form = Forward_form('new_forward_form')
+
+class Forward_external_form(Forward_form):
+   fields = external_fields
+new_forward_external_form = Forward_external_form('new_forward_external_form')
+
+class Forward_admin_form(Forward_form):
+   fields = admin_fields
+   action = 'create_admin'
+new_forward_admin_form = Forward_admin_form('new_forward_admin_form')
 
 def row(cf):
    '''Displays a formatted row of the voicemail list
@@ -84,12 +110,10 @@ class Forward_ctrl(RestController):
                { 'name': 'type', 'width': 60 },
                { 'name': 'to', 'width': 100 },
                ],
-            navbuttons_options = {'view': False, 'edit': False, 'add': False,
+            navbuttons_options = {'view': False, 'edit': False, 'add': True,
                'del': False, 'search': False, 'refresh': True,
                'addfunc': js_callback('add')},
          )
-      if not in_group('admin'): 
-         grid.navbuttons_options['add'] = True
       tmpl_context.grid = grid
       tmpl_context.form = None
       return dict( title=u"Renvois", debug='', values='')
@@ -154,24 +178,57 @@ class Forward_ctrl(RestController):
    def new(self, **kw):
       ''' Display new user form
       '''
-      tmpl_context.form = new_forward_form
+      if in_group('admin'):
+         tmpl_context.form = new_forward_admin_form
+         log.debug('tmpl_context.form = new_forward_admin_form')
+      elif in_group('Renvoi externe'):
+         tmpl_context.form = new_forward_external_form
+         log.debug('tmpl_context.form = new_forward_external_form')
+      else:
+         tmpl_context.form = new_forward_form
+         log.debug('tmpl_context.form = new_forward_form')
       return dict(title = u'Nouveau renvoi', debug=None, values=None)
 
 
-   @validate(new_forward_form, error_handler=new)
+   class user_form_valid(object):
+      def validate(self, params, state):
+         log.debug(params)
+         f = new_forward_external_form if in_group('Renvoi externe') \
+            else new_forward_form
+         return f.validate(params, state)
+
+   @validate(user_form_valid(), error_handler=new)
    @expose()
-   def create(self, cf_types, to_intern):
+   def create_user(self, cf_types, to_intern, to_extern=None, **kw):
       ''' Add call forward to Asterisk database
       '''
+      log.debug('create_user: %s %s %s' % (cf_types, to_intern, to_extern))
+      dest = to_extern if to_extern else to_intern
       u = DBSession.query(User). \
             filter(User.user_name==request.identity['repoze.who.userid']). \
             one()
       for phone in u.phone:
          exten = phone.exten
          man = Globals.manager.command('database put %s %s %s' % (
-            cf_types, phone.exten, to_intern))
+            cf_types, phone.exten, dest))
          log.debug('database put %s %s %s returns %s' % (
-            cf_types, phone.exten, to_intern, man))
+            cf_types, phone.exten, dest, man))
+#      flash(u'Une erreur est survenue', 'error')
+      redirect('/forward/')
+
+
+   @require(in_group('admin',
+      msg=u'Seul un membre du groupe administrateur peut créer ce renvoi'))
+   @validate(new_forward_admin_form, error_handler=new)
+   @expose()
+   def create_admin(self, cf_types, exten, to_intern, to_extern):
+      ''' Add call forward to Asterisk database
+      '''
+      dest = to_extern if to_extern else to_intern
+      man = Globals.manager.command('database put %s %s %s' % (
+         cf_types, exten, dest))
+      log.debug('database put %s %s %s returns %s' % (
+         cf_types, exten, dest, man))
 #      flash(u'Une erreur est survenue', 'error')
       redirect('/forward/')
 
@@ -192,11 +249,11 @@ class Forward_ctrl(RestController):
          u = DBSession.query(User). \
             filter(User.user_name==request.identity['repoze.who.userid']). \
             one()
-         for phone in u.phone:
+         for p in u.phone:
             man = Globals.manager.command('database del %s %s' % (
-               cf, exten))
+               cf, p.exten))
             log.debug('database delete %s %s returns %s' % (
-               cf_types, exten, man))
+               cf, p.exten, man))
 #      flash(u'Une erreur est survenue', 'error')
 
       redirect('/forward/')
