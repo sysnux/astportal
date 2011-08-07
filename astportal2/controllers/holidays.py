@@ -15,10 +15,54 @@ from genshi import Markup
 
 from astportal2.model import DBSession, Holiday
 from astportal2.lib.myjqgrid import MyJqGrid
+from astportal2.lib.app_globals import Globals
+
+from sqlalchemy import desc
 
 import datetime
 import logging
 log = logging.getLogger(__name__)
+
+directory_asterisk = config.get('directory.asterisk')
+
+
+def update_extensions():
+   '''Generate Asterisk holiday context:
+
+[holiday]
+exten => s,1,Set(holiday=false)
+exten => s,n,GotoIfTime(*,*,d,m?true)
+exten => s,n,GotoIfTime(*,*,d,m?true)
+exten => s,n,return
+exten => s,n(true),Set(holiday=true)
+exten => s,n,return
+   '''
+
+   # Create list of actions
+   actions = [
+      ('NewCat', 'holiday'),
+      ('Append', 'holiday', 'exten', '>s,1,Set(holiday=false)')
+   ]
+   for h in DBSession.query(Holiday).order_by(Holiday.month, Holiday.day):
+      actions.append(('Append', 'holiday', 'exten',
+         '>s,n,GotoIfTime(*,*,%d,%d?true)' % (h.day, h.month)))
+
+   actions.append(('Append', 'holiday', 'exten', '>s,n,return'))
+   actions.append(('Append', 'holiday', 'exten',
+      '>s,n(true),Set(holiday=true)'))
+   actions.append(('Append', 'holiday', 'exten', '>s,n,return'))
+   
+
+   # ... Now really update (delete + add)
+   Globals.manager.update_config(directory_asterisk  + 'extensions.conf', 
+         None, [('DelCat', 'holiday')])
+   res = Globals.manager.update_config(directory_asterisk + 'extensions.conf', 
+         None, actions)
+   log.debug('Update extensions.conf returns %s' % res)
+
+   # Allways reload dialplan
+   Globals.manager.send_action({'Action': 'Command',
+      'Command': 'dialplan reload'})
 
 
 class Holiday_form(TableForm):
@@ -93,9 +137,9 @@ class Holiday_ctrl(RestController):
                { 'width': 80, 'align': 'center', 'sortable': False, 
                'search': False },
                { 'name': 'name', 'width': 80 },
-               { 'name': 'date', 'width': 60, 'sortable': False },
+               { 'name': 'date', 'width': 60 },
             ],
-            sortname = 'name',
+            sortname = 'date',
             navbuttons_options = {'view': False, 'edit': False, 'add': True,
                'del': False, 'search': False, 'refresh': True, 
                'addfunc': js_callback('add'),
@@ -107,7 +151,7 @@ class Holiday_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='name', sord='asc', _search='false',
+   def fetch(self, page=1, rows=10, sidx='date', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
@@ -124,8 +168,13 @@ class Holiday_ctrl(RestController):
 
       holiday = DBSession.query(Holiday)
       total = holiday.count()/rows + 1
-      column = getattr(Holiday, sidx)
-      holiday = holiday.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      if sidx=='date':
+         holiday = holiday.order_by(Holiday.month, Holiday.day) if sord!='desc' \
+               else holiday.order_by(desc(Holiday.month), desc(Holiday.day))
+      else:
+         holiday = holiday.order_by(Holiday.name) if sord!='desc' \
+               else holiday.order_by(desc(Holiday.name))
+      holiday = holiday.offset(offset).limit(rows)
 
       data = [ { 'id'  : h.holiday_id, 'cell': row(h) 
             } for h in holiday ]
@@ -150,7 +199,7 @@ class Holiday_ctrl(RestController):
       h.day = kw['date'].day
       h.month = kw['date'].month
       DBSession.add(h)
-
+      update_extensions()
       flash(u'Nouveau jour férié "%s" créé' % (kw['name']))
       redirect('/holidays/')
 
@@ -178,8 +227,8 @@ class Holiday_ctrl(RestController):
       h.name = kw['name']
       h.day = kw['day']
       h.month = kw['month']
+      update_extensions()
       flash(u'Jour férié modifié')
-
       redirect('/holidays/')
 
    @expose()
@@ -188,7 +237,7 @@ class Holiday_ctrl(RestController):
       '''
       log.info('delete ' + kw['_id'])
       DBSession.delete(DBSession.query(Holiday).get(kw['_id']))
+      update_extensions()
       flash(u'Jour férié supprimé', 'notice')
       redirect('/holidays/')
-
 
