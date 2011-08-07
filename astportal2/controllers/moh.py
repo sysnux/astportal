@@ -28,25 +28,25 @@ dir_sounds = '/var/lib/asterisk/sounds/astportal'
 
 # Common fields
 edit_sound_fields = [
-         FileField('file', validator=FieldStorageUploadConverter(not_empty=True),
-            label_text=u'Fichier sonore', help_text=u'Fichier au format WAV'),
-         TextField('comment',
-            label_text=u'Commentaires', help_text=u'Description du son' ),
-         HiddenField('_method'), # Needed by RestController
-         HiddenField('id', validator=Int),
-         ]
+   FileField('file', validator=FieldStorageUploadConverter(not_empty=True),
+      label_text=u'Fichier sonore', help_text=u'Fichier au format WAV'),
+   TextField('comment',
+      label_text=u'Commentaires', help_text=u'Description du son' ),
+   HiddenField('_method'), # Needed by RestController
+   HiddenField('id', validator=Int),
+   ]
 
 new_sound_fields = [
-         TextField('name', validator=NotEmpty,
-            label_text=u'Nom', help_text=u'Nom du son'),
-         FileField('file', validator=FieldStorageUploadConverter(not_empty=True),
-            label_text=u'Fichier sonore', help_text=u'Fichier au format WAV'),
-         TextField('comment',
-            label_text=u'Commentaires', help_text=u'Description du son' ),
-         RadioButtonList('type', validator=NotEmpty,
-            options=(('sound', u'message sonore'), 
-               ('moh', u'musique d\'attente')),
-            label_text=u'Type de son'),
+   TextField('name', validator=NotEmpty,
+      label_text=u'Nom', help_text=u'Nom du son'),
+   FileField('file', validator=FieldStorageUploadConverter(not_empty=True),
+      label_text=u'Fichier sonore', help_text=u'Fichier au format WAV'),
+   TextField('comment',
+      label_text=u'Commentaires', help_text=u'Description du son' ),
+   RadioButtonList('type', validator=NotEmpty,
+      options=(('sound', u'message sonore'), 
+         ('moh', u'musique d\'attente')),
+      label_text=u'Type de son'),
 ]
 
 

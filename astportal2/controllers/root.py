@@ -34,6 +34,7 @@ from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
 from astportal2.controllers.cc_stats import CC_Stats_ctrl
 from astportal2.controllers.application import Application_ctrl
 from astportal2.controllers.forward import Forward_ctrl
+from astportal2.controllers.record import Record_ctrl
 
 
 class RootController(BaseController):
@@ -69,6 +70,7 @@ class RootController(BaseController):
    cc_monitor = CC_Monitor_ctrl()
    cc_stats = CC_Stats_ctrl()
    forward = Forward_ctrl()
+   record = Record_ctrl()
 
    db_schema = DB_schema()
 
