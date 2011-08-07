@@ -95,6 +95,12 @@ function valid_move() {
          ${tmpl_context.grid()}
       </div>
 
+      <!-- Custom messages -->
+      <br/>
+      <span py:if="tmpl_context.form2">
+         ${tmpl_context.form2(values2)}
+      </span>
+
       <!-- Move to dialog -->
       <div id="move_dialog" style="display: none">
          Déplacer vers :

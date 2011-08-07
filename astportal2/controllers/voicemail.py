@@ -63,9 +63,13 @@ class Voicemail_ctrl(BaseController):
    @sidebar(u"Messagerie vocale", sortorder=3,
       icon = '/images/message.png')
    @expose(template="astportal2.templates.grid_voicemail")
-   def index(self, mb=None, id=None, folder='INBOX', to=None):
+   def index(self, mb=None, id=None, folder='INBOX', to=None, 
+         busy=None, unavail=None, greet=None):
       ''' List messages
       '''
+
+      log.debug('mb=%s, id=%s, folder=%s, to=%s, busy=%s, unavail=%s, greet=%s' % (
+            mb, id, folder, to, busy, unavail, greet))
 
       grid = MyJqGrid( id='grid', url='fetch', 
             caption=u"%s" % folders[folder],
@@ -80,10 +84,32 @@ class Voicemail_ctrl(BaseController):
                { 'width': 60, 'sortable': False },
                ],
             navbuttons_options = {'view': False, 'edit': False, 'add': False,
-               'del': False, 'search': True, 'refresh': True},
+               'del': False, 'search': False, 'refresh': True},
             postData = {'folder': folder},
          )
+
       tmpl_context.grid = grid
+
+      tmpl_context.form2 = None if in_group('admin') else \
+         TableForm(
+            'messages_form', name = 'messages_form',
+            fields = [
+               Label(text = u'Nouveaux messages personnalisés :'),
+               FileField('greet', 
+                  validator=FieldStorageUploadConverter(not_empty=False),
+                  label_text=u'Nom', help_text=u'Fichier au format WAV'),
+               FileField('unavail', 
+                  validator=FieldStorageUploadConverter(not_empty=False),
+                  label_text=u'Indisponible', help_text=u'Fichier au format WAV'),
+               FileField('busy', 
+                  validator=FieldStorageUploadConverter(not_empty=False),
+                  label_text=u'Occupé', help_text=u'Fichier au format WAV'),
+            ],
+            submit_text = u'Valider...',
+            action = 'custom_messages',
+            hover_help = True
+         )
+
       tmpl_context.form = TableForm(
          'folder_form', name = 'folder_form',
          fields = [
@@ -99,7 +125,9 @@ class Voicemail_ctrl(BaseController):
          action = '',
          hover_help = True
       )
-      return dict( title=u"Messages vocaux", debug='', values={'folder': folder})
+      return dict( title=u"Messages vocaux", debug='', 
+            values={'folder': folder}, values2={'greet': 'Mon nom', 
+               'unavail': 'Indisponible', 'busy': 'Occupé'})
 
 
    @expose('json')
@@ -265,4 +293,11 @@ class Voicemail_ctrl(BaseController):
          name, st.st_size)
       rh['Content-Transfer-Encoding'] = 'binary'
       return f.read()
+
+
+   @expose()
+   def custom_messages(self, greet, unavail, busy):
+      log.debug('greet=%s, unavail=%s, busy=%s' % (greet, unavail, busy))
+      redirect('/voicemail/')
+#      return dict()
 
