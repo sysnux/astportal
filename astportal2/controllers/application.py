@@ -9,6 +9,8 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group, not_anonymous
 
 from astportal2.lib.myjqgrid import MyJqGrid
+from astportal2.lib.app_globals import Globals
+
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, CheckBox, CalendarDateTimePicker, TextArea
 from tw.forms.validators import NotEmpty, Int, DateConverter, DateTimeConverter
@@ -31,12 +33,13 @@ def play_or_tts(typ, val, brk=None):
    if typ=='s':
 # XXX      if val not in application.sounds:
 # XXX         application.sounds.append(DBSession.query(Sound).get(val))
+      s = DBSession.query(Sound).get(val)
       if brk:
          app = u'Background'
-         param = u'astportal/%d,%s' % (val,brk)
+         param = u'astportal/%s,%s' % (s.name,brk)
       else:
          app = u'Playback'
-         param = u'astportal/%d' % (val)
+         param = u'astportal/%s' % (s.name)
 
    elif typ=='t':
 # XXX      if val not in application.texts:
@@ -531,11 +534,11 @@ def generate_dialplan():
    svi_out = codecs.open('/etc/asterisk/astportal/svi.conf.new',
          mode='w', encoding='iso-8859-1')
    now = datetime.today().strftime('%Y/%m/%d %H:%M:%S')
-   svi_out.write(u';\n; Dialplan generated automatically, manual changes will be lost !\n; %s\n;\n\n' % now)
+   svi_out.write(u';!\n;! Dialplan generated automatically, manual changes will be lost !\n;! %s\n;!\n\n' % now)
  
    # Main context: check active + date, setup accountcode + userfield, then
    # route called number (RNIS) to application
-   svi_out.write(u'[SVI] ; Main context RNIS -> App\n')
+   svi_out.write(u'[SVI_dnis] ; Main context RNIS -> App\n')
    apps = DBSession.query(Application)
    apps = apps.filter(Application.active==True)
    apps = apps.order_by(Application.exten)
@@ -568,6 +571,22 @@ def generate_dialplan():
    svi_out.write(u'\n')
 
 
+   # Internal context: send to corresponding DNIS number
+   svi_out.write(u'[SVI_internal] ; Main context RNIS -> App\n')
+   apps = DBSession.query(Application)
+   apps = apps.filter(Application.active==True)
+   apps = apps.order_by(Application.exten)
+   for a in apps:
+      svi_out.write(u'; %s (%d): %s <-> %s\n' % \
+         (a.name, a.app_id, a.exten, a.dnis))
+      svi_out.write(u'exten => %s,1,Noop(%s: %s)\n' % \
+         (a.exten, a.name, a.dnis))
+      svi_out.write(u'exten => %s,n,Goto(SVI_dnis,%s,1)\n' % \
+         (a.exten, a.dnis))
+
+
+   for a in apps:
+      dnis = u'exten => %s' % a.dnis
    # Create contexts, priorities, ... from database
    prev_ctxt = ''
    scenario = DBSession.query(Scenario, Application)
@@ -599,8 +618,9 @@ def generate_dialplan():
          (app, param) = play_or_tts(parameters[0], int(parameters[2:]))
 
       elif action==2: # Menu
-         if context=='Entrant': next = 'App_%s_Menu' % app_id
-         else: next = 'App_%s_%s' % (app_id, context)
+#         if context=='Entrant': next = 'App_%s_Menu' % app_id
+#         else: next = 'App_%s_%s' % (app_id, context)
+         next = 'App_%s_%s' % (app_id, context)
          param = parameters.split('::')
          cpt = 'svi_cpt_%s_%d' % (context, prio)
          svi_out.write(u'exten => s,%d,Set(%s=0)\n' % (prio, cpt))
@@ -612,7 +632,8 @@ def generate_dialplan():
          svi_out.write(u'exten => s,%d,GotoIf($[ 0${%s} > 3 ]?e_%d,1)\n' % (
             prio, cpt, tag))
          prio +=1
-         (a, p) = play_or_tts(param[0][0], int(param[0][2:]))
+         log.debug('Background ? (%s, %s, %s)' % (param[0][0], int(param[0][2:]), param[3]))
+         (a, p) = play_or_tts(param[0][0], int(param[0][2:]), param[3])
          svi_out.write(u'exten => s,%d,%s(%s,%s)\n' % (prio, a, p, param[3]))
          prio +=1
          #svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,m_%d,1,%s)\n' % (
@@ -627,7 +648,7 @@ def generate_dialplan():
          svi_out.write(u'exten => e_%d,1,%s(%s)\n' % (tag,a, p))
          svi_out.write(u'exten => e_%d,2,Hangup\n' % tag)
          for c in param[3]:
-            svi_out.write(u'exten => %c,1,Goto(%s_${EXTEN},s,1)\n' % (c, next))
+            svi_out.write(u'exten => %c,1,Goto(%s_Menu_${EXTEN},s,1)\n' % (c, next))
          continue
 
       elif action==15: # Choice
@@ -866,16 +887,29 @@ def generate_dialplan():
          continue
 
       elif action==19: # Voicemail
-         svi_out.write(u"exten => s,%d,Voicemail(%s,s)\n" % 
+         svi_out.write(u"exten => s,%d,Voicemail(%s@astportal,s)\n" % 
                (prio, parameters) )
          prio += 1
          continue
 
       elif action==20: # Queue
+         q = DBSession.query(Queue).get(int(parameters))
          svi_out.write(u"exten => s,%d,Queue(%s)\n" % 
-               (prio, DBSession.query(Queue.name).get(int(parameters))[0]) )
+               (prio, q.name) )
          prio += 1
          continue
+
+      elif action==21: # Queue_log
+         q, m = parameters.split('::')
+         q = DBSession.query(Queue).get(int(q))
+         svi_out.write(u"exten => s,%d,QueueLog(%s,%s)\n" % 
+               (prio, q.name, m))
+         prio += 1
+         continue
+
+      elif action==22: # Playback
+         app = u'Playback'
+         param = u'astportal/%s' % (parameters)
 
       else:
          m = u'Unknown action sce_id=%d, action=%d\n' % (sce_id, action)
@@ -898,7 +932,8 @@ def generate_dialplan():
       except:
          pass
       rename('/etc/asterisk/astportal/svi.conf.new', '/etc/asterisk/astportal/svi.conf')
-#      system('/etc/asterisk/astportal/sync.sh')
+      Globals.manager.send_action({'Action': 'Command',
+         'Command': 'dialplan reload'})
       result = 0
    except:
       result = 1
@@ -1008,7 +1043,9 @@ def mk_label(scenario, action_by_id):
       act = int(s.action)
       if act==16: # Label
          labels.append(u'<%s>%s %s %s' % (
-               s.parameters, action_by_id['%s' % s.action], s.parameters, s.comments))
+               s.parameters, action_by_id['%s' % s.action],
+               s.parameters if s.parameters is not None else '',
+               s.comments if s.comments is not None else ''))
 
       elif act==10: # Test
          (var, ope, val, if_true, if_false) = s.parameters.split('::')
@@ -1018,7 +1055,8 @@ def mk_label(scenario, action_by_id):
          x += u'Continuer' if if_true=='-2' else if_true[2:]
          x += ', sinon '
          x += u'continuer' if if_false=='-2' else if_false[2:]
-         labels.append(u'<%d>%s (%s)' % ( s.step, x, s.comments))
+         labels.append(u'<%d>%s (%s)' % ( s.step, x,
+               s.comments if s.comments is not None else ''))
 
       elif act==11: # Time based test
          begin, end, dow, days, months, if_true, if_false = s.parameters.split('::')
@@ -1031,7 +1069,8 @@ def mk_label(scenario, action_by_id):
          x += u'Continuer' if if_true=='-2' else if_true[2:]
          x += ', sinon '
          x += u'continuer' if if_false=='-2' else if_false[2:]
-         labels.append(u'<%d>%s (%s)' % ( s.step, x, s.comments))
+         labels.append(u'<%d>%s (%s)' % ( s.step, x,
+               s.comments if s.comments is not None else ''))
 
       elif act==18: # Holidays
          if_true, if_false = s.parameters.split('::')
@@ -1039,11 +1078,14 @@ def mk_label(scenario, action_by_id):
          x += ', sinon '
          x += u'continuer' if if_false=='-2' else if_false[2:]
          labels.append(u'<%d>%s ? %s %s' % (
-               s.step, action_by_id['%s' % s.action], x, s.comments))
+               s.step, action_by_id['%s' % s.action], x,
+               s.comments if s.comments is not None else ''))
 
       else:
          labels.append(u'<%d>%s %s %s' % (
-               s.step, action_by_id['%s' % s.action], s.parameters, s.comments))
+               s.step, action_by_id['%s' % s.action], 
+               s.parameters if s.parameters is not None else '', 
+               s.comments if s.comments is not None else ''))
 
    return u'"%s" [ label= "{<0>%s|%s}", shape="Mrecord"];\n' % (
          scenario[0].context, scenario[0].context, '|'.join(labels))

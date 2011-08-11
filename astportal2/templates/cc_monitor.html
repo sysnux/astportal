@@ -15,10 +15,10 @@
 
    <style>
 <![CDATA[
-tr.even td.free, tr.odd td.free { background-color: green;}
+tr.even td.free, tr.odd td.free { background-color: lightgreen;}
 tr.even td.inuse, tr.odd td.inuse { background-color: red;}
 tr.even td.ringing, tr.odd td.ringing { background-color: yellow;}
-tr.even td.invalid, tr.odd td.invalid { background-color: grey;}
+tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
 ]]>
    </style>
 
@@ -68,10 +68,10 @@ function updates_ready(data) {
 
 function list_queues() { // Builds main part of the screen
 
-   if (change) { 
+   if (true) { //change) { 
       // Something has changed (queue or member), need to rebuild the whole screen
       change = false;
-      var now = new Date();
+      var now = (new Date()).getTime()/1000; // Epoch time
       var html = '';
       var j=1;
       var qt = '<table><tr><th>Agents connectés</th><th>Groupes</th><th>Appels en attente</th><th>Temps en attente</th></tr>'; // Queues table
@@ -82,7 +82,7 @@ function list_queues() { // Builds main part of the screen
          qt += '<td>' + queues[q]['Wait'].length + '</td>';
          var waiting = '';
          for (var i=0;  i<queues[q]['Wait'].length; i++) {
-            waiting += (1+i) + ' : ' + min_sec(now - new Date(queues[q]['Wait'][i]*1000));
+            waiting += (1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]);
          }
          qt += '<td id=wait_"' + q + '">' + waiting + '</td></tr>';
 
@@ -98,7 +98,7 @@ function list_queues() { // Builds main part of the screen
             table += '<tr class="' + ((i%2) ? 'even':'odd') + '"><td>' + i + '</td>';
             table += '<td>' + qm[m] + ' (' + members[qm[m]]['Penalty'] + ')' + '</td>';
             //[sclass, sta, dur, nci, tci, nco, tco, lis, rec] = NOT working in chrome !
-            var a = member_status(members[qm[m]], now);
+            var a = member_status(members[qm[m]], now, q);
             table += '<td id="sta_' + id + '"class="' + a[0] + '">' + a[1] + '</td>';
             table += '<td id="dur_' + id + '">' + a[2] + '</td>';
             table += '<td id="nci_' + id + '">' + a[3] + '</td>';
@@ -129,13 +129,13 @@ function list_queues() { // Builds main part of the screen
          var qm = queues[q]['Members'];
          var waiting = '';
          for (var i=0;  i<queues[q]['Wait'].length; i++) {
-            waiting += (1+i) + ' : ' + min_sec(now - new Date(queues[q]['Wait'][i]*1000));
+            waiting += (1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]);
          }
          $('#wait_' + q).html(waiting);
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
             var id = q + '_' + qm[m].replace(/\W/g,'_');
-            var a = member_status(members[qm[m]], now);
+            var a = member_status(members[qm[m]], now, q);
             $('#sta_' + id).attr('class',a[0]);
             $('#sta_' + id).html(a[1]);
             $('#dur_' + id).html(a[2]);
@@ -151,7 +151,7 @@ function list_queues() { // Builds main part of the screen
    display_tmo = setTimeout(list_queues,500);
 }
 
-function member_status(member, now) {
+function member_status(member, now, queue) {
    var lis = '', rec = '';
    var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
    switch (member['Status']) {
@@ -163,15 +163,14 @@ function member_status(member, now) {
          sclass='inuse'; 
          if (member['Outgoing']) {
             stat='Appel émis';
-            dur = min_sec(now - new Date(member['OutBegin']*1000));
+            dur = min_sec(now - member['OutBegin']);
          } else {
             stat='Appel reçu';
-            dur = min_sec(now - new Date(member['InBegin']*1000));
+            dur = min_sec(now - member['InBegin']);
          }
          lis = '<input type="checkbox" onclick="listen(\'' + 
             member['Location'] + '\')"/>';
-         rec = '<input type="radio" onclick="record(\'' + 
-            member['Location'] + '\')"/>';
+         rec = '<input type="radio" onclick="record(\'' + member['Location'] + '\', \'' + queue + '\');"/>';
          break;
       case '6': // AST_DEVICE_RINGING
       case '7': // AST_DEVICE_RINGINUSE
@@ -182,9 +181,9 @@ function member_status(member, now) {
          sclass='invalid'; stat='Invalide'; dur=0; break;
    }
    nci = member['CallsTaken'];
-   tci = min_sec(1000*member['InTotal']);
+   tci = min_sec(member['InTotal']);
    nco = member['CallsOut'];
-   tco = min_sec(1000*member['OutTotal']);
+   tco = min_sec(member['OutTotal']);
    return [sclass, stat, dur, nci, tci, nco, tco, lis, rec];
 }
 
@@ -197,10 +196,10 @@ function listen(channel) {
       'json');
 }
 
-function record(channel) {
+function record(channel,queue) {
    $.post(
       "${tg.url('/cc_monitor/record')}",
-      {'channel': channel},
+      {'channel': channel, 'queue': queue},
       function (data) { // 
       },
       'json');
@@ -236,7 +235,7 @@ function add_member() { // Called from click on "Add member" link
    $.post(
       "${tg.url('/cc_monitor/add_member')}",
       {'queue': add_queue, 'member': $('#agent_select').val(),
-      'priority': $('#priority').val()},
+      'penality': $('#penality').val()},
       null, 'json');
    add_queue = null;
    $('#add_form').dialog('close');
@@ -251,9 +250,9 @@ function remove(queue, iface, member) {
    }
 }
 
-function min_sec(millisec) {
-   // Converts millisec to string min:sec (ex 83 -> 1:23)
-   var sec = Math.ceil(millisec/1000);
+function min_sec(sec) {
+   // Converts sec to string min:sec (ex 83 -> 1:23)
+   sec = Math.ceil(sec);
    var min = parseInt(sec/60);
    sec %= 60;
    if (sec<10) sec = '0'+sec;
@@ -271,8 +270,8 @@ function min_sec(millisec) {
          <table>
             <tr><td>Agent :</td>
                <td><select id="agent_select"></select></td></tr>
-            <tr><td>Priorité :</td>
-               <td><input type="text" id="priority" size="4"/></td></tr>
+            <tr><td>Pénalité :</td>
+               <td><input type="text" id="penality" size="4"/></td></tr>
          </table>
       </div>
 

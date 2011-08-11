@@ -79,14 +79,14 @@ class Group_ctrl(RestController):
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les groupes')
 
 
-   @sidebar(u'-- Administration || Groupes', sortorder = 14,
+   @sidebar(u'-- Administration || Profils', sortorder = 14,
       icon = '/images/system-users.png')
    @expose(template="astportal2.templates.grid")
    def get_all(self):
       ''' List all groups
       '''
       grid = MyJqGrid(
-            id='grid', url='fetch', caption=u'Groupes',
+            id='grid', url='fetch', caption=u'Profils',
             colNames = [u'Action', u'Nom', u'Description', u'Utilisateurs'],
             colModel = [ 
                { 'sortable': False, 'search': False, 'width': 80, 'align': 'center' },

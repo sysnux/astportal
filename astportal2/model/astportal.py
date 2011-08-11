@@ -287,3 +287,17 @@ class Holiday(DeclarativeBase):
             self.name, self.day, self.month)
 
 
+class Record(DeclarativeBase):
+   ''' Definition of records
+   '''
+   __tablename__ = 'record'
+   record_id = Column(Integer, Sequence('record_seq'), primary_key=True)
+   uniqueid = Column(Unicode(32))
+   queue_id = Column(Integer)
+   member_id = Column(Integer)
+   user_id = Column(Integer)
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   def __repr__(self):
+      return '<Record: uniqueid="%d">' % (
+            self.uniqueid)
+

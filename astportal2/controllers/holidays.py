@@ -29,7 +29,7 @@ directory_asterisk = config.get('directory.asterisk')
 def update_extensions():
    '''Generate Asterisk holiday context:
 
-[holiday]
+[holidays]
 exten => s,1,Set(holiday=false)
 exten => s,n,GotoIfTime(*,*,d,m?true)
 exten => s,n,GotoIfTime(*,*,d,m?true)
@@ -40,22 +40,22 @@ exten => s,n,return
 
    # Create list of actions
    actions = [
-      ('NewCat', 'holiday'),
-      ('Append', 'holiday', 'exten', '>s,1,Set(holiday=false)')
+      ('NewCat', 'holidays'),
+      ('Append', 'holidays', 'exten', '>s,1,Set(holiday=false)')
    ]
    for h in DBSession.query(Holiday).order_by(Holiday.month, Holiday.day):
-      actions.append(('Append', 'holiday', 'exten',
+      actions.append(('Append', 'holidays', 'exten',
          '>s,n,GotoIfTime(*,*,%d,%d?true)' % (h.day, h.month)))
 
-   actions.append(('Append', 'holiday', 'exten', '>s,n,return'))
-   actions.append(('Append', 'holiday', 'exten',
+   actions.append(('Append', 'holidays', 'exten', '>s,n,return'))
+   actions.append(('Append', 'holidays', 'exten',
       '>s,n(true),Set(holiday=true)'))
-   actions.append(('Append', 'holiday', 'exten', '>s,n,return'))
+   actions.append(('Append', 'holidays', 'exten', '>s,n,return'))
    
 
    # ... Now really update (delete + add)
    Globals.manager.update_config(directory_asterisk  + 'extensions.conf', 
-         None, [('DelCat', 'holiday')])
+         None, [('DelCat', 'holidays')])
    res = Globals.manager.update_config(directory_asterisk + 'extensions.conf', 
          None, actions)
    log.debug('Update extensions.conf returns %s' % res)

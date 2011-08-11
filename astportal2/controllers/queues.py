@@ -115,14 +115,14 @@ class Queue_ctrl(RestController):
    allow_only = in_group('admin', 
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les groupes d\'appels')
 
-   @sidebar(u'-- Administration || Groupes d\'appels',
+   @sidebar(u'-- Administration || Groupes ACD',
       icon = '/images/kdf.png', sortorder = 13)
    @expose("genshi:astportal2.templates.grid")
    def get_all(self):
       ''' List all queues
       '''
       grid = MyJqGrid( 
-            id='grid', url='fetch', caption=u'Groupes d\'appels',
+            id='grid', url='fetch', caption=u'Groupes ACD',
             colNames = [u'Action', u'Nom', u'Description'],
             colModel = [ 
                { 'width': 80, 'align': 'center', 'sortable': False, 'search': False },

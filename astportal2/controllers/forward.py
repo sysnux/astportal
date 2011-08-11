@@ -29,7 +29,9 @@ from astportal2.lib.app_globals import Globals
 re_db = re.compile(r'(\w*)\s*: (\S*)')
 cf_types = dict(CFIM = u'immédiat',
       CFUN = u'sur non réponse',
-      CFBS = u'sur occupation')
+      CFBS = u'sur occupation',
+      CFVM = u'messagerie vocale',
+      )
 
 common_fields = [
       RadioButtonList('cf_types',
@@ -163,6 +165,13 @@ class Forward_ctrl(RestController):
             k, v = match.groups()
             if in_group('admin') or k==exten:
                cfs.append((k, 'CFUN', v))
+      man = Globals.manager.command('database show CFVM')
+      for i,r in enumerate(man.response[3:-2]):
+         match = re_db.search(r)
+         if match:
+            k, v = match.groups()
+            if in_group('admin') or k==exten:
+               cfs.append((k, 'CFVM', v))
       log.debug('Call forwards-> %s' % (cfs))
 
 #      sort_key = lambda x : x[sidx]

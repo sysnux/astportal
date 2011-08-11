@@ -377,12 +377,14 @@ Channel: SIP/100-0000001f
          log.error('Member "%s" does not exist ?' % m)
          return
       s = dict['Status']
+      log.debug('QueueMemberStatus %s -> %s\n%s' %(m, s, dict))
       if s == '2': #AST_DEVICE_INUSE
          self.members[m]['InBegin'] = time()
       elif s in ('6','7'): # AST_DEVICE_RINGING	AST_DEVICE_RINGINUSE
          self.members[m]['Outgoing'] = False
-      self.members[m]['Status'] = dict['Status']
+      self.members[m]['Status'] = s
       self.members[m]['CallsTaken'] = int(dict['CallsTaken'])
+      self.members[m]['Penalty'] = int(dict['Penalty'])
       self.members[m]['LastCall'] = dict['LastCall']
       self.members[m]['Paused'] = dict['Paused']
       self.members[m]['LastUpdate'] = time()
@@ -414,10 +416,12 @@ Channel: SIP/100-0000001f
 #CallerIDName: Tiare
 #Wait: 12 */
       # XXX self.queues[dict['Queue']]['Wait'][int(dict['Position'])-1] = \
+      log.debug('QueueEntry %s' % dict)
       self.queues[dict['Queue']]['Wait'].append(time() - float(dict['Wait']))
       self.last_queue_update = time()
 
    def _handle_Join(self, dict):
+      log.debug('Joinn %s' % dict)
       self.queues[dict['Queue']]['Calls'] += 1
       self.queues[dict['Queue']]['Wait'].append(time())
       self.last_queue_update = time()
@@ -432,12 +436,16 @@ Channel: SIP/100-0000001f
 #               display++;
 #               break;
    def _handle_QueueCallerAbandon(self, dict):
-      print dict
+      log.debug('CallerAbandon %s' % dict)
       del self.queues[dict['Queue']]['Wait'][int(dict['Position'])-1]
       self.last_queue_update = time()
 
    def _handle_Leave(self, dict):
+      log.debug('Leave %s' % dict)
       self.queues[dict['Queue']]['Calls'] = int(dict['Count'])
+      pos = int(dict['Position'])-1
+      if pos < len(self.queues[dict['Queue']]['Wait']):
+         del self.queues[dict['Queue']]['Wait'][pos]
       self.last_queue_update = time()
 #-----------------------------------------------------
 

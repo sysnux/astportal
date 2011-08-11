@@ -126,6 +126,7 @@ $(document).ready(
             o += '</option>\n';
          }
          $('#20_queuename').html(o);
+         $('#21_queuename').html(o);
 
          $('#11_begin').timeEntry({show24Hours: true,
             spinnerImage: '/images/spinnerDefault.png',
@@ -370,6 +371,14 @@ function valid_action() {
          param = $("#20_queuename").val();
          break;
 
+      case 21: // QueueLog
+         param = $("#21_queuename").val() + '::' + $("#21_message").val();
+         break;
+
+      case 22: // Open playback
+         param = $("#22_file").val();
+         break;
+
       case -1:
          alert('Veuillez choisir une action ! ');
          return;
@@ -596,9 +605,21 @@ function display(redraw) {
             par = queues_by_id[scenario[r].parameters];
             break;
 
+         case 21: // QueueLog
+            act = actions_by_id[app];
+            var a = scenario[r].parameters.split('::');
+            par = queues_by_id[a[0]] + ': ' + a[1];
+            break;
+
+         case 22: // Open playback
+            act = actions_by_id[app];
+            par = scenario[r].parameters;
+            break;
+
          case 11: // Time based test
             var a = scenario[r].parameters.split('::');
-            var begin=a[0], end=a[1], dow=a[2], day=a[3], month=a[4], if_true=a[5], if_false=a[6];
+            var begin=a[0], end=a[1], dow=a[2], day=a[3], 
+               month=a[4], if_true=a[5], if_false=a[6];
             par = '';
             if (begin) par += 'de ' + begin + ' à ' + end + ', ';
             if (dow) par += 'jour(s): ' + dow + ', ';
@@ -779,8 +800,13 @@ function edit_action(i) {
       case 13: // Variable
          var a = scenario[i].parameters.split('::');
          $("#13_name").val(a[0]);
-         $("#13_predefined").val(a[1]);
-         $("#13_value").val(a[2]);
+         if (a[1]=='__1__' || a[1]=='__2__') {
+            $("#13_predefined").val(a[1]);
+            $("#13_value").val('');
+         } else {
+            $("#13_predefined").val(-1);
+            $("#13_value").val(a[1]);
+         }
          break;
 
       case 14: // Goto
@@ -816,6 +842,16 @@ function edit_action(i) {
 
       case 20: //Queue
          $("#20_queuename").val(scenario[i].parameters);
+         break;
+
+      case 21: //QueueLog
+         var a = scenario[i].parameters.split('::');
+         $("#21_queuename").val(a[0]);
+         $("#22_message").val(a[1]);
+         break;
+
+      case 22: // Open playback
+         $("#22_message").val(scenario[i].parameters);
          break;
 
    }
@@ -1042,10 +1078,10 @@ function update_canvas() {
          case 11: // Time based test
             var a = scenario[r].parameters.split('::');
             var if_true=a[5], if_false=a[6];
-            if (if_true!=-2)
+            if (if_true!=-2 && if_true!=-1)
                canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
                      $('#'+if_true.substr(2)) );
-            if (if_false!=-2)
+            if (if_false!=-2 && if_true!=-1)
                canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
                      $('#'+if_false.substr(2)) );
             break;
@@ -1383,6 +1419,19 @@ function update_canvas() {
    <div id="action_params_20" style="display: none">
       Nom du groupe d'appel:
       <select id="20_queuename"></select>
+   </div>
+
+   <!-- Queue: 21 -->
+   <div id="action_params_21" style="display: none">
+      Nom du groupe d'appel:
+      <select id="21_queuename"></select>
+      <input type="text" id="21_message"/>
+   </div>
+
+   <!-- Open playback: 22 -->
+   <div id="action_params_22" style="display: none">
+      Entrez le fichier à jouer:
+      <input type="text" id="22_file"/>
    </div>
 
    <div>

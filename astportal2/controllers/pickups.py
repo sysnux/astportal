@@ -121,9 +121,15 @@ class Pickup_ctrl(RestController):
       pickupgroups  = [[] for x in xrange(64)]
       for f in DBSession.query(Phone):
          if f.callgroups:
-            for g in f.callgroups.split(','):
+            try:
+               for g in f.callgroups.split(','):
+                  callgroups[int(g)].append(f.exten)
+            except:
                callgroups[int(g)].append(f.exten)
-            for g in f.pickupgroups.split(','):
+            try:
+              for g in f.pickupgroups.split(','):
+                  pickupgroups[int(g)].append(f.exten)
+            except:
                pickupgroups[int(g)].append(f.exten)
 
       data = [ { 'id'  : p.pickup_id, \

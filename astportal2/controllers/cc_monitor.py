@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from tg import config, expose, flash
+from tg import config, expose, flash, request
 from tg.controllers import TGController
 from tgext.menu import navbar, sidebar, menu
 
 from repoze.what.predicates import in_group, in_any_group
 
-from astportal2.model import DBSession, Phone
+from astportal2.model import DBSession, Phone, Record, Queue
 from astportal2.lib.app_globals import Globals
 
 from time import sleep
@@ -59,10 +59,10 @@ class CC_Monitor_ctrl(TGController):
 
 
    @expose('json')
-   def add_member(self, queue, member, priority):
+   def add_member(self, queue, member, penality):
       ''' Add a member with given priority to a queue
       '''
-      log.info('Adding member "%s" to queue "%s"', member, queue)
+      log.info('Adding member "%s" to queue "%s", penality %s' % (member, queue, penality))
       p = DBSession.query(Phone).get(member)
 
       if p.sip_id is not None and 'SIP/'+p.sip_id in Globals.asterisk.peers:
@@ -76,7 +76,7 @@ class CC_Monitor_ctrl(TGController):
       user = p.user.display_name if p.user else p.exten
 
       Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': queue, 
-         'Interface': iface, 'Priority': priority, 
+         'Interface': iface, 'Penalty': penality,
          'MemberName':
          unicodedata.normalize('NFKD', user).encode('ascii', 'ignore')})
       return dict(res='ok')
@@ -104,6 +104,7 @@ class CC_Monitor_ctrl(TGController):
       for i in xrange(50):
          last_update = float(Globals.asterisk.last_queue_update)
          if last_update > last:
+            break
 #            log.debug(Globals.asterisk.queues)
 #            log.debug(Globals.asterisk.members)
             if queues != Globals.asterisk.queues or last == 0:
@@ -114,6 +115,8 @@ class CC_Monitor_ctrl(TGController):
          sleep(1)
       log.debug(' * * * update_queues returns after sleeping %d sec, change=%s' % (i,change))
 
+#      log.debug('QUEUES : %s' % queues)
+#      log.debug('MEMBERS : %s' % Globals.asterisk.members)
       if in_group('admin'):
          queues = Globals.asterisk.queues
       else:
@@ -122,21 +125,31 @@ class CC_Monitor_ctrl(TGController):
             if in_group('SV ' + q):
                queues[q] = Globals.asterisk.queues[q]
 
-      return dict(last=last_update, change=change, 
+      return dict(last=last_update, change=True, # XXX
             queues=queues, members=Globals.asterisk.members)
 
 
    @expose('json')
    def listen(self, channel):
+      '''Listen queue member
+
+action: originate
+channel: SIP/Nn5ydYzs
+application: chanspy
+data: SIP/Xx83G1ZQ
+      '''
       if len(request.identity['user'].phone)<1:
+         log.debug('ChanSpy from user %s to %s : no extension' % (
+            request.identity['user'], channel))
          return dict(status=2)
-      chan = request.identity['user'].phone[0].exten
-      log.debug('ChanSpy from extension %s to %s' % (chan, channel))
+      sip = request.identity['user'].phone[0].sip_id
+      log.debug('ChanSpy from user %s (%s) to %s' % (
+         request.identity['user'], sip, channel))
       res = Globals.manager.originate(
-            'SIP/' + chan.encode('iso-8859-1'), # Channel
-            exten.encode('iso-8859-1'), # Extension
-            application='ChanSpy',
-            data='SIP/' + channel,
+            'SIP/' + sip, # Channel
+            sip, # Extension
+            application = 'ChanSpy',
+            data = channel,
             )
       log.debug(res)
       status = 0 if res=='Success' else 1
@@ -144,16 +157,43 @@ class CC_Monitor_ctrl(TGController):
 
 
    @expose('json')
-   def record(self, channel):
-      if len(request.identity['user'].phone)<1:
-         return dict(status=2)
-      chan = request.identity['user'].phone[0].exten
-      log.debug('Record from extension %s to %s' % (chan, channel))
+   def record(self, channel, queue):
+      '''Record a queue member
+
+Action: Monitor
+Mix: 1
+File: test
+Channel: SIP/pEpSNlcv-000001b9
+   '''
+      for cha in Globals.asterisk.channels.keys():
+         if cha.startswith(channel):
+            uid = Globals.asterisk.channels[cha]['Uniqueid']
+            break
+      else:
+         log.warning('No active channel for %s ?' % channel)
+         return dict(status=0)
+
+      f = 'rec-%s' % uid
       res = Globals.manager.send_action(
-            {'Action': 'Monitor', 'Mix': 1,
-               'Channel': channel,
-               'File': 'record.wav'})
-      log.debug(res)
+            {  'Action': 'Monitor',
+               'Mix': 1,
+               'Channel': cha,
+               'File': f})
+
+      log.info('Record request from user %s to channel %s returns %s' % ( 
+         request.identity['user'], cha, res))
+
+      m = DBSession.query(Phone).filter(Phone.sip_id==channel[-8:]).one()
+      q = DBSession.query(Queue).filter(Queue.name==queue).one()
+      u = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one()
+
+      r = Record()
+      r.uniqueid = uid
+      r.queue_id = q.queue_id
+      r.member_id = m.user_id
+      r.user_id = u.user_id
+      DBSession.add(r)
+
       status = 0 if res=='Success' else 1
       return dict(status=status)
 
