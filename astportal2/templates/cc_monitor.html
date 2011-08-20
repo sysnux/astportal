@@ -68,10 +68,10 @@ function updates_ready(data) {
 
 function list_queues() { // Builds main part of the screen
 
-   if (true) { //change) { 
+   var now = (new Date()).getTime()/1000; // Epoch time
+   if (change) { 
       // Something has changed (queue or member), need to rebuild the whole screen
       change = false;
-      var now = (new Date()).getTime()/1000; // Epoch time
       var html = '';
       var j=1;
       var qt = '<table><tr><th>Agents connectés</th><th>Groupes</th><th>Appels en attente</th><th>Temps en attente</th></tr>'; // Queues table
@@ -84,7 +84,7 @@ function list_queues() { // Builds main part of the screen
          for (var i=0;  i<queues[q]['Wait'].length; i++) {
             waiting += (1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]);
          }
-         qt += '<td id=wait_"' + q + '">' + waiting + '</td></tr>';
+         qt += '<td id="wait_' + q + '">' + waiting + '</td></tr>';
 
          html += '<h2>Groupe ' + q + '</h2>';
          var table = '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
@@ -120,6 +120,7 @@ function list_queues() { // Builds main part of the screen
          html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
       }
       html += "<h2>File d'attente</h2>" + qt + '</table>';
+      html += '<br/>now : ' + now + '<br/>last : ' + last; // XXX
       $('#queues_list').html(html);
    }
 
@@ -127,16 +128,16 @@ function list_queues() { // Builds main part of the screen
       // No change, just update variable fields
       for (q in queues) { // For each queue, display name and table
          var qm = queues[q]['Members'];
-         var waiting = '';
+         var waiting = new Array();
          for (var i=0;  i<queues[q]['Wait'].length; i++) {
-            waiting += (1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]);
+            waiting.push((1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]));
          }
-         $('#wait_' + q).html(waiting);
+         $('#wait_' + q).html(waiting.join(', '));
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
             var id = q + '_' + qm[m].replace(/\W/g,'_');
             var a = member_status(members[qm[m]], now, q);
-            $('#sta_' + id).attr('class',a[0]);
+            $('#sta_' + id).attr('class', a[0]);
             $('#sta_' + id).html(a[1]);
             $('#dur_' + id).html(a[2]);
             $('#nci_' + id).html(a[3]);

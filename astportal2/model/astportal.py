@@ -298,6 +298,5 @@ class Record(DeclarativeBase):
    user_id = Column(Integer)
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
-      return '<Record: uniqueid="%d">' % (
-            self.uniqueid)
+      return '<Record: uniqueid="%d">' % (self.uniqueid)
 

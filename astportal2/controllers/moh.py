@@ -150,7 +150,11 @@ def row(s):
    action += u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (str(s.sound_id), u"Suppression de la musique: " + s.name.replace("'","\\'"))
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
-   listen = u'<a href="/moh/listen?id=%s" title="Ecoute">Ecoute</a>' % s.sound_id
+   listen = u'''<a href="/moh/download?id=%s"><img src="/images/emblem-downloads.png" title="Télécharger"></a>''' % \
+         s.sound_id
+   listen += u'''&nbsp;&nbsp;&nbsp;<a href="/moh/listen?id=%s"><img src="/images/sound_section.png" title="&Eacute;couter"></a>''' % \
+         s.sound_id
+
    type = u'Sons' if s.type==1 else u'Musique'
 
    return [Markup(action), type, s.name, s.comment , Markup(listen) ]
@@ -170,12 +174,12 @@ class MOH_ctrl(RestController):
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u"Sons et musiques d\'attente",
             sortname='name', sortorder='asc',
-            colNames = [u'Action', u'Type', u'Nom', u'Commentaires', u'Ecoute' ],
-            colModel = [ { 'width': 60, 'align': 'center' },
+            colNames = [u'Action', u'Type', u'Nom', u'Commentaires', u'\u00C9coute' ],
+            colModel = [ { 'width': 60, 'align': 'center', 'sortable': False },
                { 'name': 'type', 'width': 60 },
                { 'name': 'name', 'width': 60 },
                { 'name': 'comment', 'width': 280 },
-               { 'name': 'owner_id', 'width': 60 },
+               { 'width': 60, 'align': 'center', 'sortable': False },
                ],
             navbuttons_options = {'view': False, 'edit': False, 'add': True,
                'del': False, 'search': True, 'refresh': True, 
@@ -321,11 +325,46 @@ class MOH_ctrl(RestController):
 
    @expose(content_type=CUSTOM_CONTENT_TYPE)
    def listen(self, id, **kw):
-      ''' Listen record
+      ''' Listen sound
       '''
       s = DBSession.query(Sound).get(id)
       dir = dir_moh if s.type==0 else dir_sounds
-      fn = '%s/%s.wav' % (dir, s.name)
+      fn = '%s/%d.wav' % (dir, s.sound_id)
+      import os
+      try:
+         st = os.stat(fn)
+         f = open(fn)
+      except:
+         flash(u'Fichier sonore introuvable: %s' % fn, 'error')
+         redirect('/moh/')
+
+      if len(request.identity['user'].phone)<1:
+         log.debug('Playback from user %s : no extension' % (
+            request.identity['user']))
+         flash(u'Poste de l\'utilisateur %s introuvable' % \
+               request.identity['user'], 'error')
+         redirect('/moh/')
+
+      sip = request.identity['user'].phone[0].sip_id
+      res = Globals.manager.originate(
+            'SIP/' + sip, # Channel
+            sip, # Extension
+            application = 'Playback',
+            data = fn[:-4],
+            )
+      log.debug('Playback %s from user %s (%s) returns %s' % (
+         fn[:-4], request.identity['user'], sip, res))
+
+      redirect('/moh/')
+
+
+   @expose(content_type=CUSTOM_CONTENT_TYPE)
+   def download(self, id, **kw):
+      ''' Download sound
+      '''
+      s = DBSession.query(Sound).get(id)
+      dir = dir_moh if s.type==0 else dir_sounds
+      fn = '%s/%d.wav' % (dir, s.sound_id)
       import os
       try:
          st = os.stat(fn)

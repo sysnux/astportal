@@ -640,7 +640,7 @@ function display(redraw) {
             break;
       }
       var par2=par;
-      if (par2.length>20) par2 = par2.substr(0,17) + '...';
+      if (par2 && par2.length>20) par2 = par2.substr(0,17) + '...';
       divs += '<td style="padding: 5px">' + act + '</td>';
       divs += '<td style="padding: 5px" title="'+ par + '">' + par2 + '</td>';
       if (scenario[r].comments) {

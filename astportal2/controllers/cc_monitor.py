@@ -6,7 +6,7 @@ from tgext.menu import navbar, sidebar, menu
 
 from repoze.what.predicates import in_group, in_any_group
 
-from astportal2.model import DBSession, Phone, Record, Queue
+from astportal2.model import DBSession, Phone, Record, Queue, User
 from astportal2.lib.app_globals import Globals
 
 from time import sleep
@@ -97,17 +97,20 @@ class CC_Monitor_ctrl(TGController):
       ''' Function called on AJAX request made by template.
       Return when new updates available, or timeout
       '''
-      last = float(last) or 0 # Last template refresh (0 -> page loaded)
+      last = float(last) or 0 # Last template refresh (0 -> page just loaded)
       i = 0
       change = False
       queues = copy.deepcopy(Globals.asterisk.queues)
+      members = copy.deepcopy(Globals.asterisk.members)
+#      log.debug('BEFORE %s' % queues)
+#      log.debug('BEFORE %s' % members)
       for i in xrange(50):
          last_update = float(Globals.asterisk.last_queue_update)
          if last_update > last:
-            break
-#            log.debug(Globals.asterisk.queues)
-#            log.debug(Globals.asterisk.members)
-            if queues != Globals.asterisk.queues or last == 0:
+#            log.debug('NOW %s' % Globals.asterisk.queues)
+#            log.debug('NOW %s' % Globals.asterisk.members)
+            if queues != Globals.asterisk.queues or \
+                  members != Globals.asterisk.members or last == 0:
                change = True
                break
             else:
@@ -115,8 +118,6 @@ class CC_Monitor_ctrl(TGController):
          sleep(1)
       log.debug(' * * * update_queues returns after sleeping %d sec, change=%s' % (i,change))
 
-#      log.debug('QUEUES : %s' % queues)
-#      log.debug('MEMBERS : %s' % Globals.asterisk.members)
       if in_group('admin'):
          queues = Globals.asterisk.queues
       else:
