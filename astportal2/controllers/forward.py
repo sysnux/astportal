@@ -3,7 +3,6 @@
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, require
-from tg.controllers import CUSTOM_CONTENT_TYPE
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -14,7 +13,6 @@ from tw.forms import TableForm, SingleSelectField, HiddenField, RadioButtonList,
 from tw.forms.validators import NotEmpty, Int
 
 from genshi import Markup
-from os import unlink, rename, chdir, listdir, stat
 import logging
 log = logging.getLogger(__name__)
 import re
@@ -67,7 +65,7 @@ class Forward_form(TableForm):
    name = 'folder_form'
    fields = common_fields
    submit_text = u'Valider...'
-   action = 'create_user'
+   action = 'create_forward'
    hover_help = True
 new_forward_form = Forward_form('new_forward_form')
 
@@ -185,7 +183,7 @@ class Forward_ctrl(RestController):
 
    @expose(template="astportal2.templates.form_new")
    def new(self, **kw):
-      ''' Display new user form
+      ''' Display new forward form
       '''
       if in_group('admin'):
          tmpl_context.form = new_forward_admin_form
@@ -199,19 +197,19 @@ class Forward_ctrl(RestController):
       return dict(title = u'Nouveau renvoi', debug=None, values=None)
 
 
-   class user_form_valid(object):
+   class forward_form_valid(object):
       def validate(self, params, state):
          log.debug(params)
          f = new_forward_external_form if in_group('Renvoi externe') \
             else new_forward_form
          return f.validate(params, state)
 
-   @validate(user_form_valid(), error_handler=new)
+   @validate(forward_form_valid(), error_handler=new)
    @expose()
-   def create_user(self, cf_types, to_intern, to_extern=None, **kw):
+   def create_forward(self, cf_types, to_intern, to_extern=None, **kw):
       ''' Add call forward to Asterisk database
       '''
-      log.debug('create_user: %s %s %s' % (cf_types, to_intern, to_extern))
+      log.debug('create_forward: %s %s %s' % (cf_types, to_intern, to_extern))
       dest = to_extern if to_extern else to_intern
       u = DBSession.query(User). \
             filter(User.user_name==request.identity['repoze.who.userid']). \
@@ -223,7 +221,7 @@ class Forward_ctrl(RestController):
          log.debug('database put %s %s %s returns %s' % (
             cf_types, phone.exten, dest, man))
 #      flash(u'Une erreur est survenue', 'error')
-      redirect('/forward/')
+      redirect('/forwards/')
 
 
    @require(in_group('admin',
@@ -239,7 +237,7 @@ class Forward_ctrl(RestController):
       log.debug('database put %s %s %s returns %s' % (
          cf_types, exten, dest, man))
 #      flash(u'Une erreur est survenue', 'error')
-      redirect('/forward/')
+      redirect('/forwards/')
 
 
    @expose()
@@ -265,6 +263,6 @@ class Forward_ctrl(RestController):
                cf, p.exten, man))
 #      flash(u'Une erreur est survenue', 'error')
 
-      redirect('/forward/')
+      redirect('/forwards/')
 
 

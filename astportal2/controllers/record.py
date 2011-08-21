@@ -32,7 +32,7 @@ def row(r, users):
    '''
 
    action = u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (
-      str(r.Record.record_id), u"Suppression de l\\'enregistrement ?") # XXX
+      str(r.Record.record_id), u"Suppression de l\\'enregistrement ?")
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    listen = u'''<a href="/record/download?id=%s"><img src="/images/emblem-downloads.png" title="Télécharger l'enregitrement"></a>''' % \
@@ -118,7 +118,7 @@ class Record_ctrl(RestController):
          log.error('unlink failed %s' % r.uniqueid)
       DBSession.delete(r)
       flash(u'Enregistrement supprimé', 'notice')
-      redirect('/record/')
+      redirect('/records/')
 
 
 
@@ -139,7 +139,7 @@ class Record_ctrl(RestController):
             request.identity['user']))
          flash(u'Poste de l\'utilisateur %s introuvable' % \
                request.identity['user'], 'error')
-         redirect('/record/')
+         redirect('/records/')
 
       sip = request.identity['user'].phone[0].sip_id
       res = Globals.manager.originate(
@@ -151,7 +151,7 @@ class Record_ctrl(RestController):
       log.debug('Playback %s from user %s (%s) returns %s' % (
          fn[:-4], request.identity['user'], sip, res))
 
-      redirect('/record/')
+      redirect('/records/')
 
 
    @expose(content_type=CUSTOM_CONTENT_TYPE)
@@ -165,7 +165,7 @@ class Record_ctrl(RestController):
          f = open(fn)
       except:
          flash(u'Enregistrement introuvable: %s' % fn, 'error')
-         redirect('/record/')
+         redirect('/records/')
 
       rh = response.headers
       rh['Pragma'] = 'public' # for IE

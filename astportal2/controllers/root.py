@@ -35,6 +35,7 @@ from astportal2.controllers.cc_stats import CC_Stats_ctrl
 from astportal2.controllers.application import Application_ctrl
 from astportal2.controllers.forward import Forward_ctrl
 from astportal2.controllers.record import Record_ctrl
+from astportal2.controllers.incident import Incident_ctrl
 
 
 class RootController(BaseController):
@@ -51,7 +52,7 @@ class RootController(BaseController):
    must be wrapped around with :class:`tg.controllers.WSGIAppController`.
    
    """
- 
+
    cdr = Display_CDR()
    billing = Billing_ctrl()
    voicemail = Voicemail_ctrl()
@@ -69,8 +70,9 @@ class RootController(BaseController):
    applications = Application_ctrl()
    cc_monitor = CC_Monitor_ctrl()
    cc_stats = CC_Stats_ctrl()
-   forward = Forward_ctrl()
-   record = Record_ctrl()
+   forwards = Forward_ctrl()
+   records = Record_ctrl()
+   incidents = Incident_ctrl()
 
    db_schema = DB_schema()
 
