@@ -34,12 +34,13 @@ def play_or_tts(typ, val, brk=None):
 # XXX      if val not in application.sounds:
 # XXX         application.sounds.append(DBSession.query(Sound).get(val))
       s = DBSession.query(Sound).get(val)
-      if brk:
+      name = 'astportal/%s' % s.name if s is not None else 'beep'
+      if brk is not None:
          app = u'Background'
-         param = u'astportal/%s,%s' % (s.name,brk)
+         param = u'astportal/%s,%s' % (name,brk)
       else:
          app = u'Playback'
-         param = u'astportal/%s' % (s.name)
+         param = u'astportal/%s' % (name)
 
    elif typ=='t':
 # XXX      if val not in application.texts:
@@ -125,6 +126,20 @@ edit_application_form = TableForm(
    hover_help = True
    )
 
+
+# Edit application form for 'admin' user
+admin_edit_fields = []
+admin_edit_fields.extend(common_fields)
+admin_edit_fields.insert(0, TextField('exten', not_empty=False, #validator=None,
+      label_text=u'Numéro interne', help_text=u'Choisissez l\'extension'))
+admin_edit_fields.insert(1, TextField('dnis', not_empty=False, #validator=None,
+      label_text=u'Numéro extérieur', help_text=u'Choisissez le numéro RNIS'))
+admin_edit_application_form = TableForm(
+   fields = admin_edit_fields,
+   submit_text = u'Valider...',
+   action = '/applications/',
+   hover_help = True
+   )
 
 def row(a):
    '''Displays a formatted row of the applications list
@@ -270,7 +285,7 @@ class Application_ctrl(RestController):
          DBSession.flush()
       except:
          log.error(u'Insert failed %s' % a)
-         flash(u"Impossible de créer l'application (vérifier son nom)",'error')
+         flash(u"Impossible de créer l'application (vérifier son nom)", 'error')
          redirect('/applications/')
 
       s = Scenario()
@@ -295,11 +310,21 @@ class Application_ctrl(RestController):
             'owner_id': a.owner_id, 'active': a.active, 
             'app_begin': a.begin, 'app_end': a.end,
             'comment': a.comment, '_method': 'PUT', 'old_number': a.exten}
-      tmpl_context.form = edit_application_form
+
+      if in_group('admin'):
+         tmpl_context.form = admin_edit_application_form
+      else:
+         tmpl_context.form = edit_application_form
       return dict(title = u'Modification application ' + a.name, debug='', values=v)
 
 
-   @validate(edit_application_form, error_handler=new)
+   class application_form_valid(object):
+      def validate(self, params, state):
+         log.debug(params)
+         f = admin_edit_application_form if in_group('admin') else edit_application_form
+         return f.validate(params, state)
+
+   @validate(application_form_valid(), error_handler=edit)
    @expose()
    def put(self, **kw):
       ''' Update application in DB
