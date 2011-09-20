@@ -10,10 +10,12 @@ paster=/opt/Python-2.6.7/bin/paster
 ini=/home/sysnux/astportal21/csb.ini
 pid=/var/run/astportal2/astportal2.pid
 log=/var/log/astportal2/astportal2.log
+eggs=/home/sysnux/.python-eggs
 user=sysnux
 group=sysnux
 #-------- End configuration
 
+export PYTHON_EGG_CACHE=$eggs
 paster="$paster serve --daemon --user=$user --group=$group --pid-file=$pid --log-file=$log $ini"
 
 case "$1" in

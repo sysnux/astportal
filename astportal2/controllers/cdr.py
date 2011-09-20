@@ -64,10 +64,10 @@ def check_access():
    Returns SA Query object for selected CDRs
    '''
 
-   if in_group('admin'):
+   if in_group('admin', 'APPELS'):
       cdrs = DBSession.query(CDR)
 
-   elif in_group('chefs'):
+   elif in_group('CDS'):
       # Find list of phones from the user's list of phones
       # user_phones -> departments -> phones
       phones = []

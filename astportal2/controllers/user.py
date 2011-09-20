@@ -27,15 +27,15 @@ directory_asterisk = config.get('directory.asterisk')
 
 # Common fields for user form, used by admin or not
 common_fields = [
-   TextField('firstname',
-      label_text=u'Prénom', validator=NotEmpty,
-      help_text=u'Entrez le prénom de l\'utilisateur'),
-   TextField('lastname', validator=NotEmpty,
-      label_text=u'Nom de famille',
-      help_text=u'Entrez le nom de famille de l\'utilisateur'),
-   TextField('email_address', validator=Email,
-      label_text=u'Adresse email',
-      help_text=u'Entrez l\'adresse email de l\'utisateur'),
+#   TextField('firstname',
+#      label_text=u'Prénom', validator=NotEmpty,
+#      help_text=u'Entrez le prénom de l\'utilisateur'),
+#   TextField('lastname', validator=NotEmpty,
+#      label_text=u'Nom de famille',
+#      help_text=u'Entrez le nom de famille de l\'utilisateur'),
+#   TextField('email_address', validator=Email,
+#      label_text=u'Adresse email',
+#      help_text=u'Entrez l\'adresse email de l\'utisateur'),
    PasswordField('pwd1', validator=Regex(r'\d{4,16}', not_empty=True),
       label_text=u'Mot de passe',
       help_text=u'Entrez le mot de passe'),
@@ -51,9 +51,22 @@ common_fields = [
 # Fields for admin
 admin_form_fields = []
 admin_form_fields.extend(common_fields)
-admin_form_fields.insert(0, TextField('user_name', validator=NotEmpty,
-   label_text=u'Compte',
-   help_text=u'Entrez le nom d\'utilisateur'))
+admin_form_fields.insert(0,
+   TextField('user_name', validator=NotEmpty,
+      label_text=u'Compte',
+      help_text=u'Entrez le nom d\'utilisateur'))
+admin_form_fields.insert(1,
+   TextField('firstname',
+      label_text=u'Prénom', validator=NotEmpty,
+      help_text=u'Entrez le prénom de l\'utilisateur'))
+admin_form_fields.insert(2,
+   TextField('lastname', validator=NotEmpty,
+      label_text=u'Nom de famille',
+      help_text=u'Entrez le nom de famille de l\'utilisateur'))
+admin_form_fields.insert(3,
+   TextField('email_address', validator=Email,
+      label_text=u'Adresse email',
+      help_text=u'Entrez l\'adresse email de l\'utisateur'))
 admin_form_fields.append( CheckBoxList('groups', validator=Int,
    options=DBSession.query(Group.group_id, 
       Group.group_name).order_by(Group.group_name),
@@ -85,6 +98,18 @@ admin_edit_user_form = TableForm(
 # Edit user form for normal user (not admin)
 user_fields = []
 user_fields.extend(common_fields)
+user_fields.insert(0,
+   LabelHiddenField('firstname', suppress_label=False,
+      label_text=u'Prénom', validator=NotEmpty,
+      help_text=u'Entrez le prénom de l\'utilisateur'))
+user_fields.insert(1,
+   LabelHiddenField('lastname', 
+      label_text=u'Nom de famille', suppress_label=False,
+      help_text=u'Entrez le nom de famille de l\'utilisateur'))
+user_fields.insert(2,
+   LabelHiddenField('email_address', suppress_label=False,
+      label_text=u'Adresse email',
+      help_text=u'Entrez l\'adresse email de l\'utisateur'))
 user_fields.append(LabelHiddenField( 'groups',
    label_text=u'Groupes', suppress_label=False))
 edit_user_form = TableForm(
@@ -344,6 +369,9 @@ class User_ctrl(RestController):
                directory_asterisk  + 'voicemail.conf', 
                'app_voicemail_plain', actions)
             log.debug('Update voicemail.conf returns %s' % res)
+
+            Globals.manager.send_action({'Action': 'Command',
+               'command': 'voicemail reload'})
 
       if kw.has_key('user_name'): # Modification par administrateur
          u.user_name = kw['user_name']

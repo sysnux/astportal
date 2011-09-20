@@ -4,7 +4,7 @@
 from tg import expose, flash, redirect, tmpl_context
 from tgext.menu import sidebar
 
-from repoze.what.predicates import in_group
+from repoze.what.predicates import in_any_group
 
 from tw.forms import TableForm, CheckBoxList
 
@@ -28,7 +28,7 @@ incidents = dict(
 class Incident_ctrl(BaseController):
 
 
-   allow_only = in_group('admin', 
+   allow_only = in_any_group('admin', 'INC',
          msg=u'Vous devez appartenir au groupe "admin" pour gérer les incidents')
 
    @sidebar(u'-- Administration || Incidents',

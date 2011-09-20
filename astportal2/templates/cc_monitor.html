@@ -98,7 +98,7 @@ function list_queues() { // Builds main part of the screen
             table += '<tr class="' + ((i%2) ? 'even':'odd') + '"><td>' + i + '</td>';
             table += '<td>' + qm[m] + ' (' + members[qm[m]]['Penalty'] + ')' + '</td>';
             //[sclass, sta, dur, nci, tci, nco, tco, lis, rec] = NOT working in chrome !
-            var a = member_status(members[qm[m]], now, q);
+            var a = member_status(qm[m], now, q);
             table += '<td id="sta_' + id + '"class="' + a[0] + '">' + a[1] + '</td>';
             table += '<td id="dur_' + id + '">' + a[2] + '</td>';
             table += '<td id="nci_' + id + '">' + a[3] + '</td>';
@@ -107,7 +107,7 @@ function list_queues() { // Builds main part of the screen
             table += '<td id="tco_' + id + '">' + a[6] + '</td>';
             table += '<td id="lis_' + id + '">' + a[7] + '</td>';
             table += '<td id="rec_' + id + '">' + a[8] + '</td>';
-            table += '<td><input type="checkbox" onclick="remove(\'' + 
+            table += '<td><input type="checkbox" onclick="remove_member(\'' + 
                q + '\',\'' + members[qm[m]]['Location']  + '\',\'' + qm[m] + '\')"/></td>';
             table += '</tr>';
             i++;
@@ -136,7 +136,7 @@ function list_queues() { // Builds main part of the screen
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
             var id = q + '_' + qm[m].replace(/\W/g,'_');
-            var a = member_status(members[qm[m]], now, q);
+            var a = member_status(qm[m], now, q);
             $('#sta_' + id).attr('class', a[0]);
             $('#sta_' + id).html(a[1]);
             $('#dur_' + id).html(a[2]);
@@ -152,7 +152,8 @@ function list_queues() { // Builds main part of the screen
    display_tmo = setTimeout(list_queues,500);
 }
 
-function member_status(member, now, queue) {
+function member_status(name, now, queue) {
+   member = members[name];
    var lis = '', rec = '';
    var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
    switch (member['Status']) {
@@ -170,8 +171,13 @@ function member_status(member, now, queue) {
             dur = min_sec(now - member['InBegin']);
          }
          lis = '<input type="checkbox" onclick="listen(\'' + 
-            member['Location'] + '\')"/>';
-         rec = '<input type="radio" onclick="record(\'' + member['Location'] + '\', \'' + queue + '\');"/>';
+            name + '\',\'' + member['Location'] + '\')"';
+         if (member['Spied']) lis += ' checked="checked"';
+         lis += '/>';
+         rec = '<input type="checkbox" onclick="record(\'' + 
+            name + '\',\'' + member['Location'] + '\', \'' + queue + '\');"';
+         if (member['Recorded']) rec += ' checked="checked"';
+         rec += '/>';
          break;
       case '6': // AST_DEVICE_RINGING
       case '7': // AST_DEVICE_RINGINUSE
@@ -181,29 +187,31 @@ function member_status(member, now, queue) {
       default: 
          sclass='invalid'; stat='Invalide'; dur=0; break;
    }
-   nci = member['CallsTaken'];
+   nci = member['Qdata'][queue]['CallsTaken']; // member['CallsTaken'];
    tci = min_sec(member['InTotal']);
    nco = member['CallsOut'];
    tco = min_sec(member['OutTotal']);
    return [sclass, stat, dur, nci, tci, nco, tco, lis, rec];
 }
 
-function listen(channel) {
+function listen(name, channel) {
    $.post(
       "${tg.url('/cc_monitor/listen')}",
-      {'channel': channel},
+      {'name': name, 'channel': channel},
       function (data) { // 
       },
       'json');
+   members[name]['Spied'] = true;
 }
 
-function record(channel,queue) {
+function record(name,channel,queue) {
    $.post(
       "${tg.url('/cc_monitor/record')}",
-      {'channel': channel, 'queue': queue},
+      {'name': name, 'channel': channel, 'queue': queue},
       function (data) { // 
       },
       'json');
+   members[name]['Recorded'] = true;
 }
 
 function ajax_error(e, xhr, settings, exception) {
@@ -221,7 +229,7 @@ function fetch_exten(queue) { // Request exten list
    add_queue = queue;
    $.post(
       "${tg.url('/cc_monitor/list_exten')}",
-      {},
+      {'queue': queue},
       function (data) { // Populate select and display add member form
          $('option', '#agent_select').remove();
          for (p in data.phones) {
@@ -242,12 +250,14 @@ function add_member() { // Called from click on "Add member" link
    $('#add_form').dialog('close');
 }
 
-function remove(queue, iface, member) {
+function remove_member(queue, iface, member) {
    if (confirm('Retirer "' + member + '" du groupe "' + queue + '"')) {
       $.post(
          "${tg.url('/cc_monitor/remove_member')}",
          {'queue': queue, 'iface': iface, 'member': member},
          null, 'json');
+   } else {
+      change = true; // Force redisplay to cleanup checkbox
    }
 }
 

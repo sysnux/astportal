@@ -190,12 +190,18 @@ class Queue_ctrl(RestController):
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
       DBSession.add(q)
 
-      # Create new users group for supervisors
+      # Create new group for supervisors
       g = Group()
       g.group_name = u'SV %s' % q.name
       g.display_name = u'Superviseurs groupe d\'appels %s' % q.name
       DBSession.add(g)
-      
+
+      # Create new group for members
+      g = Group()
+      g.group_name = u'AG %s' % q.name
+      g.display_name = u'Agents groupe d\'appels %s' % q.name
+      DBSession.add(g)
+
       # Create Asterisk queue
       asterisk_update_queue(q)
       
@@ -250,15 +256,16 @@ class Queue_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete queue from DB
       '''
-      log.info('delete ' + kw['_id'])
+      log.info(u'delete ' + kw['_id'])
       q = DBSession.query(Queue).get(kw['_id'])
-      gn = u'SV %s' % q.name
+      gn = (u'SV %s' % q.name, u'AG %s' % q.name)
+      log.info(u'delete ' + kw['_id'])
       DBSession.delete(q)
 
-      # Delete supervisor group
-      g = DBSession.query(Group).filter(Group.group_name == gn).one()
-      log.info('delete group "%s"' % g.group_name)
-      DBSession.delete(g)
+      # Delete supervisor and members groups
+      for g in DBSession.query(Group).filter(Group.group_name.in_(gn)):
+         log.info(u'delete group "%s"' % g)
+         DBSession.delete(g)
 
       # Delete Asterisk queue
       res = Globals.manager.update_config(

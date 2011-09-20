@@ -64,7 +64,8 @@ def row(g):
 
    html =  u'<a href="'+ str(g.group_id) + u'/edit" title="Modifier">'
    html += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
-   if not g.group_name.startswith(u'SV ') and not g.group_name=='admin':
+   if not g.group_name.startswith(u'SV ') and \
+         not g.group_name.startswith(u'AG ') and not g.group_name=='admin':
       html += u'&nbsp;&nbsp;&nbsp;'
       html += u'<a href="#" onclick="del(\''+ str(g.group_id) + \
          u'\',\'Suppression du groupe ' + g.group_name + u'\')" title="Supprimer">'
@@ -81,7 +82,7 @@ class Group_ctrl(RestController):
 
    @sidebar(u'-- Administration || Profils', sortorder = 14,
       icon = '/images/system-users.png')
-   @expose(template="astportal2.templates.grid")
+   @expose(template='astportal2.templates.grid')
    def get_all(self):
       ''' List all groups
       '''

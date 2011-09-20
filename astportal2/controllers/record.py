@@ -35,9 +35,9 @@ def row(r, users):
       str(r.Record.record_id), u"Suppression de l\\'enregistrement ?")
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
-   listen = u'''<a href="/record/download?id=%s"><img src="/images/emblem-downloads.png" title="Télécharger l'enregitrement"></a>''' % \
+   listen = u'''<a href="/records/download?id=%s"><img src="/images/emblem-downloads.png" title="Télécharger l'enregitrement"></a>''' % \
          r.Record.record_id
-   listen += u'''&nbsp;&nbsp;&nbsp;<a href="/record/listen?id=%s"><img src="/images/sound_section.png" title="&Eacute;couter l'enregitrement"></a>''' % \
+   listen += u'''&nbsp;&nbsp;&nbsp;<a href="/records/listen?id=%s"><img src="/images/sound_section.png" title="&Eacute;couter l'enregitrement"></a>''' % \
          r.Record.record_id
 
    return [Markup(action), r.Queue.name, 
@@ -132,7 +132,7 @@ class Record_ctrl(RestController):
          st = stat(fn)
       except:
          flash(u'Enregistrement introuvable: %s' % fn, 'error')
-         redirect('/record/')
+         redirect('/records/')
 
       if len(request.identity['user'].phone)<1:
          log.debug('Playback from user %s : no extension' % (

@@ -6,7 +6,7 @@ from tgext.menu import navbar, sidebar, menu
 
 from repoze.what.predicates import in_group, in_any_group
 
-from astportal2.model import DBSession, Phone, Record, Queue, User
+from astportal2.model import DBSession, Phone, Record, Queue, User, Group
 from astportal2.lib.app_globals import Globals
 
 from time import sleep
@@ -42,18 +42,18 @@ class CC_Monitor_ctrl(TGController):
 
 
    @expose('json')
-   def list_exten(self):
+   def list_exten(self, queue):
       ''' List exten for adding members to a queue
       '''
       # Refresh Asterisk peers
       Globals.manager.sippeers()
 
       phones = []
-      for p in DBSession.query(Phone).order_by(Phone.exten):
-         if p.exten is None: continue
-         exten = p.exten
-         if p.user: exten += ' (%s)' % p.user.display_name
-         phones.append([p.phone_id, exten])
+      g = DBSession.query(Group).filter(Group.group_name=='AG %s' % queue).one()
+      for u in g.users:
+         for p in u.phone:
+            phones.append([p.phone_id, '%s (%s)' % (u.display_name, p.exten)])
+
       log.debug(phones)
       return dict(phones=phones)
 
@@ -102,8 +102,8 @@ class CC_Monitor_ctrl(TGController):
       change = False
       queues = copy.deepcopy(Globals.asterisk.queues)
       members = copy.deepcopy(Globals.asterisk.members)
-#      log.debug('BEFORE %s' % queues)
-#      log.debug('BEFORE %s' % members)
+      log.debug('BEFORE %s' % queues)
+      log.debug('BEFORE %s' % members)
       for i in xrange(50):
          last_update = float(Globals.asterisk.last_queue_update)
          if last_update > last:
@@ -131,7 +131,7 @@ class CC_Monitor_ctrl(TGController):
 
 
    @expose('json')
-   def listen(self, channel):
+   def listen(self, name, channel):
       '''Listen queue member
 
 action: originate
@@ -139,6 +139,7 @@ channel: SIP/Nn5ydYzs
 application: chanspy
 data: SIP/Xx83G1ZQ
       '''
+      log.debug('Listen %s (%s)' % (name, channel))
       if len(request.identity['user'].phone)<1:
          log.debug('ChanSpy from user %s to %s : no extension' % (
             request.identity['user'], channel))
@@ -152,13 +153,17 @@ data: SIP/Xx83G1ZQ
             application = 'ChanSpy',
             data = channel,
             )
-      log.debug(res)
-      status = 0 if res=='Success' else 1
+
+      if res.get_header('Response')=='Success':
+         status = 0
+         Globals.asterisk.members[name]['Spied'] = True
+      else:
+         status = 1
       return dict(status=status)
 
 
    @expose('json')
-   def record(self, channel, queue):
+   def record(self, name, channel, queue):
       '''Record a queue member
 
 Action: Monitor
@@ -166,6 +171,7 @@ Mix: 1
 File: test
 Channel: SIP/pEpSNlcv-000001b9
    '''
+      log.debug('Record %s (%s)' % (name, channel))
       for cha in Globals.asterisk.channels.keys():
          if cha.startswith(channel):
             uid = Globals.asterisk.channels[cha]['Uniqueid']
@@ -181,7 +187,7 @@ Channel: SIP/pEpSNlcv-000001b9
                'Channel': cha,
                'File': f})
 
-      log.info('Record request from user %s to channel %s returns %s' % ( 
+      log.info('Record request from user "%s" to channel %s returns "%s"' % ( 
          request.identity['user'], cha, res))
 
       m = DBSession.query(Phone).filter(Phone.sip_id==channel[-8:]).one()
@@ -195,6 +201,11 @@ Channel: SIP/pEpSNlcv-000001b9
       r.user_id = u.user_id
       DBSession.add(r)
 
-      status = 0 if res=='Success' else 1
+      if res.get_header('Response')=='Success':
+         status = 0
+         Globals.asterisk.members[name]['Recorded'] = True
+         log.debug(Globals.asterisk.members)
+      else:
+         status = 1
       return dict(status=status)
 

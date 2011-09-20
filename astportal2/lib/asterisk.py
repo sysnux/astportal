@@ -69,6 +69,10 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
          'app_voicemail_plain', actions)
       log.debug('Update voicemail.conf returns %s' % res)
 
+      Globals.manager.send_action({'Action': 'Command',
+         'command': 'voicemail reload'})
+
+
    # Always delete old outgoing contexts
    Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', None, [('DelCat', p.sip_id)])
@@ -153,11 +157,13 @@ class Status(object):
 #        Key: interface
 #        {'Name': 'Status': , 'Penalty': , 'Membership': , 
 #        'Location': , 'LastCall': , 'Paused': Bool, 'LastUpdate': time(), 
-#        'Queues': [q,], 'ConnBegin': time(), # Connection time
+#        'Queues': [{'name':, 'CallsTaken':, 'InBegin':, 'InTotal':0},], 
+#        'ConnBegin': time(), # Connection time
 #        # Counters for outgoing calls
 #        'Outgoing': False, 'CallsOut': 0, 'OutBegin': time(), 'OutTotal': 0,
 #        # Counters for incoming calls
-#        'CallsTaken': 0, 'InBegin': time(), 'InTotal': 0}
+#        'CallsTaken': 0, 'InBegin': time(), 'InTotal': 0,
+#        'Spied': False, 'Recorded': False}
 
    def handle_shutdown(self, event, manager):
       log.warning('Received shutdown event')
@@ -342,10 +348,15 @@ Channel: SIP/100-0000001f
          log.error('QueueMember without name %s' % dict)
          return
       self.queues[q]['Members'].append(m)
-      if m in self.members:
+
+      if m in self.members: # Known member, update his info
          if not q in self.members[m]['Queues']:
             self.members[m]['Queues'].append(q)
-      else:
+         self.members[m]['Qdata'][q] = {
+               'CallsTaken': int(dict['CallsTaken']),
+               'InBegin': time(), 'InTotal': 0}
+
+      else: # New member
          self.members[m] = {'Status': dict['Status'],
             'Penalty': dict['Penalty'],
             'Membership': dict['Membership'], 'Location': dict['Location'],
@@ -355,7 +366,14 @@ Channel: SIP/100-0000001f
             # Counters for outgoing calls
             'Outgoing': False, 'CallsOut': 0, 'OutBegin': time(), 'OutTotal': 0,
             # Counters for incoming calls
-            'CallsTaken': int(dict['CallsTaken']), 'InBegin': time(), 'InTotal': 0}
+            'CallsTaken': int(dict['CallsTaken']), 'InBegin': time(), 'InTotal': 0,
+            'Spied': False, 'Recorded': False}
+         if 'Qdata' not in self.members[m].keys():
+            self.members[m]['Qdata'] = {}
+         self.members[m]['Qdata'][q] = {
+               'CallsTaken': int(dict['CallsTaken']),
+               'InBegin': time(), 'InTotal': 0}
+
       self.last_queue_update = time()
 
    def _handle_AgentConnect(self, dict):
@@ -518,7 +536,8 @@ Channel: SIP/100-0000001f
                self.members[m]['OutTotal'] += time() - self.members[m]['OutBegin']
             else:
                self.members[m]['InTotal'] += time() - self.members[m]['InBegin']
-            self.members[m]['Recording'] = False
+            self.members[m]['Spied'] = False
+            self.members[m]['Recorded'] = False
             self.last_queue_update = time()
             break
 

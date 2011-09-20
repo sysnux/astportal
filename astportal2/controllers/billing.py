@@ -29,10 +29,10 @@ def check_access(cdrs):
    Returns SA Query object for selected CDRs
    '''
 
-   if in_any_group('admin','DG','Compta'):
+   if in_any_group('admin', 'DG', 'COMPTA'):
       return cdrs
 
-   elif in_group('Chefs'):
+   elif in_group('CDS'):
       # Find list of phones from the user's list of phones
       # user_phones -> departments -> phones
       phones = []
