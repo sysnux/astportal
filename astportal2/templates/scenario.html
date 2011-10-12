@@ -678,7 +678,7 @@ function display(redraw) {
       $('#context_' + context).draggable({
          handle: 'th',
          opacity: 0.35,
-         containment: 'parent',
+         containment: [50, 150, 2000, 4000],
          stack: {group: '#scenario div', min: 10},
          drag: function(event,ui){
             update_canvas();
