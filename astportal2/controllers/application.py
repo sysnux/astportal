@@ -37,10 +37,10 @@ def play_or_tts(typ, val, brk=None):
       name = 'astportal/%s' % s.name if s is not None else 'beep'
       if brk is not None:
          app = u'Background'
-         param = u'astportal/%s,%s' % (name,brk)
+         param = u'%s,%s' % (name,brk)
       else:
          app = u'Playback'
-         param = u'astportal/%s' % (name)
+         param = u'%s' % (name)
 
    elif typ=='t':
 # XXX      if val not in application.texts:

@@ -22,6 +22,7 @@ incidents = dict(
       AUTOR = u'Autorisations cartes bancaires',
       AMEX = u'American Express',
       EMV = u'Europay MasterCard Visa',
+      EXCEPT = u'Fermeture exceptionnelle',
       )
 
 

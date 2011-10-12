@@ -64,7 +64,7 @@ def check_access():
    Returns SA Query object for selected CDRs
    '''
 
-   if in_group('admin', 'APPELS'):
+   if in_any_group('admin', 'APPELS'):
       cdrs = DBSession.query(CDR)
 
    elif in_group('CDS'):
