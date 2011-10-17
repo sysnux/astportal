@@ -54,7 +54,18 @@ class Record_ctrl(RestController):
       ''' List all records
       '''
 
-      grid = MyJqGrid( id='grid', url='fetch', caption=u"Enregistrements ACD",
+      if Globals.manager is None:
+         flash(u'Vérifier la connexion Asterisk', 'error')
+      else:
+         Globals.manager.send_action({'Action': 'QueueStatus'})
+      sv = ['admin']
+      for q in Globals.asterisk.queues:
+         sv.append('SV ' + q)
+      if not in_any_group(*sv):
+         tmpl_context.grid = None
+         flash(u'Accès interdit !', 'error')
+      else:
+         grid = MyJqGrid( id='grid', url='fetch', caption=u"Enregistrements ACD",
             sortname='created', sortorder='asc',
             colNames = [u'Action', u'Groupe ACD', u'Agent', u'Enregistré par', 
                u'Date', u'\u00C9coute' ],
@@ -70,7 +81,8 @@ class Record_ctrl(RestController):
                'addfunc': js_callback('add'),
                }
             )
-      tmpl_context.grid = grid
+         tmpl_context.grid = grid
+
       tmpl_context.form = None
       return dict( title=u"Liste des enregistrements", debug='')
 

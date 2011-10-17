@@ -56,7 +56,7 @@ class Stats_ctrl(BaseController):
 
    @sidebar(u"-- Administration || Statistiques globales", sortorder=19,
       icon = '/images/office-chart-area-stacked.png',
-      permission = in_group('admin'))
+      permission = in_any_group('admin', 'STATS'))
    @expose(template="astportal2.templates.stats")
    def index(self, selected=None, daily=None):
 
@@ -172,7 +172,7 @@ class Stats_ctrl(BaseController):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
-      if not in_any_group('admin','SVI'):
+      if not in_any_group('admin','STATS'):
          flash(u'Accès interdit !', 'error')
          redirect('/')
  
@@ -226,7 +226,7 @@ class Stats_ctrl(BaseController):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
-      if not in_any_group('admin','SVI'):
+      if not in_any_group('admin','STATS'):
          flash(u'Accès interdit !', 'error')
          redirect('/')
  
@@ -266,7 +266,7 @@ class Stats_ctrl(BaseController):
    @expose()
    def csv(self, **kw):
 
-      if not in_any_group('admin', 'SVI'):
+      if not in_any_group('admin', 'STATS'):
          flash(u'Accès interdit')
          redirect('/')
 

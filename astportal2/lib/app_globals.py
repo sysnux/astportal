@@ -58,22 +58,22 @@ def manager_check():
        Globals.manager = None
        log.error('Configuration error, manager thread NOT STARTED (check asterisk.manager)')
 
-
 class Globals(object):
-    """Container for objects available throughout the life of the application.
+   """Container for objects available throughout the life of the application.
 
-    One instance of Globals is created during application initialization and
-    is available during requests via the 'app_globals' variable.
+   One instance of Globals is created during application initialization and
+   is available during requests via the 'app_globals' variable.
 
-    """
+   """
 
-    manager = None
-    asterisk = None
+   manager = None
+   asterisk = None
 
-    def __init__(self):
-        """Start the scheduler."""
+   def __init__(self):
+      """Start the scheduler."""
         
-        tgscheduler.start_scheduler()
-        tgscheduler.add_interval_task(action=manager_check, 
-           taskname='Manager check', interval=20, initialdelay=1)
+      tgscheduler.start_scheduler()
+      tgscheduler.add_interval_task(action=manager_check, 
+         taskname='Manager check', interval=20, initialdelay=1)
+
 

@@ -6,7 +6,7 @@ from tgext.menu import sidebar
 
 from repoze.what.predicates import in_any_group
 
-from tw.forms import TableForm, CheckBoxList
+from tw.forms import TableForm, RadioButtonList
 
 import logging
 log = logging.getLogger(__name__)
@@ -18,6 +18,7 @@ from astportal2.lib.base import BaseController
 re_db = re.compile(r'(\w*)\s*: (\S*)')
 
 incidents = dict(
+      AAA = u'Aucun',
       PCA = u'Plan de continuité d\'activité',
       AUTOR = u'Autorisations cartes bancaires',
       AMEX = u'American Express',
@@ -39,24 +40,25 @@ class Incident_ctrl(BaseController):
       ''' Display incident form
       '''
 
-      checked = []
+      checked = None
       man = Globals.manager.command('database show incidents')
       for i,r in enumerate(man.response[3:-2]):
          match = re_db.search(r)
          if match:
             k, v = match.groups()
             log.debug('Line %d match: %s -> %s' % (i, k, v))
-            if v == '1': checked.append(k)
+            if v == '1': checked = k
          else:
             log.debug('Line %d no match: %s' % (i, r))
+      if checked is None: checked = 'AAA'
 
       tmpl_context.form = TableForm(
          name = 'incident_form',
          fields = [
-            CheckBoxList('checked',
+            RadioButtonList('checked',
                options = [(k,v) for k,v in sorted(incidents.iteritems())], 
-               label_text = u'Incidents en cours', 
-               help_text = u'Cochez les incidents'),
+               label_text = u'Incident en cours', 
+               help_text = u'Cochez un incident'),
             ],
          submit_text = u'Valider...',
          action = 'modify',
@@ -73,6 +75,7 @@ class Incident_ctrl(BaseController):
       '''
 
       for i in incidents.keys():
+         if i=='AAA': continue
          v = 1 if i in checked else 0
          res = Globals.manager.command('database put %s %s %d' % (
             'incidents', i, v))

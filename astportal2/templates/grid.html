@@ -44,7 +44,7 @@ function del(xid,msg) {
          ${tmpl_context.form(values)}
       </span>
 
-      <div id="data">
+      <div id="data" py:if="tmpl_context.grid">
          <!-- JQuery Grid -->
          ${tmpl_context.grid()}
       </div>

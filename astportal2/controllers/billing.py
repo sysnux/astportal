@@ -42,6 +42,7 @@ def check_access(cdrs):
       src = [p.exten for p in phones]
       dst = [p.exten for p in phones]
       cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
+      log.info('CDS source <%s>, destination <%s>' % (src,dst))
 
    elif in_group('Utilisateurs'):
       src = [p.exten for p in request.identity['user'].phone]

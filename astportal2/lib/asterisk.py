@@ -18,6 +18,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
    Files updated (if needed): sip.conf, voicemail.conf, extensions.conf
    '''
 
+   # SIP.conf
    actions = [
             ('NewCat', p.sip_id),
             ('Append', p.sip_id, 'secret', p.password),
@@ -27,9 +28,9 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'allow', 'alaw'),
             ]
    if p.callgroups:
-      actions.append(('Append', p.sip_id, 'callgroups', p.callgroups))
+      actions.append(('Append', p.sip_id, 'callgroup', p.callgroups))
    if p.pickupgroups:
-      actions.append(('Append', p.sip_id, 'pickupgroups', p.pickupgroups))
+      actions.append(('Append', p.sip_id, 'pickupgroup', p.pickupgroups))
    if p.user_id:
       u = DBSession.query(User).get(p.user_id)
       cidname = unicodedata.normalize('NFKD', u.display_name).encode('ascii','ignore')
@@ -47,12 +48,14 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
          'chan_sip', actions)
    log.debug('Update sip.conf returns %s' % res)
 
+   # Update Asterisk exten database: Phone number <=> SIP user
    Globals.manager.send_action({'Action': 'DBdel',
          'Family': 'exten', 'Key': old_exten})
    if p.exten is not None:
       Globals.manager.send_action({'Action': 'DBput',
          'Family': 'exten', 'Key': p.exten, 'Val': p.sip_id})
 
+   # Voicemail.conf
    if p.user_id and u.email_address is not None:
       vm = u'>%s,%s,%s' \
             % (u.password, cidname, u.email_address)
@@ -81,6 +84,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       log.debug('Contexts %s' % p.contexts)
       actions = [
          ('NewCat', p.sip_id),
+         ('Append', p.sip_id, 'include', '>hints')
          ]
       for c in p.contexts.split(','):
          actions.append(('Append', p.sip_id, 'include', '>%s' % c))
@@ -88,20 +92,37 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
          directory_asterisk  + 'extensions.conf', None, actions)
       log.debug('Update outgoing extensions.conf returns %s' % res)
 
-   # Always delete old dnis entry
+   # Always delete old dnis entry (extensions.conf)
    if old_dnis is not None:
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Delete', 'dnis', 'exten', None, 
             '%s,1,Macro(stdexten,%s)' % (old_dnis[2:], p.sip_id))])
       log.debug('Delete <%s,1,Macro(stdexten,%s)> returns %s' % (old_dnis,p.sip_id,res))
+
    if p.dnis is not None:
-      # Create dnis entry
+      # Create dnis entry (extensions.conf)
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Append', 'dnis', 'exten', '>%s,1,Macro(stdexten,%s)' % (
             p.dnis[2:],p.sip_id))])
       log.debug('Update dnis extensions.conf returns %s' % res)
+
+   # Hints
+   if old_exten is not None:
+      res = Globals.manager.update_config(
+         directory_asterisk  + 'extensions.conf', 
+         None, [('Delete', 'hints', 'exten', None, 
+            '%s,hint,SIP/%s' % (old_exten, p.sip_id))])
+      log.debug('Delete <%s,hint,SIP/%s> returns %s' % (old_exten, p.sip_id,res))
+
+   if p.exten is not None:
+      # Create new hint (extensions.conf)
+      res = Globals.manager.update_config(
+         directory_asterisk  + 'extensions.conf', 
+         None, [('Append', 'hints', 'exten', 
+            '>%s,hint,SIP/%s' % (p.exten,p.sip_id))])
+      log.debug('Update hints extensions.conf returns %s' % res)
 
    # Allways reload dialplan
    Globals.manager.send_action({'Action': 'Command',

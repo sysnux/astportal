@@ -760,7 +760,7 @@ def generate_dialplan():
 
       elif action==7: # Transfer
          (tel, timeout, noanswer, busy, error) = parameters.split('::')
-         svi_out.write(u'exten => s,%d,Dial(${opt}/%s,%s,g)\n' % (prio, tel, timeout))
+         svi_out.write(u'exten => s,%d,Dial(local/%s@sviout/nj,%s,g)\n' % (prio, tel, timeout))
          prio += 1
          tag = prio
          svi_out.write(u'exten => s,%d,Goto(s-%d-${DIALSTATUS},1)\n' % (tag,prio))

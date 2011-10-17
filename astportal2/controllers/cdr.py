@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, config
 from tg.controllers import CUSTOM_CONTENT_TYPE, WSGIAppController
 from tgext.menu import sidebar
 import paste.fileapp
@@ -26,6 +26,7 @@ from os import path
 
 import re
 re_sip = re.compile('^SIP/poste\d-.*')
+prefix_src = config.get('prefix.src')
 
 def rec_link(row):
    '''Create link to download recording if file exists'''
@@ -74,12 +75,13 @@ def check_access():
       for d in [d.department for d in request.identity['user'].phone]:
          for p in d.phones:
             phones.append(p)
-      src = ['068947' + p.exten for p in phones]
+      src = [prefix_src + p.exten for p in phones]
       dst = [p.exten for p in phones]
       cdrs = DBSession.query(CDR).filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
+      log.info('CDS source <%s>, destination <%s>' % (src,dst))
 
    elif in_group('utilisateurs'):
-      src = ['068947' + p.exten for p in request.identity['user'].phone]
+      src = [prefix_src + p.exten for p in request.identity['user'].phone]
       dst = [p.exten for p in request.identity['user'].phone]
       cdrs = DBSession.query(CDR).filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
 
