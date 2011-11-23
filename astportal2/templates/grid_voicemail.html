@@ -33,6 +33,7 @@ function change_folder() {
 
 function del(mb, xid, msg) {
    if (confirm(msg)) {
+      $('#folder_form_mb').val(mb);
       $('#folder_form_id').val(xid);
       $('#folder_form').attr('action', 'delete');
       $('#folder_form').submit();

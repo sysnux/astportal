@@ -72,13 +72,18 @@ def check_access():
       # Find list of phones from the user's list of phones
       # user_phones -> departments -> phones
       phones = []
+      for p in request.identity['user'].phone:
+         log.info('CDS phone %s -> department %s' % (p, p.department))
       for d in [d.department for d in request.identity['user'].phone]:
+         log.info('CDS department <%s>' % (d))
          for p in d.phones:
             phones.append(p)
       src = [prefix_src + p.exten for p in phones]
       dst = [p.exten for p in phones]
       cdrs = DBSession.query(CDR).filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
-      log.info('CDS source <%s>, destination <%s>' % (src,dst))
+      log.info('CDS phone <%s> -> source <%s>, destination <%s>' % (
+         request.identity['user'].phone, src, dst))
+
 
    elif in_group('utilisateurs'):
       src = [prefix_src + p.exten for p in request.identity['user'].phone]
@@ -229,7 +234,7 @@ class Display_CDR(BaseController):
       ''' Called by Grid JavaScript component
       '''
 
-      if not in_any_group('admin', 'chefs', 'utilisateurs'):
+      if not in_any_group('admin', 'APPELS', 'CDS', 'utilisateurs'):
          flash(u'Accès interdit')
          redirect('/')
 
@@ -250,9 +255,9 @@ class Display_CDR(BaseController):
       data = []
       for cdr in cdrs.all():
          src = cdr.src
-         if src and in_group('admin'): src = src[:-3] + '***'
+         if src and in_any_group('admin', 'APPELS', 'CDS'): src = src[:-3] + '***'
          dst = cdr.dst
-         if dst and in_group('admin'): dst = cdr.dst[:-3] + '***'
+         if dst and in_any_group('admin', 'APPELS', 'CDS'): dst = cdr.dst[:-3] + '***'
          data.append({
             'id'  : cdr.acctid,
             'cell': [

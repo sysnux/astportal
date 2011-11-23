@@ -588,12 +588,16 @@ Channel: SIP/100-0000001f
 
       c1 = dict['Channel1']
       c2 = dict['Channel2']
-      self.channels[c1]['Link'] = c2
-      self.channels[c1]['Outgoing'] = True
-      self.channels[c2]['Link'] = c1
-      self.channels[c2]['Outgoing'] = False
-      self.channels[c1]['LastUpdate'] = time()
-      self.channels[c2]['LastUpdate'] = time()
+      try:
+         self.channels[c1]['Link'] = c2
+         self.channels[c1]['Outgoing'] = True
+         self.channels[c2]['Link'] = c1
+         self.channels[c2]['Outgoing'] = False
+         self.channels[c1]['LastUpdate'] = time()
+         self.channels[c2]['LastUpdate'] = time()
+      except:
+         log.warning('Link: channel "%s" doesn\'t exist ?' % c1)
+
       self.last_update = time()
 
 

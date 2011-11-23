@@ -620,6 +620,7 @@ def generate_dialplan():
    scenario = scenario.order_by(Scenario.app_id)
    scenario = scenario.order_by(Scenario.context)
    scenario = scenario.order_by(Scenario.step)
+   return_ok = True # Is it ok to return when context ends
    for dp in scenario.all():
       sce_id = int(dp.Scenario.sce_id)
       action = int(dp.Scenario.action)
@@ -630,10 +631,11 @@ def generate_dialplan():
 
       ctxt = u'[App_%s_%s]\n' % (app_id, context)
       if prev_ctxt!=ctxt:
-         if prev_ctxt!='': svi_out.write(u'exten => s,%d,Return\n\n' % prio)
+         if prev_ctxt!='' and return_ok: svi_out.write(u'exten => s,%d,Return\n\n' % prio)
          svi_out.write(ctxt)
          prio=1
          prev_ctxt = ctxt
+         return_ok = True
 
       if action==0: # 'NoOp'
          app = u'NoOp'
@@ -674,6 +676,7 @@ def generate_dialplan():
          svi_out.write(u'exten => e_%d,2,Hangup\n' % tag)
          for c in param[3]:
             svi_out.write(u'exten => %c,1,Goto(%s_Menu_${EXTEN},s,1)\n' % (c, next))
+         return_ok = False # Don't return after "Menu" else timeout is never executed.
          continue
 
       elif action==15: # Choice
@@ -919,8 +922,11 @@ def generate_dialplan():
 
       elif action==20: # Queue
          q = DBSession.query(Queue).get(int(parameters))
-         svi_out.write(u"exten => s,%d,Queue(%s)\n" % 
+         if q:
+            svi_out.write(u"exten => s,%d,Queue(%s)\n" % 
                (prio, q.name) )
+         else:
+            svi_out.write(u"exten => s,%d,Queue(UNDEFINED)\n" % prio)
          prio += 1
          continue
 

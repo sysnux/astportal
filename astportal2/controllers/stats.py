@@ -24,6 +24,7 @@ from calendar import monthrange
 import logging
 log = logging.getLogger(__name__)
 
+db_engine = DBSession.connection().engine.name
 
 # Pour affichage titres
 month_name = [u'janvier', u'février', u'mars', u'avril', u'mai', u'juin',
@@ -60,6 +61,10 @@ class Stats_ctrl(BaseController):
    @expose(template="astportal2.templates.stats")
    def index(self, selected=None, daily=None):
 
+      if not in_any_group('admin','STATS'):
+         flash(u'Accès interdit !', 'error')
+         redirect('/')
+      
       if daily:
          log.info('stats_type <- %s' % daily)
          self.stats_type = daily
@@ -190,15 +195,25 @@ class Stats_ctrl(BaseController):
       if self.stats_type:
          # Daily stats
          d = datetime.datetime.strptime(self.stats_type, '%m/%d/%Y')
-         req = func.date_trunc('day', CDR.calldate)
+         if db_engine=='oracle':
+            req = func.trunc(CDR.calldate, 'day') # Oracle
+         else: # PostgreSql
+            req = func.date_trunc('day', CDR.calldate)
          cdrs = DBSession.query(req, func.count(req), func.sum(CDR.billsec))
-         cdrs = cdrs.filter(func.date_trunc('month', CDR.calldate) == \
-            func.date_trunc('month', d))
+         if db_engine=='oracle':
+            cdrs = cdrs.filter(func.trunc(CDR.calldate, 'month') == \
+               func.trunc(d, 'month')) # Oracle
+         else: # PostgreSql
+            cdrs = cdrs.filter(func.date_trunc('month', CDR.calldate) == \
+               func.date_trunc('month', d))
          cdrs = cdrs.group_by(req)
 
       else:
          # Monthly stats
-         req = func.date_trunc('month', CDR.calldate)
+         if db_engine=='oracle':
+            req = func.trunc(CDR.calldate, 'month')
+         else: # PostgreSql
+            req = func.date_trunc('month', CDR.calldate)
          cdrs = DBSession.query(req, func.count(req), func.sum(CDR.billsec))
          cdrs = cdrs.group_by(req)
 
@@ -227,8 +242,7 @@ class Stats_ctrl(BaseController):
       Fetch data from DB, return the list of rows + total + current page
       '''
       if not in_any_group('admin','STATS'):
-         flash(u'Accès interdit !', 'error')
-         redirect('/')
+         return dict(page=0, total=0, rows=[])
  
       try:
          page = int(page)
@@ -247,18 +261,28 @@ class Stats_ctrl(BaseController):
          for x in range(24)]
 
       # Count calls by hour
-      req = func.date_trunc('hour', cast(CDR.calldate, TIME))
+      if db_engine=='oracle':
+         req = func.to_char(CDR.calldate, 'HH24')
+      else: # PostgreSql
+         req = func.date_trunc('hour', cast(CDR.calldate, TIME))
       cdrs = DBSession.query(req, func.count(req), func.sum(CDR.billsec))
       if self.stats_type:
          # Monthly stats
          d = datetime.datetime.strptime(self.stats_type, '%m/%d/%Y')
-         cdrs = cdrs.filter(func.date_trunc('month', CDR.calldate) == \
-            func.date_trunc('month', d))
+         if db_engine=='oracle':
+            cdrs = cdrs.filter(func.trunc(CDR.calldate, 'month') == \
+               func.trunc(d, 'month'))
+         else: # PostgreSql
+            cdrs = cdrs.filter(func.date_trunc('month', CDR.calldate) == \
+               func.date_trunc('month', d))
       cdrs = cdrs.group_by(req)
 #      cdrs = cdrs.order_by(func.sum(CDR.billsec))
 
       for i, c in enumerate(cdrs):
-         j = c[0].seconds / 3600
+         if db_engine=='oracle':
+            j = int(c[0])
+         else: # PostgreSql
+            j = c[0].seconds / 3600
          data[j] =  {'id': j, 'cell': ['%d h 00 < %d h 00' % (j,j+1), c[1], hms(c[2])]}
 
       return dict(page=page, total=24, rows=data[offset:offset+page*rows])
@@ -293,11 +317,17 @@ class Stats_ctrl(BaseController):
       if self.stats_type:
          # Daily stats
          d = datetime.datetime.strptime(self.stats_type, '%m/%d/%Y')
-         req = func.date_trunc('day', CDR.calldate)
+         if db_engine=='oracle':
+            req = func.trunc(CDR.calldate, 'day')
+         else: # PostgreSql
+            req = func.date_trunc('day', CDR.calldate)
 
       else:
          # Monthly stats
-         req = func.date_trunc('month', CDR.calldate)
+         if db_engine=='oracle':
+            req = func.trunc(CDR.calldate, 'month')
+         else: # PostgreSql
+            req = func.date_trunc('month', CDR.calldate)
 
       # Order by date
       cdrs = self.stats_req
