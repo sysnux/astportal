@@ -43,7 +43,8 @@ class CC_Monitor_ctrl(TGController):
 
    @expose('json')
    def list_exten(self, queue):
-      ''' List exten for adding members to a queue
+      ''' List users for adding members to a queue
+      Users must belong to special group "AG queue_name" to be listed
       '''
       # Refresh Asterisk peers
       Globals.manager.sippeers()

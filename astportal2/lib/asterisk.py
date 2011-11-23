@@ -476,7 +476,14 @@ Channel: SIP/100-0000001f
 #               break;
    def _handle_QueueCallerAbandon(self, dict):
       log.debug('CallerAbandon %s' % dict)
-      del self.queues[dict['Queue']]['Wait'][int(dict['Position'])-1]
+      pos = -999
+      try:
+         pos = int(dict['Position'])-1
+         del self.queues[dict['Queue']]['Wait'][pos]
+      except:
+         log.warning('CallerAbandon, Position %d does not exist in queue %s?' % (
+            pos, self.queues[dict['Queue']]) )
+
       self.last_queue_update = time()
 
    def _handle_Leave(self, dict):
