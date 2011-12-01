@@ -68,13 +68,20 @@ function display() {
       }
 		table += '<td>' + duree + '</td>';
 		table += '<td>' + c['State'] + '</td>';
-		table += '<td>' + c['Application'] + ' : ' + c['AppData'] + '</td>';
+      var app='';
+      if (c['Application']!=undefined) {
+         app = c['Application'];
+         if (c['AppData']!=undefined) {
+            app += ' : ' + c['AppData'];
+         }
+      }
+      table += '<td>' + app + '</td>';
 		table += '<td>' + c['Context'] + '</td>';
 		table += '<td>' + c['Priority'] + '</td>';
 		table += '</tr>';
    }
    if (tot_chan) {
-      table = '<table><tr><th>Appelant</th><th>Appelé</th><th>&Eacute;tat</th><th>Durée</th><th>Application</th><th>Contexte</th><th>Prio</th></tr>' + table;
+      table = '<table><tr><th>Appelant</th><th>Appelé</th><th>Durée</th><th>&Eacute;tat</th><th>Application</th><th>Contexte</th><th>Prio</th></tr>' + table;
       table += '<tr>';
       table += '<th>Total :</th>';
       table += '<th colspan="6">' + tot_calls + ' appel' + ((tot_calls>1) ? 's':'');

@@ -103,13 +103,11 @@ class CC_Monitor_ctrl(TGController):
       change = False
       queues = copy.deepcopy(Globals.asterisk.queues)
       members = copy.deepcopy(Globals.asterisk.members)
-      log.debug('BEFORE %s' % queues)
-      log.debug('BEFORE %s' % members)
+      log.debug('Q BEFORE %s' % queues)
+      log.debug('M BEFORE %s' % members)
       for i in xrange(50):
          last_update = float(Globals.asterisk.last_queue_update)
          if last_update > last:
-#            log.debug('NOW %s' % Globals.asterisk.queues)
-#            log.debug('NOW %s' % Globals.asterisk.members)
             if queues != Globals.asterisk.queues or \
                   members != Globals.asterisk.members or last == 0:
                change = True

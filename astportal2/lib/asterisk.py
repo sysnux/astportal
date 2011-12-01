@@ -175,16 +175,18 @@ class Status(object):
       self.queues = {}
       self.members = {}
 #     members data structure: (see also app_queue.c)
-#        Key: interface
-#        {'Name': 'Status': , 'Penalty': , 'Membership': , 
-#        'Location': , 'LastCall': , 'Paused': Bool, 'LastUpdate': time(), 
-#        'Queues': [{'name':, 'CallsTaken':, 'InBegin':, 'InTotal':0},], 
-#        'ConnBegin': time(), # Connection time
-#        # Counters for outgoing calls
-#        'Outgoing': False, 'CallsOut': 0, 'OutBegin': time(), 'OutTotal': 0,
-#        # Counters for incoming calls
-#        'CallsTaken': 0, 'InBegin': time(), 'InTotal': 0,
-#        'Spied': False, 'Recorded': False}
+# 'Girard Jean-Denis': 
+#     {'Status': '1', 'LastUpdate': 1322092618.9852581, 'Outgoing': False, 
+#        'InBegin': 1322092618.9852619, 'ConnBegin': 1322092618.9852581, 'CallsOut': 0, 
+#        'Queues': {
+#              'Groupe 2': {'Penalty': '1', 'InTotal': 0, 'CallsTaken': 0, 
+#                    'InBegin': 1322092627.0398171}, 
+#              'Groupe 1': {'Penalty': '0', 'InTotal': 0, 'CallsTaken': 0, 
+#                    'InBegin': 1322092618.985265}}, 
+#        'Recorded': False, 'Paused': '0', 'LastCall': '0', 'Membership': 'dynamic', 
+#        'Location': 'SIP/mtvF81Tx', 'Spied': False, 
+#        'OutTotal': 0, 'OutBegin': 1322092618.9852591, 
+#        'InTotal': 0}}
 
    def handle_shutdown(self, event, manager):
       log.warning('Received shutdown event')
@@ -371,29 +373,26 @@ Channel: SIP/100-0000001f
       self.queues[q]['Members'].append(m)
 
       if m in self.members: # Known member, update his info
-         if not q in self.members[m]['Queues']:
-            self.members[m]['Queues'].append(q)
-         self.members[m]['Qdata'][q] = {
+         self.members[m]['Queues'][q] = {
                'CallsTaken': int(dict['CallsTaken']),
-               'InBegin': time(), 'InTotal': 0}
+               'InBegin': time(), 'InTotal': 0, 'Penalty': dict['Penalty']}
 
       else: # New member
          self.members[m] = {'Status': dict['Status'],
-            'Penalty': dict['Penalty'],
             'Membership': dict['Membership'], 'Location': dict['Location'],
             'LastCall': dict['LastCall'], 'Paused': dict['Paused'],
-            'LastUpdate': time(), 'Queues': [q,],
+            'LastUpdate': time(),# 'Queues': [q,],
             'ConnBegin': time(), # Connection time
             # Counters for outgoing calls
             'Outgoing': False, 'CallsOut': 0, 'OutBegin': time(), 'OutTotal': 0,
             # Counters for incoming calls
-            'CallsTaken': int(dict['CallsTaken']), 'InBegin': time(), 'InTotal': 0,
+            'InBegin': time(), 'InTotal': 0,
             'Spied': False, 'Recorded': False}
-         if 'Qdata' not in self.members[m].keys():
-            self.members[m]['Qdata'] = {}
-         self.members[m]['Qdata'][q] = {
+         if 'Queues' not in self.members[m].keys():
+            self.members[m]['Queues'] = {}
+         self.members[m]['Queues'][q] = {
                'CallsTaken': int(dict['CallsTaken']),
-               'InBegin': time(), 'InTotal': 0}
+               'InBegin': time(), 'InTotal': 0, 'Penalty': dict['Penalty']}
 
       self.last_queue_update = time()
 
@@ -422,8 +421,7 @@ Channel: SIP/100-0000001f
       elif s in ('6','7'): # AST_DEVICE_RINGING	AST_DEVICE_RINGINUSE
          self.members[m]['Outgoing'] = False
       self.members[m]['Status'] = s
-      self.members[m]['CallsTaken'] = int(dict['CallsTaken'])
-      self.members[m]['Penalty'] = int(dict['Penalty'])
+      self.members[m]['Queues'][dict['Queue']]['CallsTaken'] = int(dict['CallsTaken'])
       self.members[m]['LastCall'] = dict['LastCall']
       self.members[m]['Paused'] = dict['Paused']
       self.members[m]['LastUpdate'] = time()
@@ -475,6 +473,7 @@ Channel: SIP/100-0000001f
 #               display++;
 #               break;
    def _handle_QueueCallerAbandon(self, dict):
+      return # XXX
       log.debug('CallerAbandon %s' % dict)
       pos = -999
       try:
@@ -489,9 +488,14 @@ Channel: SIP/100-0000001f
    def _handle_Leave(self, dict):
       log.debug('Leave %s' % dict)
       self.queues[dict['Queue']]['Calls'] = int(dict['Count'])
-      pos = int(dict['Position'])-1
-      if pos < len(self.queues[dict['Queue']]['Wait']):
+      pos = -999
+      try:
+         pos = int(dict['Position'])-1
          del self.queues[dict['Queue']]['Wait'][pos]
+      except:
+         log.warning('Leave, Position %d does not exist in queue %s?' % (
+            pos, self.queues[dict['Queue']]) )
+
       self.last_queue_update = time()
 #-----------------------------------------------------
 

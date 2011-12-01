@@ -196,13 +196,13 @@ class Stats_ctrl(BaseController):
          # Daily stats
          d = datetime.datetime.strptime(self.stats_type, '%m/%d/%Y')
          if db_engine=='oracle':
-            req = func.trunc(CDR.calldate, 'day') # Oracle
+            req = func.trunc(CDR.calldate, 'J')
          else: # PostgreSql
             req = func.date_trunc('day', CDR.calldate)
          cdrs = DBSession.query(req, func.count(req), func.sum(CDR.billsec))
          if db_engine=='oracle':
             cdrs = cdrs.filter(func.trunc(CDR.calldate, 'month') == \
-               func.trunc(d, 'month')) # Oracle
+               func.trunc(d, 'month'))
          else: # PostgreSql
             cdrs = cdrs.filter(func.date_trunc('month', CDR.calldate) == \
                func.date_trunc('month', d))

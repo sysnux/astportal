@@ -16,9 +16,10 @@
 //<![CDATA[
  
 var previousPoint = null;
+var data_hourly = null;
+var options_hourly = null;
 
 $().ready(function () {
-   $("#tabs").tabs();
    $('#data_grid').setGridWidth($('#calls').width()-10, true);
    $('#hourly_grid').setGridWidth($('#calls').width()-10, true);
    $(window).bind('resize', function() {
@@ -27,6 +28,9 @@ $().ready(function () {
    });
    $("#data_flot").bind("plothover", flothover);
    $("#hourly_flot").bind("plothover", flothover);
+   // $("#tabs").tabs();
+   // Creating tabs here leads to an error when loading hourly_flot, so delay
+   // creation until the end of function load_hourly_complete, see below.
 });
 
 function flothover(event, pos, item) {
@@ -74,11 +78,9 @@ function load_complete(data) {
    labels.push('Durée');
    series[0] = new Array();
    series[1] = new Array();
-   series[2] = new Array();
    for (row in data.rows) {
       series[0].push( [row, data.rows[row]['cell'][0]] );
       series[1].push( [row, parseInt(data.rows[row]['cell'][1])] );
-//      series[2].push( [row, parseInt(data.rows[row]['cell'][2])] );
    }
    var data = new Array();
    var serie = { label: labels[1], data: series[1] };
@@ -98,28 +100,27 @@ function load_hourly_complete(data) {
 
    var labels = new Array();
    var series = new Array();
-
    labels.push('display');
    labels.push('appels');
-//   labels.push('Durée');
+   labels.push('Durée');
    series[0] = new Array();
    series[1] = new Array();
-//   series[2] = new Array();
+   series[2] = new Array();
    for (row in data.rows) {
       series[0].push( [row, data.rows[row]['cell'][0]] );
       series[1].push( [row, parseInt(data.rows[row]['cell'][1])] );
-//      series[2].push( [row, parseInt(data.rows[row]['cell'][2])] );
    }
-   var data = new Array();
+   data_hourly = new Array();
    var serie = { label: labels[1], data: series[1] };
-   data.push(serie);
-   var options = {
+   data_hourly.push(serie);
+   options_hourly = {
       grid: { clickable: true, hoverable: true},
       lines: { show: true },
       points: { show: true },
-      xaxis: { ticks: series[0] }
+      xaxis: { ticks: series[0] },
    };
-   $.plot($('#hourly_flot'), data, options);
+   $.plot($('#hourly_flot'), data_hourly, options_hourly);
+   $("#tabs").tabs();
 }
 
 function daily(m) {

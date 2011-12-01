@@ -26,6 +26,7 @@ tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
 <![CDATA[
 
 var last=0, // last_update
+    time_diff=0, // Time diff beween client and server
     change=true, // Change in list of queues or members, need rebuild list
     first_time=true, error=0, display_tmo,
     add_queue=null,  // List of users for adding members
@@ -56,6 +57,7 @@ function updates_ready(data) {
       members = data.members;
       change = data.change;
       last = data.last;
+      time_diff = last - ((new Date()).getTime()/1000); // Epoch time
       if (first_time) {
          change=true;
          first_time=false;
@@ -68,7 +70,7 @@ function updates_ready(data) {
 
 function list_queues() { // Builds main part of the screen
 
-   var now = (new Date()).getTime()/1000; // Epoch time
+   var now = ((new Date()).getTime()/1000) + time_diff; // Epoch time
    if (change) { 
       // Something has changed (queue or member), need to rebuild the whole screen
       change = false;
@@ -80,11 +82,12 @@ function list_queues() { // Builds main part of the screen
          qt += '<tr class="' + ((j++%2) ? 'even':'odd') + '"><td>' + qm.length + '</td>';
          qt += '<td>' + q + '</td>';
          qt += '<td>' + queues[q]['Wait'].length + '</td>';
-         var waiting = '';
+         var waiting = new Array();
          for (var i=0;  i<queues[q]['Wait'].length; i++) {
-            waiting += (1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]);
+            waiting.push((1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]));
          }
-         qt += '<td id="wait_' + q + '">' + waiting + '</td></tr>';
+         var qid = q.replace(/\W/g,'_');
+         qt += '<td id="wait_' + qid + '">' + waiting.join(', ') + '</td></tr>';
 
          html += '<h2>Groupe ' + q + '</h2>';
          var table = '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
@@ -94,9 +97,9 @@ function list_queues() { // Builds main part of the screen
          var i=1;
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
-            var id = q + '_' + qm[m].replace(/\W/g,'_');
+            var id = qid + '_' + qm[m].replace(/\W/g,'_');
             table += '<tr class="' + ((i%2) ? 'even':'odd') + '"><td>' + i + '</td>';
-            table += '<td>' + qm[m] + ' (' + members[qm[m]]['Penalty'] + ')' + '</td>';
+            table += '<td>' + qm[m] + ' (' + members[qm[m]]['Queues'][q]['Penalty'] + ')' + '</td>';
             //[sclass, sta, dur, nci, tci, nco, tco, lis, rec] = NOT working in chrome !
             var a = member_status(qm[m], now, q);
             table += '<td id="sta_' + id + '"class="' + a[0] + '">' + a[1] + '</td>';
@@ -128,14 +131,15 @@ function list_queues() { // Builds main part of the screen
       // No change, just update variable fields
       for (q in queues) { // For each queue, display name and table
          var qm = queues[q]['Members'];
+         var qid = q.replace(/\W/g,'_');
          var waiting = new Array();
          for (var i=0;  i<queues[q]['Wait'].length; i++) {
             waiting.push((1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]));
          }
-         $('#wait_' + q).html(waiting.join(', '));
+         $('#wait_' + qid).html(waiting.join(', '));
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
-            var id = q + '_' + qm[m].replace(/\W/g,'_');
+            var id = qid + '_' + qm[m].replace(/\W/g,'_');
             var a = member_status(qm[m], now, q);
             $('#sta_' + id).attr('class', a[0]);
             $('#sta_' + id).html(a[1]);
@@ -187,7 +191,7 @@ function member_status(name, now, queue) {
       default: 
          sclass='invalid'; stat='Invalide'; dur=0; break;
    }
-   nci = member['Qdata'][queue]['CallsTaken']; // member['CallsTaken'];
+   nci = member['Queues'][queue]['CallsTaken'];
    tci = min_sec(member['InTotal']);
    nco = member['CallsOut'];
    tco = min_sec(member['OutTotal']);
