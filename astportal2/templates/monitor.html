@@ -76,8 +76,8 @@ function display() {
          }
       }
       table += '<td>' + app + '</td>';
-		table += '<td>' + c['Context'] + '</td>';
-		table += '<td>' + c['Priority'] + '</td>';
+		table += '<td>' + ((c['Context']!=undefined) ? c['Context']:'') + '</td>';
+		table += '<td>' + ((c['Priority']!=undefined) ? c['Priority']:'') + '</td>';
 		table += '</tr>';
    }
    if (tot_chan) {

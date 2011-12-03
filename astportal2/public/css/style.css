@@ -10,8 +10,6 @@ body {
   font: x-small "Lucida Grande", "Lucida Sans Unicode", geneva, verdana, sans-serif;
   margin: 2px;
   padding: 0;
-/*  border: 1px solid red; */
-/*  border-right: 1px solid red; */
 }
 
 td, th {padding:3px;border:none;}
@@ -23,10 +21,6 @@ tr.even td {background-color:#fff;}
   height: 36px;
   padding: 10px 10px 10px 10px;
   background: url('../images/header.png') no-repeat;
-/*  position: fixed;
-  width: 100%;
-  z-index: 1000;
-  margin: 2px 2px 0px 2px; */
 }
 
 a.link, a, a.active {
@@ -41,20 +35,12 @@ a.link, a, a.active {
 .menu {
  left: 10px;
  padding-bottom: 0.5ex;
- /* width:  150px; */
  border: 1px solid #aaa;
- /* position: absolute; */
- position: fixed;
- float: left;
+ position: absolute;
  margin-top: 15px;
  margin-left: 0px;
 }
 
-/*
-[class="menu"]{
-        position: fixed;
-}
-*/
 .jd_menu {
    padding-left: 0px;
    width:  120px;
@@ -78,7 +64,6 @@ a.link, a, a.active {
    padding-left: 10px;
 }
 
-/* margin: top right bottom left */
 #main_content {
   color: black;
   font-size: 127%;
@@ -89,26 +74,7 @@ a.link, a, a.active {
   border-left: 1px solid #aaa;
   z-index: 0;
 }
-/*
-#sidebar {
-  border: 3px solid #aaa;
-  background-color: #eee;
-  margin: 0.5em;
-  padding: 1em;
-  float: right;
-  width: 200px;
-  font-size: 88%;
-}
 
-#sidebar h2 {
-  margin-top: 0;
-}
-
-#sidebar ul {
-  margin-left: 1.5em;
-  padding-left: 0;
-}
-*/
 h1,h2,h3,h4,h5,h6,#getting_started_steps {
   font-family: "Century Schoolbook L", Georgia, serif;
   font-weight: bold;
@@ -147,9 +113,6 @@ h2 {
   padding: 10px;
   font-size: 90%;
   text-align: center;
-/*  margin: 20px 20px 20px 20px; */
-  /* width: 757px;
-  margin: 0 auto 1em auto; */
 }
 
 .code {
