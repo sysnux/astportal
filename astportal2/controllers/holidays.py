@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Holidays CReate / Update RESTful controller
 
-from tg import expose, flash, redirect, tmpl_context, validate, config
+from tg import expose, flash, redirect, tmpl_context, validate, config, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -89,7 +89,7 @@ class Holiday_form(TableForm):
 class New_holiday_form(Holiday_form):
    ''' Holiday form
    '''
-   action = 'create'
+   action = '/holidays/create'
 new_holiday_form = New_holiday_form('new_holiday_form')
 
 
@@ -151,11 +151,21 @@ class Holiday_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='date', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='date', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -229,7 +239,7 @@ class Holiday_ctrl(RestController):
       h.month = kw['month']
       update_extensions()
       flash(u'Jour férié modifié')
-      redirect('/holidays/')
+      redirect('/holidays/%d/edit' % holiday_id)
 
    @expose()
    def delete(self, id, **kw):

@@ -2,7 +2,7 @@
 # Record CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response, config
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
 from tg.controllers import RestController, CUSTOM_CONTENT_TYPE
 from tgext.menu import sidebar
 
@@ -88,8 +88,18 @@ class Record_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='user_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)

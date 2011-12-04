@@ -3,7 +3,7 @@
 # Pickups cannot be deleted
 # Asterisk supports 64 pickup groups (0-63)
 
-from tg import expose, flash, redirect, tmpl_context, validate, config
+from tg import expose, flash, redirect, tmpl_context, validate, config, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -40,7 +40,7 @@ class Pickup_form(TableForm):
 class New_pickup_form(Pickup_form):
    ''' Pickup form
    '''
-   action = 'create'
+   action = '/pickup/create'
 new_pickup_form = New_pickup_form('new_pickup_form')
 
 
@@ -96,11 +96,21 @@ class Pickup_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='user_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -183,5 +193,5 @@ class Pickup_ctrl(RestController):
       p.comment = kw['comment']
       flash(u'Groupe d\'interception modifié')
 
-      redirect('/pickups/')
+      redirect('/pickups/%d/edit' % pickup_id)
 

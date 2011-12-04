@@ -2,7 +2,7 @@
 # Application CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -100,7 +100,7 @@ admin_fields.insert(2, TextField('dnis', not_empty=False, #validator=None,
 admin_new_application_form = TableForm(
    fields = admin_fields,
    submit_text = u'Valider...',
-   action = 'create',
+   action = '/application/create',
    hover_help = True
    )
 
@@ -112,7 +112,7 @@ user_fields.insert(0, TextField('name', validator=NotEmpty,
 new_application_form = TableForm(
    fields = user_fields,
    submit_text = u'Valider...',
-   action = 'create',
+   action = '/application/create',
    hover_help = True
    )
 
@@ -224,8 +224,16 @@ class Application_ctrl(RestController):
       Fetch data from DB, return the list of rows + total + current page
       '''
 
-      log.debug('fetch')
-      apps = DBSession.query(Application)
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
+
       try:
          page = int(page)
          rows = int(rows)
@@ -235,6 +243,7 @@ class Application_ctrl(RestController):
          page = 1
          rows = 25
 
+      apps = DBSession.query(Application)
       total = apps.count()
       column = getattr(Application, sidx)
       apps = apps.order_by(getattr(column,sord)()).offset(offset).limit(rows)
@@ -346,8 +355,8 @@ class Application_ctrl(RestController):
       if result==0:
          flash(u'Application modifiée')
       else:
-         flash(u'Application modifiée',error)
-      redirect('/applications/')
+         flash(u'Modification application', error)
+      redirect('/applications/%s/edit' % kw['app_id'])
 
 
    @expose()

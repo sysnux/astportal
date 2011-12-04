@@ -2,7 +2,7 @@
 # Department CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -47,7 +47,7 @@ class New_contact_form(TableForm):
             label_text=u'Contact privé', help_text=u'Cochez si privé'),
          ]
    submit_text = u'Valider...'
-   action = 'create'
+   action = '/phonebook/create'
    hover_help = True
 new_contact_form = New_contact_form('new_contact_form')
 
@@ -88,8 +88,8 @@ def row(pb):
       action =  u'<a href="'+ str(pb.pb_id) + u'/edit" title="Modifier">'
       action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
       action += u'&nbsp;&nbsp;&nbsp;'
-      action += u'<a href="#" onclick="del(\''+ str(pb.pb_id) + \
-         u'\',\'Suppression du contact ' + pb.firstname + ' ' + pb.lastname + u'\')" title="Supprimer">'
+      action += u'<a href="#" onclick="del(\'%d\',\'Suppression du contact %s %s\')" title="Supprimer">' % \
+         (pb.pb_id, pb.firstname.replace("'","\\'"), pb.lastname.replace("'","\\'"))
       action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
       company = pb.company
       private = u'Oui' if pb.private else u'Non'
@@ -162,11 +162,21 @@ class Phonebook_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='lastname', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='lastname', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -283,7 +293,7 @@ class Phonebook_ctrl(RestController):
       pb.phone3 = phone3
       pb.private = private
       flash(u'Contact modifié')
-      redirect('/phonebook/')
+      redirect('/phonebook/%d/edit' % pb_id)
 
 
    @expose()

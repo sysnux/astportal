@@ -2,7 +2,7 @@
 # Group CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate
+from tg import expose, flash, redirect, tmpl_context, validate, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -32,7 +32,7 @@ class New_group_form(TableForm):
             label_text=u'Descriptif', help_text=u'Entrez un descriptif du groupe'),
          ]
    submit_text = u'Valider...'
-   action = 'create'
+   action = '/groups/create'
    hover_help = True
 new_group_form = New_group_form('new_group_form')
 
@@ -106,11 +106,21 @@ class Group_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=25, sidx='group_name', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='group_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -208,7 +218,7 @@ class Group_ctrl(RestController):
       g = DBSession.query(Group).get(group_id)
       g.display_name = display_name
       flash(u'Groupe modifié')
-      redirect('/groups/')
+      redirect('/groups/%d/edit' % group_id)
 
 
    @expose()

@@ -8,8 +8,9 @@ from tw.jqgrid import JqGrid, jqgrid_css, jqgrid_search_css
 class MyJqGrid(JqGrid):
    css = [uilightness_css, jqgrid_css, jqgrid_search_css]
    caption = u'Données'
-   rowNum = 25
-   rowList = [25,50,100, 500]
+   rowNum = -1
+   page = 1
+   rowList = [25, 50, 100, 500]
    sortorder = 'asc'
    shrinkToFit = True
    altRows = True

@@ -2,7 +2,7 @@
 # Voicemail controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response, config
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
 from tg.controllers import CUSTOM_CONTENT_TYPE
 from tgext.menu import sidebar
 
@@ -131,12 +131,22 @@ class Voicemail_ctrl(BaseController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='mb', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='mb', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, 
           folder='INBOX', **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)

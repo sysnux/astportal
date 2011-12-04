@@ -2,7 +2,7 @@
 # Queue CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, config
+from tg import expose, flash, redirect, tmpl_context, validate, config, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -79,7 +79,7 @@ class New_queue_form(TableForm):
    fields.insert(0, TextField('name', validator=NotEmpty,
       label_text=u'Nom', help_text=u'Entrez le nom du groupe d\'appel'))
    submit_text = u'Valider...'
-   action = 'create'
+   action = '/queues/create'
    hover_help = True
 new_queue_form = New_queue_form('new_queue_form')
 
@@ -141,11 +141,21 @@ class Queue_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='user_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -249,7 +259,7 @@ class Queue_ctrl(RestController):
       asterisk_update_queue(q)
       Globals.manager.send_action({'Action': 'QueueStatus'})
 
-      redirect('/queues/')
+      redirect('/queues/%d/edit' % queue_id)
 
 
    @expose()

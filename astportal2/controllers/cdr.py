@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response, config
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
 from tg.controllers import CUSTOM_CONTENT_TYPE, WSGIAppController
 from tgext.menu import sidebar
 import paste.fileapp
@@ -12,12 +12,13 @@ from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.base import BaseController
 
 import logging
-log = logging.getLogger("astportal.controllers.cdr")
+log = logging.getLogger(__name__)
 
 from tw.api import WidgetsList
 from tw.api import js_callback
 from tw.forms import TableForm, HiddenField, Label, CalendarDatePicker, SingleSelectField, TextField, TextArea
 from tw.forms.validators import Int, DateConverter, TimeConverter
+from tw.jquery.ui import ui_tabs_js
 
 import sqlalchemy
 
@@ -223,13 +224,15 @@ class Display_CDR(BaseController):
       tmpl_context.form = search_form
       tmpl_context.grid = cdr_grid
       values = {'in_out': in_out, 'date': date, 'number': number, 'hour': hour}
-      from tw.jquery.ui import ui_tabs_js
+
+      # Use tabs
       ui_tabs_js.inject()
+
       return dict( title=u'Journal des appels', debug='', values=values)
 
 
    @expose('json')
-   def fetch(self, page=1, rows=25, sidx='calldate', sord='desc', _search='false',
+   def fetch(self, rows, page=1, sidx='calldate', sord='desc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Called by Grid JavaScript component
       '''
@@ -238,14 +241,22 @@ class Display_CDR(BaseController):
          flash(u'Accès interdit')
          redirect('/')
 
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
+
       try:
          page = int(page)
-         rows = int(rows)
          offset = (page-1) * rows
       except:
          offset = 0
          page = 1
-         rows = 25
 
       global filtered_cdrs
       cdrs = filtered_cdrs

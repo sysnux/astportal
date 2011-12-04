@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, request, response, validate
+from tg import expose, flash, redirect, tmpl_context, request, response, validate, session
 from tgext.menu import sidebar
 from astportal2.model import DBSession, CDR, Department, Phone, User
 from tg.decorators import allow_only
@@ -183,6 +183,16 @@ def fetch(report_type, page, rows):
    if not in_any_group('admin', 'DG', 'Compta', 'Chefs', 'Utilisateurs'):
       flash(u'Accès interdit')
       redirect('/')
+
+   # Try and use grid preference
+   grid_rows = session.get('grid_rows', None)
+   if rows=='-1': # Default value
+      rows = grid_rows if grid_rows is not None else 25
+
+   # Save grid preference
+   session['grid_rows'] = rows
+   session.save()
+   rows = int(rows)
 
    try:
       page = int(page)

@@ -2,7 +2,7 @@
 # Department CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate
+from tg import expose, flash, redirect, tmpl_context, validate, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -31,7 +31,7 @@ class New_dtpm_form(TableForm):
             label_text=u'Nom complet', help_text=u'Entrez le nom complet du service'),
          ]
    submit_text = u'Valider...'
-   action = 'create'
+   action = '/department/create'
    hover_help = True
 new_dptm_form = New_dtpm_form('new_dptm_form')
 
@@ -102,11 +102,21 @@ class Dptm_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='user_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -203,7 +213,7 @@ class Dptm_ctrl(RestController):
       d = DBSession.query(Department).get(dptm_id)
       d.comment = comment
       flash(u'Service modifié')
-      redirect('/departments/')
+      redirect('/departments/%d/edit' % dptm_id)
 
 
    @expose()

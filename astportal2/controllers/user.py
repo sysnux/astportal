@@ -2,7 +2,7 @@
 # User CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, require, config
+from tg import expose, flash, redirect, tmpl_context, validate, request, require, config, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -80,7 +80,7 @@ new_user_form = TableForm(
    ),
    fields = admin_form_fields,
    submit_text = u'Valider...',
-   action = 'create',
+   action = '/user/create',
    hover_help = True
 )
 
@@ -191,11 +191,21 @@ class User_ctrl(RestController):
    @expose('json')
    @require(in_group('admin',
       msg=u'Seul un membre du groupe administrateur peut afficher la liste des utilisateurs'))
-   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+   def fetch(self, rows, page, sidx='user_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -344,8 +354,9 @@ class User_ctrl(RestController):
       if not in_group('admin') and request.identity['user'].user_id != kw['user_id']:
          flash(u'Accès interdit !', 'error')
          redirect('/')
-      log.info('update %d' % kw['user_id'])
-      u = DBSession.query(User).get(kw['user_id'])
+      uid = int(kw['user_id'])
+      log.info('update %d' % uid)
+      u = DBSession.query(User).get(uid)
       u.firstname = kw['firstname']
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
@@ -378,7 +389,7 @@ class User_ctrl(RestController):
          u.groups = DBSession.query(Group). \
                filter(Group.group_id.in_(kw['groups'])).all()
       flash(u'Utilisateur modifié')
-      redirect('/users/')
+      redirect('/users/%d/edit' % uid)
 
 
    @expose()

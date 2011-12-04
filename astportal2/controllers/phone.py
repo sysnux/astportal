@@ -2,7 +2,7 @@
 # Phone CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, require, config
+from tg import expose, flash, redirect, tmpl_context, validate, require, config, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -127,7 +127,7 @@ class New_phone_form(AjaxForm):
    hover_help = True
    beforeSubmit = js_callback('wait2')
    success = js_callback('created')
-   action = 'create'
+   action = '/phone/create'
    dataType = 'JSON'
    target = None
    clearForm = False
@@ -303,11 +303,21 @@ class Phone_ctrl(RestController):
    @expose('json')
    @require(in_group('admin',
       msg=u'Seul un membre du groupe administrateur peut afficher la liste des téléphones'))
-   def fetch(self, page=1, rows=10, sidx='user_name', sord='asc', _search='false',
+   def fetch(self, rows, page, sidx='user_name', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
@@ -628,7 +638,7 @@ class Phone_ctrl(RestController):
       asterisk_update_phone(p, old_exten, old_dnis)
 
       flash(u'Téléphone modifié')
-      redirect('/phones/')
+      redirect('/phones/%d/edit' % phone_id)
 
 
    @expose()

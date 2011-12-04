@@ -2,7 +2,7 @@
 # Forward controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, require
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, require, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -86,7 +86,7 @@ class Forward_form(TableForm):
    name = 'forward_form'
    fields = common_fields
    submit_text = u'Valider...'
-   action = 'create_forward'
+   action = '/forward/create_forward'
    hover_help = True
 new_forward_form = Forward_form('new_forward_form')
 
@@ -96,7 +96,7 @@ new_forward_external_form = Forward_external_form('new_forward_external_form')
 
 class Forward_CDS_form(Forward_form):
    fields = cds_fields
-   action = 'create_admin'
+   action = '/forward/create_admin'
 new_forward_cds_form = Forward_CDS_form('new_forward_cds_form')
 
 
@@ -142,11 +142,21 @@ class Forward_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page=1, rows=10, sidx='mb', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='mb', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data
       '''
+
+      # Try and use grid preference
+      grid_rows = session.get('grid_rows', None)
+      if rows=='-1': # Default value
+         rows = grid_rows if grid_rows is not None else 25
+
+      # Save grid preference
+      session['grid_rows'] = rows
+      session.save()
+      rows = int(rows)
 
       try:
          page = int(page)
