@@ -25,6 +25,8 @@ import sqlalchemy
 from genshi import Markup
 from os import path
 
+dir_monitor = config.get('directory.monitor')
+
 import re
 re_sip = re.compile('^SIP/poste\d-.*')
 prefix_src = config.get('prefix.src')
@@ -34,7 +36,7 @@ def rec_link(row):
    if row.disposition != 'ANSWERED':
       return ''
 
-   dir = '/var/spool/asterisk/monitor/' + row.calldate.strftime('%Y/%m/%d/')
+   dir = dir_monitor + row.calldate.strftime('%Y/%m/%d/')
    ts = row.calldate.strftime('-%Y%m%d-%H%M%S')
 
    if re_sip.search(row.channel):

@@ -17,7 +17,7 @@ from os import unlink, rename, chdir, listdir, stat
 import logging
 log = logging.getLogger(__name__)
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import locale
 locale.setlocale(locale.LC_ALL, 'fr_FR.UTF-8')
 
@@ -26,7 +26,9 @@ from astportal2.lib.base import BaseController
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
-dir_vm = '/var/spool/asterisk/voicemail/astportal'
+dir_vm = config.get('directory.voicemail')
+utc_delta = timedelta(float(config.get('server.utc_diff')))
+
 folders = dict(INBOX = u'Nouveaux',
       Old = u'Anciens',
       Work = u'Travail',
@@ -181,7 +183,7 @@ class Voicemail_ctrl(BaseController):
                if k=='origdate':
                   # Convert to date object
                   vm[k] = datetime(int(v[-6:]), month[v[4:7]], int(v[8:10]),
-                     int(v[11:13]), int(v[14:16]), int(v[17:19]))
+                     int(v[11:13]), int(v[14:16]), int(v[17:19])) + utc_delta
                else:
                   vm[k] = v[:-1]
             vm['id'] = int(f[-8:-4])

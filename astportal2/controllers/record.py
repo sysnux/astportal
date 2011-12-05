@@ -23,8 +23,7 @@ from astportal2.model import DBSession, Record, User, Queue
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
-dir_monitor = '/var/spool/asterisk/monitor'
-
+dir_monitor = config.get('directory.monitor')
 
 def row(r, users):
    '''Displays a formatted row of the record list

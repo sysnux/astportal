@@ -19,11 +19,13 @@ from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
 import unicodedata
+from shutil import rmtree
+
 import logging
 log = logging.getLogger(__name__)
 
-
-directory_asterisk = config.get('directory.asterisk')
+dir_ast = config.get('directory.asterisk')
+dir_vm = config.get('directory.voicemail')
 
 # Common fields for user form, used by admin or not
 common_fields = [
@@ -363,7 +365,6 @@ class User_ctrl(RestController):
       u.password = kw['pwd1'] 
 
       # Update voicemail
-      import unicodedata
       cidname = unicodedata.normalize('NFKD', u.display_name). \
             encode('ascii','ignore')
       if u.email_address:
@@ -374,10 +375,11 @@ class User_ctrl(RestController):
                ('Append', 'astportal', p.exten, vm),
             ]
             Globals.manager.update_config(
-               directory_asterisk  + 'voicemail.conf', 
+               dir_ast  + 'voicemail.conf', 
                None, [('Delete', 'astportal', p.exten)])
+            rmtree('%s/%s' % (dir_vm, p.exten), True)
             res = Globals.manager.update_config(
-               directory_asterisk  + 'voicemail.conf', 
+               dir_ast  + 'voicemail.conf', 
                'app_voicemail_plain', actions)
             log.debug('Update voicemail.conf returns %s' % res)
 
@@ -398,8 +400,25 @@ class User_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete user from DB
       '''
+
+      u = DBSession.query(User).get(kw['_id'])
+
+      # Delete voicemail
+      cidname = unicodedata.normalize('NFKD', u.display_name). \
+            encode('ascii','ignore')
+      if u.email_address:
+         for p in u.phone:
+            res = Globals.manager.update_config(
+               dir_ast  + 'voicemail.conf', 
+               None, [('Delete', 'astportal', p.exten)])
+            rmtree('%s/%s' % (dir_vm, p.exten), True)
+            log.debug('Delete voicemail.conf returns %s' % res)
+            Globals.manager.send_action({'Action': 'Command',
+               'command': 'voicemail reload'})
+
+      # Then delete user
       log.info('delete ' + kw['_id'])
-      DBSession.delete(DBSession.query(User).get(kw['_id']))
+      DBSession.delete(u)
       flash(u'Utilisateur supprimé', 'notice')
       redirect('/users/')
 

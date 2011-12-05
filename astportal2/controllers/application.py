@@ -2,7 +2,7 @@
 # Application CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response, session
+from tg import expose, flash, redirect, tmpl_context, validate, request, response, session, config
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -25,6 +25,7 @@ from os import rename, system
 import logging
 log = logging.getLogger(__name__)
 
+dir_monitor = config.get('directory.monitor')
 
 def play_or_tts(typ, val, brk=None):
    ''' Choose Playback / Background or RealSpeak 
@@ -759,7 +760,7 @@ def generate_dialplan():
 
       elif action==6: # Play message, then record
          (msg, dur, bip) = parameters.split('::')
-         file = '/var/spool/asterisk/monitor/rec-${UNIQUEID}.wav'
+         file = dir_monitor + '/rec-${UNIQUEID}.wav'
          (a, p) = play_or_tts(msg[0], int(msg[2:]))
          svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, a, p))
          prio += 1
