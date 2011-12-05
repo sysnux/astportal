@@ -318,7 +318,7 @@ class Stats_ctrl(BaseController):
          # Daily stats
          d = datetime.datetime.strptime(self.stats_type, '%m/%d/%Y')
          if db_engine=='oracle':
-            req = func.trunc(CDR.calldate, 'day')
+            req = func.trunc(CDR.calldate, 'J')
          else: # PostgreSql
             req = func.date_trunc('day', CDR.calldate)
 
