@@ -378,6 +378,7 @@ class User_ctrl(RestController):
                dir_ast  + 'voicemail.conf', 
                None, [('Delete', 'astportal', p.exten)])
             rmtree('%s/%s' % (dir_vm, p.exten), True)
+            log.info('Delete voicemail directory %s/%s' % (dir_vm, p.exten))
             res = Globals.manager.update_config(
                dir_ast  + 'voicemail.conf', 
                'app_voicemail_plain', actions)
@@ -411,8 +412,9 @@ class User_ctrl(RestController):
             res = Globals.manager.update_config(
                dir_ast  + 'voicemail.conf', 
                None, [('Delete', 'astportal', p.exten)])
-            rmtree('%s/%s' % (dir_vm, p.exten), True)
             log.debug('Delete voicemail.conf returns %s' % res)
+            rmtree('%s/%s' % (dir_vm, p.exten), True)
+            log.info('Delete voicemail directory %s/%s' % (dir_vm, p.exten))
             Globals.manager.send_action({'Action': 'Command',
                'command': 'voicemail reload'})
 

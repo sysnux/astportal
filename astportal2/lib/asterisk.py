@@ -6,7 +6,7 @@ import unicodedata
 import logging
 log = logging.getLogger(__name__)
 
-from astportal2.model import DBSession, Phone, User
+from astportal2.model import DBSession, Phone, User, Sound
 from tg import config
 directory_asterisk = config.get('directory.asterisk')
 default_dnis = config.get('default_dnis')
@@ -141,12 +141,8 @@ def asterisk_update_queue(q):
          directory_asterisk  + 'queues.conf', None, [('DelCat', q.name)])
    log.debug('Delete queue "%s" returns %s' % (q.name, res))
 
-   # Create queue
-   res = Globals.manager.update_config(
-         directory_asterisk  + 'queues.conf', None, [
+   actions = [
             ('NewCat', q.name),
-            ('Append', q.name, 'musicclass', q.music_id),
-            ('Append', q.name, 'announce', q.announce_id),
             ('Append', q.name, 'strategy', q.strategy),
             ('Append', q.name, 'wrapuptime', q.wrapuptime),
             ('Append', q.name, 'announce-frequency', q.announce_frequency),
@@ -154,8 +150,23 @@ def asterisk_update_queue(q):
             ('Append', q.name, 'announce-holdtime', q.announce_holdtime),
             ('Append', q.name, 'announce-position', q.announce_position),
             ('Append', q.name, 'ringinuse', 'no'),
-            ]
-         )
+         ]
+
+   try:
+      actions.append(('Append', q.name, 'announce',
+         'astportal/' + DBSession.query(Sound.name).get(q.announce_id)[0]))
+   except:
+      pass
+
+   try:
+      actions.append(('Append', q.name, 'musicclass',
+         'astportal/' + DBSession.query(Sound.name).get(q.music_id)[0]))
+   except:
+      pass
+
+   # Create queue
+   res = Globals.manager.update_config(
+         directory_asterisk  + 'queues.conf', None, actions)
    log.debug('Create queue "%s" returns %s' % (q.name, res))
 
    # Allways reload queues

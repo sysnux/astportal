@@ -25,12 +25,12 @@ log = logging.getLogger(__name__)
 class Sounds_list(SingleSelectField):
    sound_type = 0
    def update_params(self,d):
-      options = []
+      options = [(-1, '- - -')]
       for s in DBSession.query(Sound).filter(Sound.type==self.sound_type).order_by(Sound.name):
          c = s.name
          if s.comment is not None:
-            c += u' : ' + s.comment if len(s.comment)<40 \
-               else s.comment[:40] + '...'
+            c += u' : ' + (s.comment if len(s.comment)<40 \
+               else s.comment[:40] + '...')
          options.append((s.sound_id, c))
       d['options'] = options
       SingleSelectField.update_params(self, d)
@@ -245,8 +245,8 @@ class Queue_ctrl(RestController):
       log.info('update %d' % queue_id)
       q = DBSession.query(Queue).get(queue_id)
       q.comment = kw['comment']
-      q.music_id = int(kw['music'])
-      q.announce_id = int(kw['announce'])
+      q.music_id = int(kw['music']) if kw['music']!='-1' else None
+      q.announce_id = int(kw['announce']) if kw['announce']!='-1' else None
       q.strategy = kw['strategy']
       q.wrapuptime = int(kw['wrapuptime'])
       q.announce_frequency = int(kw['announce_frequency'])
