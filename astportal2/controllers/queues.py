@@ -16,11 +16,12 @@ from genshi import Markup
 
 from astportal2.model import DBSession, Queue, Sound, Group
 from astportal2.lib.myjqgrid import MyJqGrid
-from astportal2.lib.asterisk import asterisk_update_queue
+from astportal2.lib.asterisk import asterisk_update_queue, asterisk_string, asterisk_shell
 from astportal2.lib.app_globals import Globals
 
 import logging
 log = logging.getLogger(__name__)
+dir_asterisk = config.get('directory.asterisk')
 
 class Sounds_list(SingleSelectField):
    sound_type = 0
@@ -190,8 +191,12 @@ class Queue_ctrl(RestController):
       q = Queue()
       q.name = kw['name']
       q.comment = kw['comment']
-      q.music_id = int(kw['music'])
-      q.announce_id = int(kw['announce'])
+      id = int(kw['music'])
+      if id!=-1:
+         q.music_id = id
+      id = int(kw['announce'])
+      if id!=-1:
+         q.announce_id = id
       q.strategy = kw['strategy']
       q.wrapuptime = int(kw['wrapuptime'])
       q.announce_frequency = int(kw['announce_frequency'])
@@ -214,7 +219,7 @@ class Queue_ctrl(RestController):
 
       # Create Asterisk queue
       asterisk_update_queue(q)
-      
+ 
       # Add to list of queues
       Globals.asterisk.queues[q.name] = {}
       Globals.manager.send_action({'Action': 'QueueStatus'})
@@ -277,15 +282,22 @@ class Queue_ctrl(RestController):
          log.info(u'delete group "%s"' % g)
          DBSession.delete(g)
 
+      # Remove MOH dir
+      moh_class = asterisk_string(q.name, no_space=True)
+      moh_dir = '/var/lib/asterisk/moh/astportal/%s' % moh_class
+      asterisk_shell('rm -rf "%s"' % moh_dir)
+      res = Globals.manager.update_config(
+         dir_asterisk  + 'musiconhold.conf', None, [('DelCat', moh_class)])
+
       # Delete Asterisk queue
       res = Globals.manager.update_config(
-         config.get('directory.asterisk') + 'queues.conf', 
-         None, [('DelCat', q.name)])
-      log.debug('Delete queue "%s" returns %s' % (q.name, res))
+         dir_asterisk + 'queues.conf', 
+         None, [('DelCat', moh_class)])
+      log.debug('Delete queue "%s" returns %s' % (moh_class, res))
       Globals.manager.send_action({'Action': 'QueueReload'})
       if q.name in Globals.asterisk.queues.keys():
          # Delete from list of queues
-         del(Globals.asterisk.queues[q.name])
+         del(Globals.asterisk.queues[moh_class])
       Globals.manager.send_action({'Action': 'QueueStatus'})
 
       flash(u'Groupe d\'appels supprimé', 'notice')

@@ -6,10 +6,45 @@ import unicodedata
 import logging
 log = logging.getLogger(__name__)
 
+from time import sleep
+from os.path import exists
+from unicodedata import normalize
+from re import sub as re_sub
 from astportal2.model import DBSession, Phone, User, Sound
 from tg import config
 directory_asterisk = config.get('directory.asterisk')
 default_dnis = config.get('default_dnis')
+utils_dir = config.get('directory.utils')
+
+
+def asterisk_string(u, no_space=False):
+   '''Convert arbitrary unicode string to a string acceptable by Asterisk
+
+   Parameters:
+      u: unicode string
+      no_space: 
+   '''
+   u = normalize('NFKD', u).encode('ascii','ignore')
+   if no_space:
+      u = re_sub(r'\W', '_', u)
+   return u
+
+def asterisk_shell(cmd):
+   '''Execute a shell command through Asterisk manager
+
+   Need a special context in Asterisk dialplan:
+[shell_command]
+exten => s,1,NoOp(Command)
+exten => s,n,Answer()
+   '''
+   res = Globals.manager.originate(
+      'Local/s@shell_command', # Channel
+      application = 'System',
+      data = cmd
+   )
+   log.info('System command <%s>, returns <%s>' % (cmd, res))
+   return res
+
 
 def asterisk_update_phone(p, old_exten=None, old_dnis=None):
    '''Update Asterisk configuration files
@@ -136,41 +171,60 @@ def asterisk_update_queue(q):
    '''
 
 
-   # Always delete old queue
+   # Always delete old queue and MOH class
+   moh_class = asterisk_string(q.name, no_space=True)
+   moh_dir = '/var/lib/asterisk/moh/astportal/%s' % moh_class
    res = Globals.manager.update_config(
-         directory_asterisk  + 'queues.conf', None, [('DelCat', q.name)])
-   log.debug('Delete queue "%s" returns %s' % (q.name, res))
+         directory_asterisk  + 'queues.conf', None, [('DelCat', moh_class)])
+   log.debug('Delete queue "%s" returns %s' % (moh_class, res))
+   asterisk_shell('rm -rf "%s"' % moh_dir)
+   res = Globals.manager.update_config(
+      directory_asterisk  + 'musiconhold.conf', None, [('DelCat', moh_class)])
+   log.debug('Delete queue MOH class "%s" returns %s' % (moh_class, res))
 
    actions = [
-            ('NewCat', q.name),
-            ('Append', q.name, 'strategy', q.strategy),
-            ('Append', q.name, 'wrapuptime', q.wrapuptime),
-            ('Append', q.name, 'announce-frequency', q.announce_frequency),
-            ('Append', q.name, 'min-announce-frequency', q.min_announce_frequency),
-            ('Append', q.name, 'announce-holdtime', q.announce_holdtime),
-            ('Append', q.name, 'announce-position', q.announce_position),
-            ('Append', q.name, 'ringinuse', 'no'),
+            ('NewCat', moh_class),
+            ('Append', moh_class, 'strategy', q.strategy),
+            ('Append', moh_class, 'wrapuptime', q.wrapuptime),
+            ('Append', moh_class, 'announce-frequency', q.announce_frequency),
+            ('Append', moh_class, 'min-announce-frequency', q.min_announce_frequency),
+            ('Append', moh_class, 'announce-holdtime', q.announce_holdtime),
+            ('Append', moh_class, 'announce-position', q.announce_position),
+            ('Append', moh_class, 'ringinuse', 'no'),
          ]
 
-   try:
-      actions.append(('Append', q.name, 'announce',
-         'astportal/' + DBSession.query(Sound.name).get(q.announce_id)[0]))
-   except:
-      pass
+   if q.announce_id is not None:
+      actions.append(('Append', moh_class, 'announce',
+         'astportal/' + DBSession.query(Sound).get(q.announce_id).name))
 
-   try:
-      actions.append(('Append', q.name, 'musicclass',
-         'astportal/' + DBSession.query(Sound.name).get(q.music_id)[0]))
-   except:
-      pass
+   if q.music_id is not None:
+      # Queue music on hold is actually a music class, need to create it
+      log.debug('Queue music_id <%d>' % q.music_id)
+      music = DBSession.query(Sound).get(q.music_id).name
+      src_dir = '/var/lib/asterisk/moh/astportal'
+      asterisk_shell('%s/queue_moh_create.sh "%s" "%s" "%s"' % (
+         utils_dir, moh_dir, src_dir, music))
+      sleep(2)
+      actions.append(('Append', moh_class, 'musicclass', moh_class))
+      # Create moh class
+      res = Globals.manager.update_config(
+         directory_asterisk  + 'musiconhold.conf', None, [
+         ('NewCat', moh_class),
+         ('Append', moh_class, 'mode', 'files'),
+         ('Append', moh_class, 'directory', moh_dir),
+         ])
+      log.debug('Create moh class "%s" returns %s' % (moh_class, res))
 
    # Create queue
    res = Globals.manager.update_config(
          directory_asterisk  + 'queues.conf', None, actions)
+   log.debug('Create queue "%s", actions "%s"' % (q.name, actions))
    log.debug('Create queue "%s" returns %s' % (q.name, res))
 
    # Allways reload queues
    Globals.manager.send_action({'Action': 'QueueReload'})
+   Globals.manager.send_action({'Action': 'Command',
+         'command': 'moh reload'})
 
 
 class Status(object):
@@ -213,11 +267,12 @@ class Status(object):
          return False
 
       e = event.headers['Event']
-      log.debug('Received event type "%s"' % e)
+#      log.debug('Received event type "%s"' % e)
 #      log.debug(event.message)
 #      log.debug(event.data)
       if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
-            'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete' ):
+            'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
+            'DTMF', 'RTCPReceived', 'RTCPSent', 'VarSet' ):
          return
       if e=='Newchannel':
          self._handle_Newchannel(event.headers)
