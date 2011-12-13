@@ -82,7 +82,7 @@ new_user_form = TableForm(
    ),
    fields = admin_form_fields,
    submit_text = u'Valider...',
-   action = '/user/create',
+   action = '/users/create',
    hover_help = True
 )
 
@@ -424,4 +424,15 @@ class User_ctrl(RestController):
       flash(u'Utilisateur supprimé', 'notice')
       redirect('/users/')
 
+
+   @expose('json')
+   def set_prefs(self, menu=None):
+
+      log.debug('menu -> %s' % menu)
+      if menu is not None:
+         grid_rows = session.get('grid_rows', None)
+         session['menu'] = menu
+         session.save()
+
+      return dict(status='ok')
 

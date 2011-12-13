@@ -51,6 +51,10 @@ base_config.sa_auth.group_class = model.Group
 # what is the class you want to use to search for permissions in the database
 base_config.sa_auth.permission_class = model.Permission
 
+# Authentification expiration: expires after 600 sec of inactivity;
+# cookie is resent if request older than 10 sec
+base_config.sa_auth.cookie_timeout = 600
+base_config.sa_auth.cookie_reissue_time = 10
 
 # override this if you would like to provide a different who plugin for
 # managing login and logout of your application

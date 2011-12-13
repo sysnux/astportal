@@ -396,7 +396,7 @@ class Phonebook_ctrl(RestController):
       '''
       if len(request.identity['user'].phone)<1:
          return dict(status=2)
-      chan = request.identity['user'].phone[0].exten
+      chan = request.identity['user'].phone[0].sip_id
       log.debug('Call from extension %s to %s' % (chan, exten))
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel

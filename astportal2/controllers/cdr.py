@@ -26,6 +26,10 @@ from genshi import Markup
 from os import path
 
 dir_monitor = config.get('directory.monitor')
+try:
+   hide_numbers = False if config.get('hide_numbers').lower()=='false' else True
+except:
+   hide_numbers = True
 
 import re
 re_sip = re.compile('^SIP/poste\d-.*')
@@ -268,9 +272,11 @@ class Display_CDR(BaseController):
       data = []
       for cdr in cdrs.all():
          src = cdr.src
-         if src and in_any_group('admin', 'APPELS', 'CDS'): src = src[:-3] + '***'
+         if src and in_any_group('admin', 'APPELS', 'CDS') and hide_numbers:
+            src = src[:-3] + '***'
          dst = cdr.dst
-         if dst and in_any_group('admin', 'APPELS', 'CDS'): dst = cdr.dst[:-3] + '***'
+         if dst and in_any_group('admin', 'APPELS', 'CDS') and hide_numbers: 
+            dst = cdr.dst[:-3] + '***'
          data.append({
             'id'  : cdr.acctid,
             'cell': [

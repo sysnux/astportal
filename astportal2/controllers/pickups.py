@@ -40,7 +40,7 @@ class Pickup_form(TableForm):
 class New_pickup_form(Pickup_form):
    ''' Pickup form
    '''
-   action = '/pickup/create'
+   action = '/pickups/create'
 new_pickup_form = New_pickup_form('new_pickup_form')
 
 
