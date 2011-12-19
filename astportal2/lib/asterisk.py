@@ -70,7 +70,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       u = DBSession.query(User).get(p.user_id)
       cidname = unicodedata.normalize('NFKD', u.display_name).encode('ascii','ignore')
    else:
-      cidname = ''      
+      cidname = ''
    cidnum = p.dnis if p.dnis else default_dnis
    if cidname or cidnum:
       actions.append(('Append', p.sip_id, 'callerid', '%s <%s>' % (cidname,cidnum) ))

@@ -340,7 +340,7 @@ class Phonebook_ctrl(RestController):
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.lastname, e.firstname, e.phone1)
+</Contact>''' % (e.lastname, e.firstname, e.phone2)
 
          if e.phone3:
             xml += '''<Contact>
@@ -350,7 +350,7 @@ class Phonebook_ctrl(RestController):
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.lastname, e.firstname, e.phone1)
+</Contact>''' % (e.lastname, e.firstname, e.phone3)
 
 
       # ...then add users

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, flash, redirect, tmpl_context, request, response, validate, session
+from tg import expose, flash, redirect, tmpl_context, request, response, validate, session, config
 from tgext.menu import sidebar
 from astportal2.model import DBSession, CDR, Department, Phone, User
 from tg.decorators import allow_only
@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 from math import ceil
 import locale
 locale.setlocale(locale.LC_ALL, 'fr_FR.UTF-8')
+prefix_src = config.get('prefix.src')
 
 def check_access(cdrs):
    '''Check access rights / group: admin=full access, boss=users from same department, user.
@@ -208,7 +209,7 @@ def fetch(report_type, page, rows):
    cdrs = filtered_cdrs
    log.debug('fetch ' + str(filtered_cdrs))
    total = cdrs.count() / rows + 1
-   cdrs = cdrs.order_by(Phone.department_id,CDR.src)
+   cdrs = cdrs.order_by(CDR.department, CDR.user)
    if report_type=='detail':
       cdrs = cdrs.order_by(CDR.calldate.desc())
    cdrs = cdrs.offset(offset).limit(rows)
@@ -216,10 +217,15 @@ def fetch(report_type, page, rows):
    old_u = old_d = ''
    sec_tot = ht_tot = ttc_tot = 0
    data = []
-   for cdr in cdrs.all():
+   d_id2name = dict([(d.dptm_id, u'%s (%s)' % (d.name, d.comment)) \
+         for d in DBSession.query(Department)])
+   u_id2name = dict([(u.user_id, u'%s (%s)' % (u.display_name, 
+      u.phone[0].exten if u.phone else '')) \
+         for u in DBSession.query(User)])
 
-      d = dptm(phones_dict, cdr.src)
-      u = '%s (%s)' % (user(phones_dict,cdr.src), cdr.src)
+   for cdr in cdrs.all():
+      d = d_id2name.get(cdr.department, u'Inconnu')
+      u = u_id2name.get(cdr.user, u'Inconnu')
       if u==old_u: u=''
       else: old_u=u
 
@@ -228,7 +234,7 @@ def fetch(report_type, page, rows):
          if old_d:
             # Add sub total per department
             data.append({
-               'id':  'total_' + d,
+               'id':  'total_%s' % d,
                'cell': [None, u'TOTAL SERVICE',
                f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ]})
             if report_type=='detail':
@@ -250,7 +256,7 @@ def fetch(report_type, page, rows):
       ttc_tot += cdr.ttc or 0
 
       data.append({
-         'id':  cdr.src,
+         'id':  cdr.user,
          'cell': [None,
          u,
          f_bill(cdr.billsec),
@@ -260,10 +266,10 @@ def fetch(report_type, page, rows):
       if report_type=='detail':
          # Hide destination for privacy
          data[-1]['cell'].insert(2, cdr.calldate) 
-         data[-1]['cell'].insert(3, cdr.dst[:3] + 'xxx') 
+         data[-1]['cell'].insert(3, cdr.dst[:3] + '***') 
 
    data.append({
-      'id':  'total_' + old_d,
+      'id':  'total_%s' % old_d,
       'cell': [None, u'TOTAL SERVICE',
       f_bill(sec_tot), f_cost(ht_tot), f_cost(ttc_tot) ]})
    if report_type=='detail':
@@ -298,29 +304,22 @@ class Billing_ctrl(BaseController):
       Returns jqGrid
       '''
 
-      filter = []
-      if report_type=='detail':
-         cdrs = DBSession.query(CDR.calldate, CDR.src, CDR.dst, 
-            CDR.billsec, CDR.ht, CDR.ttc, Phone.department_id)
+      crit = [] # list of criterion
 
-      else: # elif report_type=='group':
-         # report_type 'group' is default
-         cdrs = DBSession.query( CDR.src,
+      if report_type=='detail':
+         cdrs = DBSession.query(CDR.calldate, CDR.user, CDR.dst, 
+            CDR.billsec, CDR.ht, CDR.ttc, CDR.department)
+
+      else: # report_type 'group' is default
+         cdrs = DBSession.query( CDR.user,
             func.sum(CDR.billsec).label('billsec'),
             func.sum(CDR.ht).label('ht'),
             func.sum(CDR.ttc).label('ttc'),
-            Phone.department_id)
+            CDR.department)
 
-      cdrs = cdrs.outerjoin((Phone,CDR.src==Phone.exten))
       cdrs = check_access(cdrs)
 
-      # Outgoing calls go through:
-#      OPT: dstchannel ~ E'Zap/(\\d|1\\d)-1'
-#      Tikiphone: dstchannel LIKE 'SIP/gsm%' 
-#      TelIAX: dstchannel LIKE 'IAX2/teliax%'
-#      cdrs = cdrs.filter(''' (dstchannel ~ E'Zap/1?\\\\d-1' OR dstchannel LIKE 'SIP/gsm%' OR dstchannel LIKE 'IAX2/teliax%')''')
-#      cdrs = cdrs.filter(func.substr(CDR.dstchannel,0,8).in_( \
-#            ('DAHDI/4', 'DAHDI/i', 'IAX2/vo')))
+      # Billed calls only
       cdrs = cdrs.filter(CDR.ht>0)
 
       # month is prioritary over begin / end
@@ -330,33 +329,31 @@ class Billing_ctrl(BaseController):
             end = datetime.datetime(begin.year+1, 1, 1)
          else:
             end = datetime.datetime(begin.year, begin.month+1, 1)
-         filter.append(u'mois=' + begin.strftime('%B %Y'))
+         crit.append(u'mois=%s' % begin.strftime('%B %Y').decode('utf-8'))
          cdrs = cdrs.filter(CDR.calldate>=begin)
-         cdrs = cdrs.filter(CDR.calldate<=end)
+         cdrs = cdrs.filter(CDR.calldate<end)
 
       else:
          if begin:
-            filter.append(u'début='+begin.strftime('%d/%m/%Y'))
+            crit.append(u'début=%s'  % begin.strftime('%d/%m/%Y').decode('utf-8'))
             cdrs = cdrs.filter(CDR.calldate>=begin)
          if end:
-            filter.append(u'fin='+end.strftime('%d/%m/%Y'))
+            crit.append(u'fin=%s' % end.strftime('%d/%m/%Y').decode('utf-8'))
             cdrs = cdrs.filter(CDR.calldate<=end)
 
       # department is prioritary over phones
       if department!='ALL':
          d = DBSession.query(Department).get(department)
-         filter.append(u'service=%s' % d.name)
-         phones = DBSession.query(Phone.exten)
-         phones = phones.filter(Phone.department_id==department).all()
-         cdrs = cdrs.filter(CDR.src.in_([p.exten for p in phones]))
+         crit.append(u'service=%s' % d.name)
+         cdrs = cdrs.filter(CDR.department==department)
 
       elif phones:
             if type(phones)!=type([]):
-               phones = [phones]
-               filter.append(u'téléphone='+phones)
+               phones = ['%ss' % (prefix_src, phones)]
+               crit.append(u'téléphone='+phones)
             else:
-               phones = [p for p in phones]
-               filter.append(u'téléphones='+', '.join(phones))
+               phones = ['%s%s' % (prefix_src, p) for p in phones]
+               crit.append(u'téléphones='+', '.join(phones))
             cdrs = cdrs.filter(CDR.src.in_(phones))
 
       # jqGrid common definition
@@ -388,15 +385,15 @@ class Billing_ctrl(BaseController):
             )
 
       msg = ''
-      if len(filter):
-         if len(filter)>1: msg = u'Critères: '
+      if len(crit):
+         if len(crit)>1: msg = u'Critères: '
          else: msg = u'Critère: '
-         msg += ', et '.join(filter) + '.'
+         msg += ', et '.join(crit) + '.'
          flash(msg)
 
       if report_type!='detail':
          # Group to sum by src
-         cdrs = cdrs.group_by(CDR.src,Phone.department_id)
+         cdrs = cdrs.group_by(CDR.user,CDR.department)
 
       # Initialize global data
       global filtered_cdrs

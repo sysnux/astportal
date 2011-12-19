@@ -15,7 +15,7 @@ from tw.jquery import FlotWidget
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Queue_log, Queue_event, Phone
+from astportal2.model import DBSession, Queue_log, Queue_event, Phone, User
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.base import BaseController
 from astportal2.lib.app_globals import Globals
@@ -29,6 +29,7 @@ import re
 import logging
 log = logging.getLogger(__name__)
 
+db_engine = DBSession.connection().engine.name
 
 def td_hms(td):
    ''' timedelta to hour:min:sec 
@@ -77,7 +78,7 @@ def mk_filters(period, begin, end, queues, members):
              datetime.datetime.strptime(end, '%d/%m/%Y').date())
 
    queues_filter = Queue_log.queue.in_(queues)
-   members_filter = Queue_log.channel.in_(members)
+   members_filter = Queue_log.user.in_(members)
    return date_filter, queues_filter, members_filter
 
 
@@ -86,7 +87,7 @@ def stat_global(page, rows, offset, sidx, sord, date_filter, queues_filter):
    q = DBSession.query(Queue_log.queue, 
       func.count(Queue_log.queue).label('count')).\
       filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='INCOMING').\
+      filter(Queue_event.event=='ENTERQUEUE').\
       filter(queues_filter).group_by(Queue_log.queue)
 
    if date_filter is not None:
@@ -231,16 +232,37 @@ def stat_sla(page, rows, offset, sidx, sord, date_filter, queues_filter, type):
    if date_filter is not None:
       q = q.filter(date_filter)
    
-   q = q.offset(offset).limit(rows)
-   total = q.count()/rows + 1
+   if db_engine=='oracle':
+      # Oracle does not seem to support group by 
+      # "sql.cast(Queue_log.dataX, types.INT)/30", need to do it here
+      total = 1
+      data2 = []
+      cur=-1
+      for i, r in enumerate(q.all()):
+         if cur!=-1 and r.qwait==data2[cur][1]:
+            data2[cur][0] += r.count
+         else:
+            data2.append([r.count, r.qwait])
+            cur += 1
 
-   data = []
-   total_connect = 0
-   for i, r in enumerate(q.all()):
-      total_connect += r.count
-      label = u'< %dm' % ((1+r.qwait)/2) if i%2 \
+      total_connect = 0
+      data = []
+      for i, r in enumerate(data2):
+         total_connect += r[0]
+         label = u'< %dm' % ((1+r[1])/2) if i%2 \
+            else u'< %dm30s' % ((1+r[1])/2)
+         data.append({ 'id'  : i, 'cell': [label, r[0], 0, 0]
+         })
+
+   else: # PostgreSql
+      q = q.offset(offset).limit(rows)
+      total = q.count()/rows + 1
+      data = []
+      for i, r in enumerate(q.all()):
+         total_connect += r.count
+         label = u'< %dm' % ((1+r.qwait)/2) if i%2 \
             else u'< %dm30s' % ((1+r.qwait)/2)
-      data.append({ 'id'  : i, 'cell': [label, r.count, 0, 0]
+         data.append({ 'id'  : i, 'cell': [label, r.count, 0, 0]
       })
 
    sum_connect = 0.0
@@ -255,7 +277,14 @@ def stat_sla(page, rows, offset, sidx, sord, date_filter, queues_filter, type):
 
 def stat_daily(page, rows, offset, sidx, sord, date_filter, queues_filter):
    # Day of week distribution
-   xd = (extract('dow', Queue_log.timestamp)).label('dow')
+   if db_engine=='oracle':
+      xd = func.to_char(Queue_log.timestamp, 'D').label('dow')
+      dow = [ '', u'dimanche', u'lundi', u'mardi', u'mercredi', 
+         u'jeudi', u'vendredi', u'samedi']
+   else: # PostgreSql
+      xd = (extract('dow', Queue_log.timestamp)).label('dow')
+      dow = [ u'dimanche', u'lundi', u'mardi', u'mercredi', 
+         u'jeudi', u'vendredi', u'samedi']
    q = DBSession.query(xd, (func.count('*')).label('count')).\
       filter(Queue_log.queue_event_id==Queue_event.qe_id).\
       filter(Queue_event.event=='CONNECT').\
@@ -275,8 +304,6 @@ def stat_daily(page, rows, offset, sidx, sord, date_filter, queues_filter):
    q = q.offset(offset).limit(rows)
    total = q.count()/rows + 1
 
-   dow = [ u'dimanche', u'lundi', u'mardi', u'mercredi', 
-         u'jeudi', u'vendredi', u'samedi']
    data = []
    total_connect = 0
    for i, r in enumerate(q.all()):
@@ -293,12 +320,17 @@ def stat_daily(page, rows, offset, sidx, sord, date_filter, queues_filter):
 
 def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
    # Hourly distribution (30 min sections)
-   xh = (func.floor((extract('hour', Queue_log.timestamp) * 60 + \
-         extract('min', Queue_log.timestamp) ) / 30)).label('xhour')
+   if db_engine=='oracle':
+      xh = func.floor((sql.cast(func.to_char(Queue_log.timestamp, 'HH24'), types.INT) *60 + \
+         sql.cast(func.to_char(Queue_log.timestamp, 'MI'), types.INT) ) / 30)
+   else: # PostgreSql
+      xh = func.floor((extract('hour', Queue_log.timestamp) * 60 + \
+         extract('min', Queue_log.timestamp) ) / 30)
+   xh = xh.label('xhour')
 
 #   h_incoming = DBSession.query(xh, func.count('*').label('incoming')).\
 #      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-#      filter(Queue_event.event=='INCOMING').filter(queues_filter)
+#      filter(Queue_event.event=='ENTERQUEUE').filter(queues_filter)
 #   if date_filter is not None:
 #      h_incoming = h_incoming.filter(date_filter)
 #   h_incoming = h_incoming.group_by(xh).order_by(xh).subquery()
@@ -345,7 +377,7 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
             h_dissuasion.c.count.label('dissuasion'), 
             h_closed.c.count.label('closed')).\
       filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-      filter(Queue_event.event=='INCOMING').filter(queues_filter). \
+      filter(Queue_event.event=='ENTERQUEUE').filter(queues_filter). \
       filter(queues_filter). \
       outerjoin((h_connect, xh==h_connect.c.xhour)). \
       outerjoin((h_abandon, xh==h_abandon.c.xhour)). \
@@ -388,8 +420,8 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
    for i, r in enumerate(q.all()):
       total_in += r.incoming
       data.append({ 'id'  : i, 'cell': [
-         u'%dh30' % ((r.xhour)/2) if i%2 \
-            else u'%dh' % ((r.xhour)/2),
+         u'%dh30' % (r.xhour/2) if i%2 \
+            else u'%dh' % (r.xhour/2),
          r.incoming, 0, r.closed, 0, r.dissuasion, 0,
          r.abandon, 0, r.connect, 0]
       })
@@ -414,29 +446,29 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
 
    # Service: list of connects / disconnects, ordered by member, timestamp
    q_service = DBSession.query(Queue_log.timestamp,
-         Queue_log.channel, Queue_event.event). \
+         Queue_log.user, Queue_event.event). \
          filter(Queue_log.queue_event_id==Queue_event.qe_id). \
          filter(queues_filter).filter(members_filter). \
          filter(Queue_event.event.in_(('ADDMEMBER', 'REMOVEMEMBER'))). \
-         order_by(Queue_log.channel, desc(Queue_log.timestamp))
+         order_by(Queue_log.user, desc(Queue_log.timestamp))
 
    # Pause
    q_pause = DBSession.query(Queue_log.timestamp, 
-         Queue_log.channel, Queue_event.event). \
+         Queue_log.user, Queue_event.event). \
          filter(Queue_log.queue_event_id==Queue_event.qe_id). \
          filter(Queue_event.event.in_(('PAUSE','UNPAUSE'))). \
          filter(queues_filter).filter(members_filter). \
-         order_by(Queue_log.channel, desc(Queue_log.timestamp))
+         order_by(Queue_log.user, desc(Queue_log.timestamp))
 
    # Calls received per members
-   q_call = DBSession.query(Queue_log.channel, 
+   q_call = DBSession.query(Queue_log.user, 
          func.count('*').label('calls'), 
          func.avg(sql.cast(Queue_log.data2, types.INT)).label('avgtime'),
          func.sum(sql.cast(Queue_log.data2, types.INT)).label('calltime')). \
             filter(Queue_log.queue_event_id==Queue_event.qe_id). \
             filter(Queue_event.event.in_(('COMPLETECALLER', 'COMPLETEmember'))). \
             filter(queues_filter).filter(members_filter). \
-            group_by(Queue_log.channel)
+            group_by(Queue_log.user)
 
    if date_filter is not None:
       q_service = q_service.filter(date_filter)
@@ -448,7 +480,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
    services = q_service.all()
    for i,s in enumerate(services):
       if s.event=='REMOVEMEMBER': # End service
-         member = s.channel[5:]
+         member = s.user # channel[5:]
          if member in members_service.keys(): 
             members_service[member]['service_num'] += 1
             if members_service[member]['service']==None:
@@ -474,8 +506,8 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
    for i in range(0, len(pauses)-2):
       p1 = pauses[i]
       p2 = pauses[i+1]
-      member = p1.channel[5:]
-      if p1.event=='UNPAUSE' and p2.event=='PAUSE' and p2.channel[5:]==member:
+      member = p1.user # channel[5:]
+      if p1.event=='UNPAUSE' and p2.event=='PAUSE' and p2.user==member: # channel[5:]==member:
          if member in members_service.keys():
             members_service[member]['pause_num'] += 1
             if members_service[member]['pause']==datetime.timedelta(0):
@@ -496,7 +528,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
 
    # Calls per members
    for c in q_call:
-      member = c.channel[5:]
+      member = c.user # channel[5:]
       if member in members_service.keys():
          members_service[member]['calls_in'] = c.calls
          members_service[member]['ci_dur'] = datetime.timedelta(0, c.calltime)
@@ -510,6 +542,14 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
       # Sort by value
       sort_key = lambda x: x[1][sidx]
 
+   # User id -> name
+   user = dict([(u.user_id, u.display_name) for u in DBSession.query(User)])
+   for k,v in members_service.iteritems():
+      if k in user.keys():
+         del(members_service[k])
+         members_service[user[k]] = v
+
+   # Sort and prepare grid data
    for k,v in sorted(members_service.iteritems(), 
          key = sort_key, 
          reverse = True if sord=='desc' else False):
@@ -558,8 +598,13 @@ def members_options():
    ''' Returns distinct members from queue log
    '''
    # queue_event_id==24 => AddMember
-   return [a[0] for a in DBSession.query(Queue_log.channel).distinct().\
-         filter(Queue_log.queue_event_id==24).order_by(Queue_log.channel)]
+#   return [a[0] for a in DBSession.query(Queue_log.user).distinct().\
+#         filter(Queue_log.queue_event_id==24).order_by(Queue_log.user)]
+   uids = [a.user for a in DBSession.query(Queue_log).distinct(). \
+         filter(Queue_log.queue_event_id==24)]
+
+   return [(a.user_id, a.display_name) for a in DBSession.query(User). \
+         filter(User.user_id.in_(uids)).order_by(User.display_name)]
 
 class Stats_form(TableForm):
    ''' Stats form
@@ -600,7 +645,7 @@ class Stats_form(TableForm):
          name = 'members',
          label_text = u'Agents',
          options = members_options,
-         default = members_options,
+         default = [m[0] for m in members_options()],
          validator = NotEmpty(),
          ),
       Spacer(),
@@ -656,7 +701,7 @@ class CC_Stats_ctrl(BaseController):
 
       if type(members) != type([]):
          members = (members)
-      member_filter = Queue_log.channel.in_(members)
+      member_filter = Queue_log.user.in_(members)
       log.debug('member_filter')
 
 # Dynamic template

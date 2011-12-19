@@ -23,6 +23,19 @@ $(document).ready(function () {
    $('#menu_toggle_link').click(menu_toggle);
 });
 
+function set_prefs(menu) {
+   $.post(
+      "${tg.url('/users/set_prefs')}",
+      {'menu': menu},
+      set_prefs_cb, 'json'
+      );
+//alert('set_prefs ' + menu);
+}
+
+function set_prefs_cb(data) {
+//alert('set_prefs_cb ' + data);
+}
+
 var menu_status=1;
 function menu_toggle() {
    if (menu_status) {
@@ -30,11 +43,13 @@ function menu_toggle() {
       $('#main_content').css('padding-left', '60px');
       $('#menu_toggle_link').text('>');
       menu_status=0;
+//      set_prefs(false);
    } else {
       $('#sidebar_div').show();
       $('#main_content').css('padding-left', '180px');
       $('#menu_toggle_link').text('<');
       menu_status=1;
+//      set_prefs(true);
    }
    if (typeof($('#grid').setGridWidth)=='function')
       $('#grid').setGridWidth($('#data').width()-10, true); // XXX $('#grid').parent()
