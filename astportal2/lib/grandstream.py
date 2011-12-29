@@ -77,10 +77,6 @@ P207 = '',
 P208 = 3,
 # NTP Server
 P30 = '',
-# Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
-P342 = 3,
-# language file postfix
-P399 = 'french',
 )
 
    def __init__(self, host, mac, pwd='admin'):
@@ -129,7 +125,7 @@ P399 = 'french',
 
    def infos(self):
 
-      if self.type==1:
+      if self.type==1: # Old GXP
          resp = self.get('index.htm')
          buffer = ''
          for l in resp.readlines():
@@ -142,7 +138,7 @@ P399 = 'french',
          except:
             return None
 
-      elif self.type==2:
+      elif self.type==2: # GXP-14XX 21XX
          resp = self.get('/cgi-bin/index')
          buffer = ''
          for l in resp.readlines():
@@ -154,14 +150,14 @@ P399 = 'french',
             soft = (content('tr')[9])('td')[1].text.strip()
          except:
             return None
-      
+
       log.debug(u'Model <%s>'% model)
       log.debug(u'Version <%s>'% soft)
 
       return {'model': model.strip(), 'version': soft.strip()}
 
    def update(self, params):
-      log.debug('Update...')
+      log.debug('Update (type %d)...' % self.type)
       if self.type==1:
          resp = self.get('update.htm',params)
       elif self.type==2:
@@ -171,7 +167,7 @@ P399 = 'french',
 
    def reboot(self):
       # Reboot
-      log.debug('Reboot...')
+      log.debug('Reboot (type %d)...' % self.type)
       t1 = time()
 
       if self.type==1:
@@ -252,8 +248,14 @@ P399 = 'french',
       self.params['P1347'] = '**'
       self.params['P57'] = 8
 
-      if self.type==2:
+      if self.type==2: # Newer GXP
+         self.params['P1362'] = 'fr' # language
          self.params['update'] = 'Mise a jour'
+
+      else: # Old GXP
+         # Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
+         self.params['P342'] = 3,
+         self.params['P399'] = 'french'
 
       # Generate conf files (text and binary)
       name = tftp_dir + '/phones/config/gs-cfg%s' % self.mac.replace(':','')
@@ -262,8 +264,9 @@ P399 = 'french',
          for k in self.params.keys():
             txt.write('%s=%s\n' % (k, self.params[k]))
          txt.close()
+         log.debug('Config file written (text)')
       except:
-         log.debug('ERROR: write text config file')
+         log.error('ERROR: write text config file')
 
       bin = self.encode()
 
@@ -272,11 +275,13 @@ P399 = 'french',
          for x in bin:
             cfg2.write(chr(x))
          cfg2.close()
+         log.debug('Config file written (bin)')
       except:
-         log.debug('ERROR: write binary config file')
+         log.error('ERROR: write binary config file')
 
       # Update and reboot phone
       self.update(self.params)
+      sleep(1)
       self.reboot()
 
    def encode(self):
