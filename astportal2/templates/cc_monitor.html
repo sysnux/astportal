@@ -16,6 +16,7 @@
    <style>
 <![CDATA[
 tr.even td.free, tr.odd td.free { background-color: lightgreen;}
+tr.even td.paused, tr.odd td.paused { background-color: violet;}
 tr.even td.inuse, tr.odd td.inuse { background-color: red;}
 tr.even td.ringing, tr.odd td.ringing { background-color: yellow;}
 tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
@@ -36,7 +37,8 @@ var last=0, // last_update
 $(document).ready(function() {
    $('#add_form').dialog({ 
          autoOpen: false,  modal: true, width: '450px',
-         buttons: { "Valider": function() {add_member()}, "Annuler": function() {$('#add_form').dialog('close');}} });
+         buttons: { "Valider": function() {add_member()}, 
+            "Annuler": function() {$('#add_form').dialog('close');}} });
    $(document).ajaxError(ajax_error);
    if (${auth}) {
       fetch_updates();
@@ -78,12 +80,17 @@ function list_queues() { // Builds main part of the screen
       var j=1;
       var qt = '<table><tr><th>Agents connectés</th><th>Groupes</th><th>Appels en attente</th><th>Temps en attente</th></tr>'; // Queues table
       for (q in queues) { // For each queue, display name and table
-         var qm=queues[q]['Members'];
-         qt += '<tr class="' + ((j++%2) ? 'even':'odd') + '"><td>' + qm.length + '</td>';
+         var qm=queues[q]['Members'], lm;
+	 if (qm==undefined) lm=0;
+         else lm=qm.length;
+         qt += '<tr class="' + ((j++%2) ? 'even':'odd') + '"><td>' + lm + '</td>';
          qt += '<td>' + q + '</td>';
-         qt += '<td>' + queues[q]['Wait'].length + '</td>';
+         var qw;
+         if (queues[q]['Wait']==undefined) qw=0;
+         else qw = queues[q]['Wait'].length;
+         qt += '<td>' + qw + '</td>';
          var waiting = new Array();
-         for (var i=0;  i<queues[q]['Wait'].length; i++) {
+         for (var i=0;  i<qw; i++) {
             waiting.push((1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]));
          }
          var qid = q.replace(/\W/g,'_');
@@ -133,7 +140,10 @@ function list_queues() { // Builds main part of the screen
          var qm = queues[q]['Members'];
          var qid = q.replace(/\W/g,'_');
          var waiting = new Array();
-         for (var i=0;  i<queues[q]['Wait'].length; i++) {
+         var qw;
+         if (queues[q]['Wait']==undefined) qw=0;
+         else qw = queues[q]['Wait'].length;
+         for (var i=0;  i<qw; i++) {
             waiting.push((1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]));
          }
          $('#wait_' + qid).html(waiting.join(', '));
@@ -153,7 +163,7 @@ function list_queues() { // Builds main part of the screen
          }
       }
    }
-   display_tmo = setTimeout(list_queues,500);
+   display_tmo = setTimeout(list_queues, 500);
 }
 
 function member_status(name, now, queue) {
@@ -162,7 +172,13 @@ function member_status(name, now, queue) {
    var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE
-         sclass='free'; stat='Libre'; dur=''; break; 
+         if (member['Paused']=='1') {
+            sclass='paused'; stat='En pause';
+         } else {
+            sclass='free'; stat='Libre';
+         }
+         dur = '';
+         break;
       case '2': // AST_DEVICE_INUSE
       case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
