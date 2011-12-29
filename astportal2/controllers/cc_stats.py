@@ -77,7 +77,7 @@ def mk_filters(period, begin, end, queues, members):
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
              datetime.datetime.strptime(end, '%d/%m/%Y').date())
 
-   queues_filter = Queue_log.queue.in_(queues)
+   queues_filter = Queue_log.queue.in_(queues_access(queues))
    members_filter = Queue_log.user.in_(members)
    return date_filter, queues_filter, members_filter
 
@@ -257,6 +257,7 @@ def stat_sla(page, rows, offset, sidx, sord, date_filter, queues_filter, type):
    else: # PostgreSql
       q = q.offset(offset).limit(rows)
       total = q.count()/rows + 1
+      total_connect = 0
       data = []
       for i, r in enumerate(q.all()):
          total_connect += r.count
@@ -466,7 +467,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
          func.avg(sql.cast(Queue_log.data2, types.INT)).label('avgtime'),
          func.sum(sql.cast(Queue_log.data2, types.INT)).label('calltime')). \
             filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-            filter(Queue_event.event.in_(('COMPLETECALLER', 'COMPLETEmember'))). \
+            filter(Queue_event.event.in_(('COMPLETECALLER', 'COMPLETEAGENT'))). \
             filter(queues_filter).filter(members_filter). \
             group_by(Queue_log.user)
 
@@ -587,12 +588,26 @@ def period_options():
 
    return p
 
+def queues_access(queues):
+   '''Check access rigths to queues
+   '''
+   if in_group('admin'):
+      user_queues = queues
+   else:
+      user_queues = []
+      for q in queues:
+         if in_group('SV ' + q):
+            user_queues.append(q)
+   log.debug('User queues: %s' % user_queues)
+   return user_queues
+
 def queues_options():
    ''' Returns distinct queues from queue log
    '''
    # queue_event_id==24 => AddMember
-   return [q[0] for q in DBSession.query(Queue_log.queue).distinct().\
+   queues = [q[0] for q in DBSession.query(Queue_log.queue).distinct().\
          filter(Queue_log.queue_event_id==24).order_by(Queue_log.queue)]
+   return queues_access(queues)
 
 def members_options():
    ''' Returns distinct members from queue log
@@ -693,7 +708,7 @@ class CC_Stats_ctrl(BaseController):
 
 
    @expose(template='astportal2.templates.cc_stats')
-   def do_stat(self, period, begin, end, queues, members, stat):
+   def do_stat(self, period, begin, end, stat, queues='', members=''):
 
       if type(queues) != type([]):
          queues = (queues)
