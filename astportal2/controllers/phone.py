@@ -127,7 +127,7 @@ class New_phone_form(AjaxForm):
    hover_help = True
    beforeSubmit = js_callback('wait2')
    success = js_callback('created')
-   action = '/phone/create'
+   action = '/phones/create'
    dataType = 'JSON'
    target = None
    clearForm = False

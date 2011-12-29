@@ -31,7 +31,7 @@ class New_dtpm_form(TableForm):
             label_text=u'Nom complet', help_text=u'Entrez le nom complet du service'),
          ]
    submit_text = u'Valider...'
-   action = '/department/create'
+   action = '/departments/create'
    hover_help = True
 new_dptm_form = New_dtpm_form('new_dptm_form')
 

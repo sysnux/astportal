@@ -101,7 +101,7 @@ admin_fields.insert(2, TextField('dnis', not_empty=False, #validator=None,
 admin_new_application_form = TableForm(
    fields = admin_fields,
    submit_text = u'Valider...',
-   action = '/application/create',
+   action = '/applications/create',
    hover_help = True
    )
 
@@ -113,7 +113,7 @@ user_fields.insert(0, TextField('name', validator=NotEmpty,
 new_application_form = TableForm(
    fields = user_fields,
    submit_text = u'Valider...',
-   action = '/application/create',
+   action = '/applications/create',
    hover_help = True
    )
 

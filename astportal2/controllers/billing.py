@@ -43,7 +43,7 @@ def check_access(cdrs):
       src = [p.exten for p in phones]
       dst = [p.exten for p in phones]
       cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
-      log.info('CDS source <%s>, destination <%s>' % (src,dst))
+      log.info('CDS source <%s>, destination <%s>' % (src, dst))
 
    elif in_group('Utilisateurs'):
       src = [p.exten for p in request.identity['user'].phone]
@@ -181,7 +181,7 @@ def fetch(report_type, page, rows):
    Called (indirectly) by jqGrid
    Returns JSON
    '''
-   if not in_any_group('admin', 'DG', 'Compta', 'Chefs', 'Utilisateurs'):
+   if not in_any_group('admin', 'DG', 'COMPTA', 'CDS', 'Utilisateurs'):
       flash(u'Accès interdit')
       redirect('/')
 
@@ -381,7 +381,6 @@ class Billing_ctrl(BaseController):
             colNames = colNames,
             colModel = colModel,
             report_type = report_type,
-            out_of = u'sur'
             )
 
       msg = ''
@@ -392,8 +391,8 @@ class Billing_ctrl(BaseController):
          flash(msg)
 
       if report_type!='detail':
-         # Group to sum by src
-         cdrs = cdrs.group_by(CDR.user,CDR.department)
+         # Group to sum by user
+         cdrs = cdrs.group_by(CDR.user, CDR.department)
 
       # Initialize global data
       global filtered_cdrs
@@ -407,6 +406,7 @@ class Billing_ctrl(BaseController):
 
       tmpl_context.grid = grid
       tmpl_context.form = new_csv_form
+      log.debug('cdrs = %s' % filtered_cdrs)
 
       return dict( title=u'Facturation', debug='',
             values={'report_type': report_type, 'message': msg})
@@ -433,7 +433,7 @@ class Billing_ctrl(BaseController):
       ''' Export data
       '''
 
-      if not in_any_group('admin', 'DG', 'Compta', 'Chefs', 'Utilisateurs'):
+      if not in_any_group('admin', 'DG', 'COMPTA', 'CDS', 'Utilisateurs'):
          flash(u'Accès interdit')
          redirect('/')
 

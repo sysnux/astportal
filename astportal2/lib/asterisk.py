@@ -182,14 +182,16 @@ def asterisk_update_queue(q):
       directory_asterisk  + 'musiconhold.conf', None, [('DelCat', moh_class)])
    log.debug('Delete queue MOH class "%s" returns %s' % (moh_class, res))
 
+   holdtime = 'yes' if q.announce_holdtime==1 else 'no'
+   position = 'yes' if q.announce_position==1 else 'no'
    actions = [
             ('NewCat', moh_class),
             ('Append', moh_class, 'strategy', q.strategy),
             ('Append', moh_class, 'wrapuptime', q.wrapuptime),
             ('Append', moh_class, 'announce-frequency', q.announce_frequency),
             ('Append', moh_class, 'min-announce-frequency', q.min_announce_frequency),
-            ('Append', moh_class, 'announce-holdtime', q.announce_holdtime),
-            ('Append', moh_class, 'announce-position', q.announce_position),
+            ('Append', moh_class, 'announce-holdtime', holdtime),
+            ('Append', moh_class, 'announce-position', position),
             ('Append', moh_class, 'ringinuse', 'no'),
          ]
 

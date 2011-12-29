@@ -50,12 +50,15 @@ class CC_Monitor_ctrl(TGController):
       Globals.manager.sippeers()
 
       phones = []
-      g = DBSession.query(Group).filter(Group.group_name=='AG %s' % queue).one()
-      for u in g.users:
-         for p in u.phone:
-            phones.append([p.phone_id, '%s (%s)' % (u.display_name, p.exten)])
+      try:
+         g = DBSession.query(Group).filter(Group.group_name=='AG %s' % queue).one()
+         for u in g.users:
+            for p in u.phone:
+               phones.append([p.phone_id, '%s (%s)' % (u.display_name, p.exten)])
+      except:
+         log.warning('Queue %s not found?' % queue)
 
-      log.debug(phones)
+      log.debug('Member of queue %s : %s' % (queue, phones))
       return dict(phones=phones)
 
 

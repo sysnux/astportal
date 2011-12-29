@@ -86,7 +86,7 @@ class Forward_form(TableForm):
    name = 'forward_form'
    fields = common_fields
    submit_text = u'Valider...'
-   action = '/forward/create_forward'
+   action = '/forwards/create_forward'
    hover_help = True
 new_forward_form = Forward_form('new_forward_form')
 
@@ -96,7 +96,7 @@ new_forward_external_form = Forward_external_form('new_forward_external_form')
 
 class Forward_CDS_form(Forward_form):
    fields = cds_fields
-   action = '/forward/create_admin'
+   action = '/forwards/create_admin'
 new_forward_cds_form = Forward_CDS_form('new_forward_cds_form')
 
 

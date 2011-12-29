@@ -369,7 +369,6 @@ class Phonebook_ctrl(RestController):
 
       xml += '</AddressBook>\n'
 
-#      return xml.encode('utf-8', 'replace')
       return xml.encode('iso-8859-1', 'replace')
 
 

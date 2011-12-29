@@ -63,7 +63,7 @@ common_fields = [
    TextField('min_announce_frequency', validator=Int, size=4, default=0,
       label_text=u'Fréquence d\'annonce minimale (sec)', help_text=u''),
    SingleSelectField('announce_holdtime',
-      options = [ ('no', u'Non'), ('yes', u'Oui'), ('once', u'Une fois')],
+      options = [ ('no', u'Non'), ('yes', u'Oui')], # ('once', u'Une fois')],
       label_text=u'Annonce temps d\'attente', help_text=u''),
    SingleSelectField('announce_position',
       options = [ ('no', u'Non'), ('yes', u'Oui')],
