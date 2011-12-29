@@ -645,28 +645,46 @@ class Phone_ctrl(RestController):
    def delete(self, id, **kw):
       ''' Delete phone from DB
       '''
-      log.info('delete ' + kw['_id'])
       p = DBSession.query(Phone).get(kw['_id'])
-      exten = p.exten
-      DBSession.delete(p)
-      flash(u'Téléphone supprimé', 'notice')
+      log.info('delete %s (exten=%s, dnis=%s, sip=%s' % \
+            (kw['_id'], p.exten, p.dnis, p.sip_id))
 
-      if exten:
-         # Update Asterisk DataBase
-         Globals.manager.send_action({'Action': 'DBdel',
-            'Family': 'exten', 'Key': exten})
+      # Remove from database
+      DBSession.delete(p)
 
       # Update Asterisk config files
+      if p.exten:
+         # Update Asterisk DataBase
+         Globals.manager.send_action({'Action': 'DBdel',
+            'Family': 'exten', 'Key': p.exten})
+
+         # Delete context, hint...
+         actions = [ ('DelCat', p.sip_id),
+               ('Delete', 'hints', 'exten', None, 
+               '%s,hint,SIP/%s' % (p.exten, p.sip_id))]
+
+         # ... and DNIS
+         if p.dnis is not None:
+            actions.append(('Delete', 'dnis', 'exten', None, 
+               '%s,1,Gosub(stdexten,%s,1)' % (p.dnis[2:], p.exten)))
+
+         res = Globals.manager.update_config(
+            directory_asterisk  + 'extensions.conf', 
+            'dialplan', actions)
+         log.debug('Delete context, hint (DNIS) from extensions.conf returns %s' % res)
+
+         # Delete voicemail entry
+         Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
+            'app_voicemail_plain', [ ('Delete', 'astportal', p.exten) ])
+         log.debug('Delete entry from voicemail.conf returns %s' % res)
+
+      # Delete SIP entry
       actions = [ ('DelCat', p.sip_id) ]
       Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
          'chan_sip', actions)
-      Globals.manager.update_config(directory_asterisk  + 'extensions.conf', 
-         'dialplan', actions)
-      if exten:
-         actions = [ ('Delete', 'astportal', exten) ]
-         Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
-            'app_voicemail_plain', actions)
+      log.debug('Delete entry from sip.conf returns %s' % res)
 
+      flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')
 
 
