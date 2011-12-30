@@ -215,7 +215,7 @@ class Display_CDR(BaseController):
 
       if date:
          filter.append(date.strftime('date %d/%m/%Y'))
-         cdrs = cdrs.filter(sqlalchemy.sql.cast(CDR.calldate, sqlalchemy.types.DATE)==date)
+         cdrs = cdrs.filter(sqlalchemy.func.date(CDR.calldate)==date)
 
       if hour:
          hour = '%d:%02d' % (hour[0], hour[1])

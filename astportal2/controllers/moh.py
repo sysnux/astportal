@@ -271,7 +271,7 @@ class MOH_ctrl(RestController):
          DBSession.delete(s)
          redirect('/moh/')
 
-      flash(u'Nouvelle musique d\'attente "%s" ajoutée à votre bibliothèque sonore' % (s.name))
+      flash(u'"%s" ajouté à votre bibliothèque sonore' % (s.name))
       redirect('/moh/')
 
 

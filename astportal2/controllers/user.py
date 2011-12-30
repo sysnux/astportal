@@ -102,7 +102,7 @@ user_fields = []
 user_fields.extend(common_fields)
 user_fields.insert(0,
    LabelHiddenField('firstname', suppress_label=False,
-      label_text=u'Prénom', validator=NotEmpty,
+      label_text=u'Prénom',
       help_text=u'Entrez le prénom de l\'utilisateur'))
 user_fields.insert(1,
    LabelHiddenField('lastname', 
@@ -138,7 +138,7 @@ def row(u):
       groups = ', '.join([g.group_name for g in u.groups])
    else:
       groups = ''
-   js_name = u.display_name.replace("'","\\'")
+   js_name = u.display_name.replace("'","\\'") if u.display_name is not None else ''
    action =  u'<a href="'+ str(u.user_id) + u'/edit" title="Modifier">'
    action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
    action += u'&nbsp;&nbsp;&nbsp;'
@@ -151,7 +151,7 @@ def row(u):
       email += '">' + u.email_address + '</a>'
    else:
       email = ''
-   
+
    return [Markup(action), u.user_name, u.display_name, 
          Markup(email), Markup(phone), groups]
 

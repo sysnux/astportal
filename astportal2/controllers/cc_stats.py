@@ -15,7 +15,7 @@ from tw.jquery import FlotWidget
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Queue_log, Queue_event, Phone, User
+from astportal2.model import DBSession, Queue_log, Queue_event, Phone, User, CDR
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.base import BaseController
 from astportal2.lib.app_globals import Globals
@@ -32,13 +32,19 @@ log = logging.getLogger(__name__)
 db_engine = DBSession.connection().engine.name
 
 def td_hms(td):
-   ''' timedelta to hour:min:sec 
+   ''' Seconds or timedelta to hour:min:sec 
    '''
    if td is None:
       return ''
-   h, x = divmod(td.seconds, 3600)
+   try:
+      sec = td.seconds
+      days = td.days
+   except:
+      sec = td
+      days = 0
+   h, x = divmod(sec, 3600)
    m, s = divmod(x, 60)
-   h += 24 * td.days
+   h += 24 * days
    if h>0:
       return '%dh%02dm%02d' % (h,m,s)
    else:
@@ -48,38 +54,55 @@ def td_hms(td):
 def mk_filters(period, begin, end, queues, members):
    
    date_filter = None
+   cdr_date_filter = None
    re_month = re.compile(r'^(1?\d)-(\d\d\d\d)$')
    if not begin and not end:
       if period=='today':
-          date_filter = sql.cast(Queue_log.timestamp, types.DATE)==\
+         date_filter = sql.cast(Queue_log.timestamp, types.DATE)==\
+            datetime.date.today()
+         cdr_date_filter = sql.cast(CDR.calldate, types.DATE)==\
              datetime.date.today()
       elif period=='yesterday':
          date_filter = sql.cast(Queue_log.timestamp, types.DATE)==\
             datetime.date.today() - datetime.timedelta(1)
+         cdr_date_filter = sql.cast(CDR.calldate, types.DATE)==\
+            datetime.date.today() - datetime.timedelta(1)
       elif period=='ten_days':
          date_filter = (sql.cast(Queue_log.timestamp, types.DATE)).between(\
+            datetime.date.today() - datetime.timedelta(10),
+            datetime.date.today())
+         cdr_date_filter = (sql.cast(CDR.calldate, types.DATE)).between(\
             datetime.date.today() - datetime.timedelta(10),
             datetime.date.today())
       elif re_month.search(period):
          (m,y) = re_month.search(period).groups()
          date_filter = and_(extract('year', Queue_log.timestamp)==y,
             extract('month', Queue_log.timestamp)==m)
+         cdr_date_filter = and_(extract('year', CDR.calldate)==y,
+            extract('month', Queue_log.timestamp)==m)
 
    else:
       if begin and not end:
           date_filter = sql.cast(Queue_log.timestamp, types.DATE)>=\
              datetime.datetime.strptime(begin, '%d/%m/%Y').date()
+          cdr_date_filter = sql.cast(CDR.calldate, types.DATE)>=\
+             datetime.datetime.strptime(begin, '%d/%m/%Y').date()
       elif not begin and end:
           date_filter = sql.cast(Queue_log.timestamp, types.DATE)<=\
+             datetime.datetime.strptime(end, '%d/%m/%Y').date()
+          cdr_date_filter = sql.cast(CDR.calldate, types.DATE)<=\
              datetime.datetime.strptime(end, '%d/%m/%Y').date()
       elif begin and end:
           date_filter = (sql.cast(Queue_log.timestamp, types.DATE)).between(\
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
              datetime.datetime.strptime(end, '%d/%m/%Y').date())
+          cdr_date_filter = (sql.cast(CDR.calldate, types.DATE)).between(\
+             datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
+             datetime.datetime.strptime(end, '%d/%m/%Y').date())
 
    queues_filter = Queue_log.queue.in_(queues_access(queues))
    members_filter = Queue_log.user.in_(members)
-   return date_filter, queues_filter, members_filter
+   return date_filter, queues_filter, members_filter, cdr_date_filter
 
 
 def stat_global(page, rows, offset, sidx, sord, date_filter, queues_filter):
@@ -442,7 +465,8 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
    return dict(page=page, total=total, rows=data)
 
 
-def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, members_filter):
+def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, 
+      members_filter, cdr_date_filter):
    # members stats
 
    # Service: list of connects / disconnects, ordered by member, timestamp
@@ -500,7 +524,10 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
                   'pause_num': 0,
                   'calls_in': 0,
                   'ci_dur': datetime.timedelta(0),
-                  'ci_avg': datetime.timedelta(0)}
+                  'ci_avg': datetime.timedelta(0),
+                  'calls_out': 0,
+                  'co_dur': 0,
+                  'co_avg': 0}
 
    # members pause
    pauses = q_pause.all()
@@ -522,7 +549,10 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
                   'service': datetime.timedelta(0),
                   'calls_in': 0,
                   'ci_dur': datetime.timedelta(0),
-                  'ci_avg': datetime.timedelta(0)}
+                  'ci_avg': datetime.timedelta(0),
+                  'calls_out': 0,
+                  'co_dur': 0,
+                  'co_avg': 0}
          i += 2
       else:
          i += 1
@@ -534,6 +564,21 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
          members_service[member]['calls_in'] = c.calls
          members_service[member]['ci_dur'] = datetime.timedelta(0, c.calltime)
          members_service[member]['ci_avg'] = datetime.timedelta(0, int(c.avgtime))
+         # Outgoing calls
+         out = DBSession.query(func.count(CDR.acctid).label('count'), 
+               func.sum(CDR.billsec).label('dur'), 
+               func.avg(CDR.billsec).label('avg')). \
+               filter(CDR.user==member)
+         if cdr_date_filter is not None:
+            out = out.filter(cdr_date_filter)
+         try:
+            out = out.group_by(CDR.user).one()
+            members_service[member]['calls_out'], \
+               members_service[member]['co_dur'], \
+               members_service[member]['co_avg'] = out
+            log.debug('member %d, %s calls out' % (member, out))
+         except:
+            log.info('member %d, %s no calls out?' % member)
 
    i = 0
    data = []
@@ -558,7 +603,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter, mem
          k, v['service_num'], td_hms(v['service']),
          v['pause_num'], td_hms(v['pause']),
          v['calls_in'], td_hms(v['ci_dur']), td_hms(v['ci_avg']),
-         0, 0, 0
+         v['calls_out'], td_hms(v['co_dur']), td_hms(v['co_avg'])
       ]})
       i += 1
 
@@ -931,7 +976,8 @@ stat=%s
       self.sort_order = sord
       self.sort_index = sidx
 
-      date_filter, queues_filter, members_filter = mk_filters(period, begin, end,
+      date_filter, queues_filter, members_filter, cdr_date_filter = \
+         mk_filters(period, begin, end,
          kw['queues[]'] if 'queues[]' in kw.keys() else (kw['queues']),
          kw['members[]'] if 'members[]' in kw.keys() else (kw['members']) )
 
@@ -964,7 +1010,7 @@ stat=%s
 
       elif stat=='members':
          return stat_members(page, rows, offset, sidx, sord, 
-               date_filter, queues_filter, members_filter)
+               date_filter, queues_filter, members_filter, cdr_date_filter)
 
 
    @expose()
@@ -1023,7 +1069,7 @@ stat=%s
                u'Appels émis', u'Durée', u'Moyenne' ]
          title = u'Distribution par agent'
          rows = stat_members(0, 1000, 0, self.sort_index, self.sort_order, 
-            date_filter, queues_filter, members_filter)['rows']
+            date_filter, queues_filter, members_filter, cdr_date_filter)['rows']
          log.debug(rows)
 
       else:
