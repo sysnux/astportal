@@ -3,7 +3,6 @@
 #! /opt/Python-2.6.7/bin/python
 #
 # Calcul du coût des communications à partir des logs d'asterisk
-# Version nouvelle calédonie
 # Prix d’une communication en local :
 #  +--------+------------+--------------+
 #  | Tarif  | Vers fixes | Vers mobiles |

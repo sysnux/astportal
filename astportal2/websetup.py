@@ -27,7 +27,7 @@ def setup_app(command, conf, vars):
 #      table.__table__.create(bind=config['pylons.app_globals'].sa_engine)
 
    u = model.User()
-   u.user_id = -1
+#   u.user_id = -1
    u.user_name = u'admin'
    u.display_name = u'Administrateur'
    u.email_address = u'admin@somedomain.com'
@@ -35,14 +35,14 @@ def setup_app(command, conf, vars):
    model.DBSession.add(u)
 
    g = model.Group()
-   g.group_id = -1
+#   g.group_id = -1
    g.group_name = u'admin'
    g.display_name = u'Groupe des administrateurs'
    g.users.append(u)
    model.DBSession.add(g)
 
    d = model.Department()
-   d.dptm_id = -1
+#   d.dptm_id = -1
    d.name = u'Divers'
    d.comment = u'Téléphones divers'
    model.DBSession.add(d)
@@ -77,7 +77,7 @@ def setup_app(command, conf, vars):
       act.comment = a[1]
       model.DBSession.add(act)
 
-   q_events = 'UNKOW ABANDON AGENTDUMP AGENTLOGIN AGENTCALLBACKLOGIN AGENTLOGOFF AGENTCALLBACKLOGOFF COMPLETEAGENT COMPLETECALLER CONFIGRELOAD CONNECT ENTERQUEUE EXITWITHKEY EXITWITHTIMEOUT QUEUESTART SYSCOMPAT TRANSFER PAUSE UNPAUSE RINGNOANSWER EXITEMPTY PAUSEALL UNPAUSEALL ADDMEMBER REMOVEMEMBER INCOMING CLOSED DISSUASION INFO'.split()
+   q_events = 'UNKOWN ABANDON AGENTDUMP AGENTLOGIN AGENTCALLBACKLOGIN AGENTLOGOFF AGENTCALLBACKLOGOFF COMPLETEAGENT COMPLETECALLER CONFIGRELOAD CONNECT ENTERQUEUE EXITWITHKEY EXITWITHTIMEOUT QUEUESTART SYSCOMPAT TRANSFER PAUSE UNPAUSE RINGNOANSWER EXITEMPTY PAUSEALL UNPAUSEALL ADDMEMBER REMOVEMEMBER INCOMING CLOSED DISSUASION INFO'.split()
    for i, e in enumerate(q_events):
       qe = model.Queue_event()
       qe.qe_id = i+1
