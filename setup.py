@@ -51,10 +51,10 @@ print install_requires
 
 setup(
     name='astportal2',
-    version='0.1',
-    description='',
-    author='',
-    author_email='',
+    version='20111230.1',
+    description='Asterisk Portal',
+    author='Jean-Denis Girard',
+    author_email='jd.girard@sysnux.pf',
     #url='',
     setup_requires=["PasteScript >= 1.7"],
     paster_plugins=['PasteScript', 'Pylons', 'TurboGears2', 'tg.devtools'],
