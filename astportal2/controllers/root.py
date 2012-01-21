@@ -14,6 +14,9 @@ from astportal2.controllers.secure import SecureController
 
 __all__ = ['RootController']
 
+import logging
+log = logging.getLogger(__name__)
+
 
 from astportal2.controllers.cdr import Display_CDR
 from astportal2.controllers.billing import Billing_ctrl
@@ -93,6 +96,7 @@ class RootController(BaseController):
       login_counter = request.environ['repoze.who.logins']
       if login_counter > 0:
           flash(_("Erreur d'authentification"), 'warning')
+      log.debug('login: counter=%d, from=%s' % (login_counter, came_from))
       return dict(page='login', login_counter=str(login_counter),
           came_from=came_from)
  
@@ -103,6 +107,7 @@ class RootController(BaseController):
       authentication or redirect her back to the login page if login failed.
        
       """
+      log.debug('post_login: from=%s' % (came_from))
       if not request.identity:
             login_counter = request.environ['repoze.who.logins'] + 1
             redirect('/login', came_from=came_from, __logins=login_counter)
@@ -119,12 +124,4 @@ class RootController(BaseController):
       """
       flash(u'A bientôt')
       redirect('/login')
-
-   @expose('astportal2.templates.tabs')
-   def tabs(self):
-      from tw.jquery.ui import ui_tabs_js
-      from tw.uitheme import uilightness_css
-      uilightness_css.inject()
-      ui_tabs_js.inject()
-      return dict(title=u'Test tabs', debug=None)
 

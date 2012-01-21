@@ -58,45 +58,52 @@ def mk_filters(period, begin, end, queues, members):
    re_month = re.compile(r'^(1?\d)-(\d\d\d\d)$')
    if not begin and not end:
       if period=='today':
-         date_filter = sql.cast(Queue_log.timestamp, types.DATE)==\
-            datetime.date.today()
-         cdr_date_filter = sql.cast(CDR.calldate, types.DATE)==\
-             datetime.date.today()
+         date_filter = datetime.date.today() <= Queue_log.timestamp
+         cdr_date_filter = datetime.date.today() <= CDR.calldate
       elif period=='yesterday':
-         date_filter = sql.cast(Queue_log.timestamp, types.DATE)==\
-            datetime.date.today() - datetime.timedelta(1)
-         cdr_date_filter = sql.cast(CDR.calldate, types.DATE)==\
-            datetime.date.today() - datetime.timedelta(1)
+         date_filter = and_(
+            datetime.date.today() - datetime.timedelta(1) <= Queue_log.timestamp,
+            Queue_log.timestamp < datetime.date.today())
+         cdr_date_filter = and_(
+            datetime.date.today() - datetime.timedelta(1) <= CDR.calldate,
+            CDR.calldate < datetime.date.today())
       elif period=='ten_days':
-         date_filter = (sql.cast(Queue_log.timestamp, types.DATE)).between(\
-            datetime.date.today() - datetime.timedelta(10),
-            datetime.date.today())
-         cdr_date_filter = (sql.cast(CDR.calldate, types.DATE)).between(\
-            datetime.date.today() - datetime.timedelta(10),
-            datetime.date.today())
+         date_filter = and_(
+            datetime.date.today() - datetime.timedelta(10) <= Queue_log.timestamp,
+            Queue_log.timestamp < datetime.date.today())
+         cdr_date_filter = and_(
+            datetime.date.today() - datetime.timedelta(10) <= CDR.calldate,
+            CDR.calldate < datetime.date.today())
       elif re_month.search(period):
          (m,y) = re_month.search(period).groups()
-         date_filter = and_(extract('year', Queue_log.timestamp)==y,
-            extract('month', Queue_log.timestamp)==m)
-         cdr_date_filter = and_(extract('year', CDR.calldate)==y,
-            extract('month', Queue_log.timestamp)==m)
+         y = int(y)
+         m = int(m)
+         begin = datetime.date(y, m, 1)
+         if m!=12:
+            end = datetime.date(y, m+1, 1)
+         else:
+            end = datetime.date(y+1, 1, 1)
+         date_filter = and_(begin<=Queue_log.timestamp,
+            Queue_log.timestamp<end)
+         cdr_date_filter = and_(begin<=CDR.calldate,
+            CDR.calldate<end)
 
    else:
       if begin and not end:
-          date_filter = sql.cast(Queue_log.timestamp, types.DATE)>=\
+          date_filter = Queue_log.timestamp >= \
              datetime.datetime.strptime(begin, '%d/%m/%Y').date()
-          cdr_date_filter = sql.cast(CDR.calldate, types.DATE)>=\
+          cdr_date_filter = CDR.calldate >= \
              datetime.datetime.strptime(begin, '%d/%m/%Y').date()
       elif not begin and end:
-          date_filter = sql.cast(Queue_log.timestamp, types.DATE)<=\
+          date_filter = Queue_log.timestamp <= \
              datetime.datetime.strptime(end, '%d/%m/%Y').date()
-          cdr_date_filter = sql.cast(CDR.calldate, types.DATE)<=\
+          cdr_date_filter = CDR.calldate <= \
              datetime.datetime.strptime(end, '%d/%m/%Y').date()
       elif begin and end:
-          date_filter = (sql.cast(Queue_log.timestamp, types.DATE)).between(\
+          date_filter = Queue_log.timestamp.between( \
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
              datetime.datetime.strptime(end, '%d/%m/%Y').date())
-          cdr_date_filter = (sql.cast(CDR.calldate, types.DATE)).between(\
+          cdr_date_filter = CDR.calldate.between( \
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
              datetime.datetime.strptime(end, '%d/%m/%Y').date())
 

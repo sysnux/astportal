@@ -39,27 +39,38 @@ calls = calls_answ = call_max = call_mean = 0
 insert = '''
 INSERT INTO 
 cdr	(calldate, clid, src, dst, dcontext, channel, dstchannel, lastapp, 
-	lastdata, duration, billsec, disposition)
-VALUES 	( '%s',  '%s','%s','%s',     '%s',    '%s',        '%s',   '%s',
-	    '%s',       %d,      %d,        '%s' )'''
+	lastdata, duration, billsec, disposition, uniqueid)
+VALUES 	(   %s,   %s,  %s,  %s,       %s,      %s,         %s,      %s,
+	      %s,       %s,      %s,          %s,       %s)'''
 
 # Loop over CDR data
 import csv
 #data = csv.reader(open(args.csv_file,'rb'), delimiter=',')
 for line in csv.reader(sys.stdin, delimiter=','):
 
+# ['', '500300', 'poste1', 'default', '500300', 
+#  'SIP/7209-095d4d28', 'SIP/poste3-095e39e0', 
+#  'Dial', 'SIP/poste1&SIP/poste3', 
+#  '2011-11-21 17:37:07', '2011-11-21 17:37:07', '2011-11-21 17:38:01', 
+#  '54', '54', 'ANSWERED', 'DOCUMENTATION', '1321897027.0', '']
+
 	# Extract data
 	try:
-		( accountcode, src, dst, dcontext, clid, channel, dstchannel, lastapp, lastdata, start,
-		answer, end, duration, billsec, disposition, amaflags ) = line
+		( accountcode, src, dst, dcontext, clid, 
+			channel, dstchannel, 
+			lastapp, lastdata, 
+			start, answer, end, 
+			duration, billsec, disposition, amaflags, uniqueid, x ) = line
 		# Format data
 		date, time = start.split( ' ' )
 		billsec  = int( billsec )
 		duration = int( duration )
-		curs.execute( insert % (  start,  clid, src,  dst, dcontext, channel,  
-         dstchannel, lastapp, lastdata, duration, billsec, disposition))
+		curs.execute( insert, (  start,  clid, src,  dst, dcontext, channel,  
+         dstchannel, lastapp, lastdata, duration, billsec, disposition, uniqueid))
 	except:
 		print 'ERREUR:', sys.exc_info()[0]
+		print 'Ligne', line
 		print 'Données:', start,  clid, src,  dst, dcontext, channel,  dstchannel, lastapp, lastdata, duration, billsec, disposition
+		sys.exit(1)
 
 conn.commit()

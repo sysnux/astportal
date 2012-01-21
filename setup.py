@@ -41,6 +41,8 @@ install_requires=[
     "tw.jqgrid",
     "pygraphviz",
     "tgext.menu",
+    "tgscheduler",
+    "BeautifulSoup",
         ]
 
 if sys.version_info[:2] == (2,4):

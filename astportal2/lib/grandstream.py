@@ -8,6 +8,9 @@ import cookielib, urllib, urllib2
 from BeautifulSoup import BeautifulSoup
 from struct import pack, unpack
 
+from tg import config
+default_company = config.get('company')
+
 class Grandstream:
 
    cj = cookielib.CookieJar()
@@ -182,6 +185,7 @@ P30 = '',
             resp = urllib2.urlopen(self.url, timeout=1)
             if not reachable: break
          except:
+            return 'ok'
             reachable = False
          sleep(1)
       t2 = time()
@@ -211,7 +215,7 @@ P30 = '',
          (self.params['P25'], self.params['P26'], self.params['P27'],
             self.params['P28']) = dns2.split('.')
 
-      self.params['P270'] = 'Asterisk'
+      self.params['P270'] = default_company
       self.params['P99'] = 1 if mwi_subscribe else 0
       if sip_server:
          self.params['P47'] = sip_server
@@ -249,6 +253,11 @@ P30 = '',
       self.params['P57'] = 8
 
       if self.type==2: # Newer GXP
+         self.params['P102'] = 2 # dd-mm-yyyy
+         self.params['P122'] = 1 # 24 hours
+         self.params['P64'] = 'HAW10' # GMT-10
+         self.params['P143'] = 0 # No DHCP option 2
+         self.params['P1379'] = 'c' # celsius degrees
          self.params['P1362'] = 'fr' # language
          self.params['update'] = 'Mise a jour'
 

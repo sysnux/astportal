@@ -66,8 +66,10 @@ def users():
 ip_form = AjaxForm(
    id = 'ip_form',
    fields = [ 
-      TextField('ip', label_text=u'Adresse IP'),
-      TextField('mac', label_text=u'Adresse matérielle (MAC)'),
+      TextField('ip', label_text=u'Adresse IP', 
+         help_text=u'ex. 192.168.123.234'),
+      TextField('mac', label_text=u'Adresse matérielle (MAC)', 
+         help_text=u'ex. 01:23:45:68:89:ab'),
       TextField('pwd', label_text=u'Mot de passe', default='admin'),
       ],
    hover_help = True,

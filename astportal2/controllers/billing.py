@@ -34,21 +34,14 @@ def check_access(cdrs):
       return cdrs
 
    elif in_group('CDS'):
-      # Find list of phones from the user's list of phones
-      # user_phones -> departments -> phones
-      phones = []
-      for d in [d.department for d in request.identity['user'].phone]:
-         for p in d.phones:
-            phones.append(p)
-      src = [p.exten for p in phones]
-      dst = [p.exten for p in phones]
-      cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
-      log.info('CDS source <%s>, destination <%s>' % (src, dst))
+      # Find list of departments from the user's phones
+      deps = [p.department.dptm_id for p in request.identity['user'].phone]
+      log.info('CDS departments <%s>' % (deps))
+      cdrs = cdrs.filter(CDR.department.in_(deps))
+
 
    elif in_group('Utilisateurs'):
-      src = [p.exten for p in request.identity['user'].phone]
-      dst = [p.exten for p in request.identity['user'].phone]
-      cdrs = cdrs.filter( (CDR.src.in_(src)) | (CDR.dst.in_(dst)) )
+      cdrs = cdrs.filter(CDR.user==request.identity['user'].user_id)
 
    else:
       flash(u'Accès interdit')
@@ -349,12 +342,14 @@ class Billing_ctrl(BaseController):
 
       elif phones:
             if type(phones)!=type([]):
-               phones = ['%ss' % (prefix_src, phones)]
+               users = [u.user_id for u in \
+                  DBSession.query(Phone.user).filter(Phone.exten==phones)]
                crit.append(u'téléphone='+phones)
             else:
-               phones = ['%s%s' % (prefix_src, p) for p in phones]
+               users = [u.user_id for u in \
+                  DBSession.query(Phone.user).filter(Phone.exten.in_(phones))]
                crit.append(u'téléphones='+', '.join(phones))
-            cdrs = cdrs.filter(CDR.src.in_(phones))
+            cdrs = cdrs.filter(CDR.user.in_(users))
 
       # jqGrid common definition
       colNames = [u'Service', u'Nom (poste)', u'Durée', u'CFP HT', u'CFP TTC']

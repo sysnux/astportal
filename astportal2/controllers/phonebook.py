@@ -306,13 +306,13 @@ class Phonebook_ctrl(RestController):
       redirect('/phonebook/')
 
 
-   @expose(content_type='text/xml; charset=ISO-8859-1')
+   @expose(content_type='text/xml; charset=utf-8')
    def gs_phonebook_xml(self, user=None):
       ''' Export phonebook to Grandstream XML phonebook format
       '''
       log.debug(u'Grandstream phonebook <%s>', user)
 
-      xml = '<?xml version="1.0" encoding="iso-8859-1"?>\n<AddressBook>\n'
+      xml = '<?xml version="1.0" encoding="utf-8"?>\n<AddressBook>\n'
 
       # Fist, look for entries in phonebook...
       list = DBSession.query(Phonebook)
@@ -369,7 +369,7 @@ class Phonebook_ctrl(RestController):
 
       xml += '</AddressBook>\n'
 
-      return xml.encode('iso-8859-1', 'replace')
+      return xml.encode('utf-8', 'replace')
 
 
    @expose('json')

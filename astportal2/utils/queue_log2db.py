@@ -6,19 +6,22 @@
 # Jean-Denis Girard <jd.girard@sysnux.pf>
 # SysNux (c) http://www.sysnux.pf/
 
+import sys
+import getopt
+import datetime
+import unicodedata
+
+# Open database connection
+sys.path.append('/home/astportal21')
 from paste.deploy import appconfig
-#conf = appconfig('config:/home/astportal21/csb-shell.ini')
 conf = appconfig('config:/home/SysNux/Projets/astportal21/tiare.ini')
+#conf = appconfig('config:/home/astportal21/csb-shell.ini')
 
 from astportal2.config.environment import load_environment
 load_environment(conf.global_conf, conf.local_conf)
 from astportal2.model import DBSession, Queue_log, Queue_event, Phone, User
 
 from sqlalchemy import desc
-import sys
-import getopt
-import datetime
-import unicodedata
 
 
 def usage():

@@ -163,8 +163,10 @@ class Pickup_ctrl(RestController):
       '''
 
       # Find new pickup group (0-63)
-      for i, p in enumerate(DBSession.query(Pickup).order_by(Pickup.pickup_id)):
+      i = 0
+      for p in DBSession.query(Pickup).order_by(Pickup.pickup_id):
          if p.pickup_id!=i: break
+	 i += 1
 
       if i>63:
          flash(u'Nombre maximum de groupe d\'interceptions atteint, création impossible',

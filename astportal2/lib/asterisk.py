@@ -34,8 +34,12 @@ def asterisk_shell(cmd):
 
    Need a special context in Asterisk dialplan:
 [shell_command]
+; Execute an arbitrary shell command passed through manager
+; give it a few seconds for completion
 exten => s,1,NoOp(Command)
 exten => s,n,Answer()
+exten => s,n,Wait(10)
+
    '''
    res = Globals.manager.originate(
       'Local/s@shell_command', # Channel

@@ -21,6 +21,7 @@ from tw.forms.validators import Int, DateConverter, TimeConverter
 from tw.jquery.ui import ui_tabs_js
 
 import sqlalchemy
+db_engine = DBSession.connection().engine.name
 
 from genshi import Markup
 from os import path
@@ -206,24 +207,38 @@ class Display_CDR(BaseController):
 
       if in_out=='in':
          filter.append(u'type entrant')
-         cdrs = cdrs.filter('''NOT (dstchannel ~ E'Dahdi/1?\\\\d-1' OR dstchannel LIKE 'IAX2/teliax%')''')
-         #cdrs = cdrs.filter(sqlalchemy.not_(CDR.lastdata.ilike('Dahdi/g0/%')))
+#cdrs = cdrs.filter('''NOT (dstchannel ~ E'Dahdi/1?\\\\d-1' OR dstchannel LIKE 'IAX2/teliax%')''')
+#cdrs = cdrs.filter(sqlalchemy.not_(CDR.lastdata.ilike('Dahdi/g0/%')))
+         cdrs = cdrs.filter(CDR.channel.ilike('SIP/TOICSB%'))
+
       elif in_out=='out':
          filter.append(u'type sortant')
-         cdrs = cdrs.filter(''' (dstchannel ~ E'Dahdi/1?\\\\d-1' OR dstchannel LIKE 'IAX2/teliax%')''')
-         #cdrs = cdrs.filter(CDR.lastdata.ilike('Dahdi/g0/%'))
+#cdrs = cdrs.filter(''' (dstchannel ~ E'Dahdi/1?\\\\d-1' OR dstchannel LIKE 'IAX2/teliax%')''')
+#cdrs = cdrs.filter(CDR.lastdata.ilike('Dahdi/g0/%'))
+         cdrs = cdrs.filter(CDR.dstchannel.ilike('SIP/TOICSB%'))
 
       if date:
          filter.append(date.strftime('date %d/%m/%Y'))
-         cdrs = cdrs.filter(sqlalchemy.func.date(CDR.calldate)==date)
+         if db_engine=='oracle':
+            cdrs = cdrs.filter(sqlalchemy.func.trunc(CDR.calldate, 'J')==date)
+         else: # PostgreSql
+            cdrs = cdrs.filter(sqlalchemy.sql.cast(CDR.calldate, sqlalchemy.types.DATE)==date)
+
 
       if hour:
-         hour = '%d:%02d' % (hour[0], hour[1])
-         filter.append(u'heure approximative ' + hour)
-         # XXX import datetime
-         #time = datetime.time(h,m)
-         #cdrs = cdrs.filter(sqlalchemy.sql.cast(CDR.calldate, sqlalchemy.types.TIME)==time)
-         cdrs = cdrs.filter("'" + hour + "' - '" + interval + "'::interval <= calldate::time AND calldate::time <= '" + hour + "' + '" + interval + "'::interval")
+         filter.append(u'heure approximative %dh%02d' % (hour[0], hour[1]))
+         if db_engine=='oracle':
+            if hour[1]>=30: 
+               hour1 = '%d:%02d' % (hour[0], hour[1]-30)
+               hour2 = '%d:%02d' % (hour[0]+1, hour[1]-30)
+            else:
+               hour1 = '%d:%02d' % (hour[0]-1, hour[1]+30)
+               hour2 = '%d:%02d' % (hour[0], hour[1]+30)
+            cdrs = cdrs.filter(hour1<=sqlalchemy.func.to_char(CDR.calldate, 'HH24:MI'))
+            cdrs = cdrs.filter(sqlalchemy.func.to_char(CDR.calldate, 'HH24:MI')<=hour2)
+         else: # PostgreSql
+            hour = '%d:%02d' % (hour[0], hour[1])
+            cdrs = cdrs.filter("'" + hour + "' - '" + interval + "'::interval <= calldate::time AND calldate::time <= '" + hour + "' + '" + interval + "'::interval")
 
       if len(filter):
          if len(filter)>1: m = u'Critères: '
