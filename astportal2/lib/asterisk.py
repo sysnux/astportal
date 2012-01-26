@@ -94,18 +94,18 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       Globals.manager.send_action({'Action': 'DBput',
          'Family': 'exten', 'Key': p.exten, 'Val': p.sip_id})
 
-   # Voicemail.conf
+   # Voicemail.conf: allways delete old_exten (don't care if doesn't exists)
+   if old_exten is None:
+      old_exten = p.exten
+   Globals.manager.update_config(
+      directory_asterisk  + 'voicemail.conf', 
+      None, [('Delete', 'astportal', old_exten)])
    if p.user_id and u.email_address is not None:
       vm = u'>%s,%s,%s' \
             % (u.password, cidname, u.email_address)
       actions = [
          ('Append', 'astportal', p.exten, vm),
          ]
-      if old_exten is None:
-         old_exten = p.exten
-      Globals.manager.update_config(
-         directory_asterisk  + 'voicemail.conf', 
-         None, [('Delete', 'astportal', old_exten)])
       res = Globals.manager.update_config(
          directory_asterisk  + 'voicemail.conf', 
          'app_voicemail_plain', actions)

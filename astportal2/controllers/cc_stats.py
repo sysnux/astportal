@@ -107,7 +107,7 @@ def mk_filters(period, begin, end, queues, members):
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
              datetime.datetime.strptime(end, '%d/%m/%Y').date())
 
-   queues_filter = Queue_log.queue.in_(queues_access(queues))
+   queues_filter = Queue_log.queue.in_(check_access(queues))
    members_filter = Queue_log.user.in_(members)
    return date_filter, queues_filter, members_filter, cdr_date_filter
 
@@ -640,13 +640,15 @@ def period_options():
 
    return p
 
-def queues_access(queues):
+def check_access(queues):
    '''Check access rigths to queues
    '''
    if in_group('admin'):
       user_queues = queues
    else:
       user_queues = []
+      if type(queues)!=type([]):
+         queues = [queues]
       for q in queues:
          if in_group('SV ' + q):
             user_queues.append(q)
@@ -659,7 +661,7 @@ def queues_options():
    # queue_event_id==24 => AddMember
    queues = [q[0] for q in DBSession.query(Queue_log.queue).distinct().\
          filter(Queue_log.queue_event_id==24).order_by(Queue_log.queue)]
-   return queues_access(queues)
+   return check_access(queues)
 
 def members_options():
    ''' Returns distinct members from queue log

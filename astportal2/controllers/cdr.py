@@ -229,11 +229,11 @@ class Display_CDR(BaseController):
          filter.append(u'heure approximative %dh%02d' % (hour[0], hour[1]))
          if db_engine=='oracle':
             if hour[1]>=30: 
-               hour1 = '%d:%02d' % (hour[0], hour[1]-30)
-               hour2 = '%d:%02d' % (hour[0]+1, hour[1]-30)
+               hour1 = '%02d:%02d' % (hour[0], hour[1]-30)
+               hour2 = '%02d:%02d' % (hour[0]+1, hour[1]-30)
             else:
-               hour1 = '%d:%02d' % (hour[0]-1, hour[1]+30)
-               hour2 = '%d:%02d' % (hour[0], hour[1]+30)
+               hour1 = '%02d:%02d' % (hour[0]-1, hour[1]+30)
+               hour2 = '%02d:%02d' % (hour[0], hour[1]+30)
             cdrs = cdrs.filter(hour1<=sqlalchemy.func.to_char(CDR.calldate, 'HH24:MI'))
             cdrs = cdrs.filter(sqlalchemy.func.to_char(CDR.calldate, 'HH24:MI')<=hour2)
          else: # PostgreSql
