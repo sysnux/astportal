@@ -245,6 +245,7 @@ class Status(object):
       self.last_queue_update = time()
       self.peers = {}
       self.channels = {}
+      self.astp_vars = {}
       self.queues = {}
       self.members = {}
 #     members data structure: (see also app_queue.c)
@@ -280,9 +281,11 @@ class Status(object):
 #      log.debug(event.data)
       if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
             'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
-            'DTMF', 'RTCPReceived', 'RTCPSent', 'VarSet' ):
+            'DTMF', 'RTCPReceived', 'RTCPSent'):
          return
-      if e=='Newchannel':
+      if e=='VarSet':
+         self._handle_VarSet(event.headers)
+      elif e=='Newchannel':
          self._handle_Newchannel(event.headers)
       elif e in ('Newcallerid', 'Newexten', 'Newstate', 'MeetmeJoin', 'MeetmeLeave'):
          self._updateChannels(event.headers)
@@ -320,6 +323,8 @@ class Status(object):
          self._handle_CEL(event.headers)
       elif e in ('ExtensionStatus', 'Dial', 'MessageWaiting', 'Shutdown', 'Reload'):
          log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
+      elif e == 'UserEvent':
+         self._handle_UserEvent(event.headers)
       else:
          log.warning('Event not handled "%s"' % e)
 
@@ -472,7 +477,7 @@ Channel: SIP/100-0000001f
 
    def _handle_AgentConnect(self, dict):
       q = dict['Queue']
-      m = self.normalize_member(dict['Member'])
+      m = self.normalize_member(dict['MemberName'])
       self.members[m]['ConnBegin'] = time()
       self.members[m]['Queue'] = dict['Queue']
       self.members[m]['Channel'] = dict['Channel']
@@ -532,7 +537,7 @@ Channel: SIP/100-0000001f
       self.last_queue_update = time()
 
    def _handle_Join(self, dict):
-      log.debug('Joinn %s' % dict)
+      log.debug('Join %s' % dict)
       self.queues[dict['Queue']]['Calls'] += 1
       self.queues[dict['Queue']]['Wait'].append(time())
       self.last_queue_update = time()
@@ -641,9 +646,15 @@ Channel: SIP/100-0000001f
                self.members[m]['CallsOut'] += 1
                self.members[m]['OutTotal'] += time() - self.members[m]['OutBegin']
             else:
+               # XXX attention ne pas compter s'il n'y a pas eu de réponse XXX
                self.members[m]['InTotal'] += time() - self.members[m]['InBegin']
             self.members[m]['Spied'] = False
             self.members[m]['Recorded'] = False
+            self.members[m]['Uniqueid'] = ''
+            self.members[m]['PeerChannel'] = ''
+            self.members[m]['HoldTime'] = ''
+            self.members[m]['Custom1'] = ''
+            self.members[m]['Custom2'] = ''
             self.last_queue_update = time()
             break
 
@@ -651,6 +662,10 @@ Channel: SIP/100-0000001f
          del self.channels[c]
       except:
          log.warning('Hangup: channel "%s" doesn\'t exist ?' % c)
+      try:
+      	del self.astp_vars[c]
+      except:
+         pass
       self.last_update = time()
 
 
@@ -682,6 +697,17 @@ Channel: SIP/100-0000001f
          self.channels[c2]['LastUpdate'] = time()
       except:
          log.warning('Link: channel "%s" doesn\'t exist ?' % c1)
+
+      # Check if channel belongs to a queue member
+      loc = c2[:c2.find('-')] # SIP/100-000000a6 -> SIP/100
+      for m in self.members:
+         if self.members[m]['Location'] == loc:
+            log.debug('Link member "%s" to channel "%s" (%s)' % (m,
+               dict['Channel1'], dict['Uniqueid1']))
+            self.members[m]['Uniqueid'] = dict['Uniqueid1']
+            self.members[m]['PeerChannel'] = dict['Channel1']
+            self.last_queue_update = time()
+            break
 
       self.last_update = time()
 
@@ -729,4 +755,27 @@ Channel: SIP/100-0000001f
       except:
          pass
       self.last_update = time()
+
+   def _handle_VarSet(self, dict):
+      if not dict['Variable'].startswith('ASTP_'):
+         return
+      if dict['Channel'] not in self.astp_vars.keys():
+      	self.astp_vars[dict['Channel']] = {}
+      self.astp_vars[dict['Channel']][dict['Variable']] = dict['Value']
+      log.debug('New astp_vars %s' % self.astp_vars)
+      self.last_update = time() # XXX nécessaire ou non ?
+      self.last_queue_update = time()
+
+   def _handle_UserEvent(self, dict):
+      if dict['UserEvent']=='AgentWillConnect':
+         log.debug('Agent "%s" will connect to channel "%s" (%s)' % \
+            (dict['Agent'], dict['PeerChannel'], dict['PeerUniqueid']))
+         self.members[dict['Agent']]['PeerChannel'] = dict['PeerChannel']
+         self.members[dict['Agent']]['PeerCallerid'] = dict['PeerCallerid']
+         self.members[dict['Agent']]['HoldTime'] = dict['HoldTime']
+         self.members[dict['Agent']]['Uniqueid'] = dict['PeerUniqueid']
+         self.members[dict['Agent']]['Custom1'] = dict.get('Custom1', '')
+         self.members[dict['Agent']]['Custom2'] = dict.get('Custom2', '')
+         #self.last_update = time() # XXX nécessaire ou non ?
+         self.last_queue_update = time()
 

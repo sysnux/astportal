@@ -13,7 +13,6 @@ from time import sleep
 import logging
 log = logging.getLogger(__name__)
 
-
 class Monitor_ctrl(TGController):
  
    allow_only = in_group('admin', 

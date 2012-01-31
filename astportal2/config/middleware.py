@@ -8,7 +8,6 @@ from tg import config
 import logging
 log = logging.getLogger(__name__)
 
-
 __all__ = ['make_app']
 
 # Use base_config to setup the necessary PasteDeploy application factory. 

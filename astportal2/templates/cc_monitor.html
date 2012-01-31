@@ -27,6 +27,8 @@ tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
 <![CDATA[
 
 var last=0, // last_update
+    me = "${tg.request.identity['user']}", // Current user
+    my_status = null, // Current user status (1=> not in use)
     time_diff=0, // Time diff beween client and server
     change=true, // Change in list of queues or members, need rebuild list
     first_time=true, error=0, display_tmo,
@@ -172,6 +174,10 @@ function member_status(name, now, queue) {
    var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE
+if (name==me && my_status) {
+	window.open('http://192.168.10.106/cgi-bin/crm.py?action=hangup&uniqueid=' + my_status, 'Hangup', 'location=no,width=600,height=400');
+	my_status = null
+}
          if (member['Paused']=='1') {
             sclass='paused'; stat='En pause';
          } else {
@@ -180,6 +186,10 @@ function member_status(name, now, queue) {
          dur = '';
          break;
       case '2': // AST_DEVICE_INUSE
+if (name==me && member['PeerChannel']!='' && !my_status) {
+	my_status = member['Uniqueid'];
+	window.open('http://192.168.10.106/cgi-bin/crm.py?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
+}
       case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
          sclass='inuse'; 
@@ -190,7 +200,7 @@ function member_status(name, now, queue) {
             stat='Appel reçu';
             dur = min_sec(now - member['InBegin']);
          }
-         lis = '<input type="checkbox" onclick="listen(\'' + 
+         lis = '<input type="checkbox" onclick="spy(\'' + 
             name + '\',\'' + member['Location'] + '\')"';
          if (member['Spied']) lis += ' checked="checked"';
          lis += '/>';
@@ -214,9 +224,9 @@ function member_status(name, now, queue) {
    return [sclass, stat, dur, nci, tci, nco, tco, lis, rec];
 }
 
-function listen(name, channel) {
+function spy(name, channel) {
    $.post(
-      "${tg.url('/cc_monitor/listen')}",
+      "${tg.url('/cc_monitor/spy')}",
       {'name': name, 'channel': channel},
       function (data) { // 
       },

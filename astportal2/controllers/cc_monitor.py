@@ -70,14 +70,15 @@ class CC_Monitor_ctrl(TGController):
       p = DBSession.query(Phone).get(member)
 
       if p.sip_id is not None and 'SIP/'+p.sip_id in Globals.asterisk.peers:
-         iface = 'SIP/' + p.sip_id
+         iface = p.sip_id
       elif p.exten is not None and 'SIP/'+p.exten in Globals.asterisk.peers:
-         iface = 'SIP/' + p.exten
+         iface = p.exten
       else:
          log.error('%s:%s not registered, not adding member ?' % (p.sip_id, p.exten))
          return dict(res='ko')
 
       user = p.user.display_name if p.user else p.exten
+      iface = 'SIP/%s' % iface
 
       Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': queue, 
          'Interface': iface, 'Penalty': penality,
@@ -102,15 +103,15 @@ class CC_Monitor_ctrl(TGController):
       Return when new updates available, or timeout
       '''
       last = float(last) or 0 # Last template refresh (0 -> page just loaded)
-      i = 0
       change = False
-      queues = copy.deepcopy(Globals.asterisk.queues)
-      members = copy.deepcopy(Globals.asterisk.members)
-      log.debug('Q BEFORE %s' % queues)
-      log.debug('M BEFORE %s' % members)
+#      queues = copy.deepcopy(Globals.asterisk.queues)
+#      members = copy.deepcopy(Globals.asterisk.members)
+#      log.debug('Q BEFORE %s' % Globals.asterisk.queues)
+#      log.debug('M BEFORE %s' % Globals.asterisk.members)
       for i in xrange(50):
          last_update = float(Globals.asterisk.last_queue_update)
          if last_update > last:
+            break
             if queues != Globals.asterisk.queues or \
                   members != Globals.asterisk.members or last == 0:
                change = True
@@ -128,12 +129,14 @@ class CC_Monitor_ctrl(TGController):
             if in_group('SV ' + q):
                queues[q] = Globals.asterisk.queues[q]
 
+      log.debug('Q AFTER %s' % Globals.asterisk.queues)
+      log.debug('M AFTER %s' % Globals.asterisk.members)
       return dict(last=last_update, change=True, # XXX
             queues=queues, members=Globals.asterisk.members)
 
 
    @expose('json')
-   def listen(self, name, channel):
+   def spy(self, name, channel):
       '''Listen queue member
 
 action: originate
