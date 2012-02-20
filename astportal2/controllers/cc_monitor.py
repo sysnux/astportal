@@ -98,18 +98,18 @@ class CC_Monitor_ctrl(TGController):
 
 
    @expose('json')
-   def update_queues(self, last):
+   def update_queues(self, last=0):
       ''' Function called on AJAX request made by template.
       Return when new updates available, or timeout
       '''
-      last = float(last) or 0 # Last template refresh (0 -> page just loaded)
+      last = int(last) # Last template refresh (0 -> page just loaded)
       change = False
-#      queues = copy.deepcopy(Globals.asterisk.queues)
-#      members = copy.deepcopy(Globals.asterisk.members)
+      queues = copy.deepcopy(Globals.asterisk.queues)
+      members = copy.deepcopy(Globals.asterisk.members)
 #      log.debug('Q BEFORE %s' % Globals.asterisk.queues)
 #      log.debug('M BEFORE %s' % Globals.asterisk.members)
       for i in xrange(50):
-         last_update = float(Globals.asterisk.last_queue_update)
+         last_update = int(Globals.asterisk.last_queue_update)
          if last_update > last:
             break
             if queues != Globals.asterisk.queues or \
@@ -133,6 +133,31 @@ class CC_Monitor_ctrl(TGController):
       log.debug('M AFTER %s' % Globals.asterisk.members)
       return dict(last=last_update, change=True, # XXX
             queues=queues, members=Globals.asterisk.members)
+
+
+   @expose('json')
+   def update_queues2(self, last=0):
+      ''' Function called on AJAX request made by template.
+      Return when new updates available, or timeout
+      '''
+      last = int(last) # Last template refresh (0 -> page just loaded)
+      log.debug('New request, last=%d' % last)
+      change = False
+      queues = copy.deepcopy(Globals.asterisk.queues)
+      for i in xrange(50):
+         last_update = float(Globals.asterisk.last_queue_update)
+         if int(last_update*100) > last:
+            break
+            if queues != Globals.asterisk.queues or last == 0:
+               change = True
+               break
+            else:
+               last = last_update
+         sleep(1)
+      log.debug('Sending response, last=%s' % last_update)
+      last_update = int(last_update*100)
+      return dict(last=last_update, change=True, # XXX
+            queues=Globals.asterisk.queues)
 
 
    @expose('json')

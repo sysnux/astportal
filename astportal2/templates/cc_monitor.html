@@ -175,7 +175,7 @@ function member_status(name, now, queue) {
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE
 if (name==me && my_status) {
-	window.open('http://192.168.10.106/cgi-bin/crm.py?action=hangup&uniqueid=' + my_status, 'Hangup', 'location=no,width=600,height=400');
+	window.open('http://localhost/cgi-bin/crm.py?action=hangup&uniqueid=' + my_status, 'Hangup', 'location=no,width=600,height=400');
 	my_status = null
 }
          if (member['Paused']=='1') {
@@ -188,7 +188,7 @@ if (name==me && my_status) {
       case '2': // AST_DEVICE_INUSE
 if (name==me && member['PeerChannel']!='' && !my_status) {
 	my_status = member['Uniqueid'];
-	window.open('http://192.168.10.106/cgi-bin/crm.py?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
+	window.open('http://localhost/cgi-bin/crm.py?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
 }
       case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
