@@ -116,6 +116,15 @@ class Record_ctrl(RestController):
       records = DBSession.query(Record, Queue). \
             filter(Record.queue_id==Queue.queue_id)
 
+      # Access rights
+      if not in_group('admin'):
+         user_queues = []
+         for q in DBSession.query(Queue):
+            if in_group('SV ' + q.name):
+               user_queues.append(q.queueid)
+         log.debug('User queues: %s' % user_queues)
+         records = records.filter(Record.queue_id.in_(user_queues))
+
       total = records.count()/rows + 1
       column = getattr(Record, sidx)
       records = records.order_by(getattr(column,sord)()).offset(offset).limit(rows)
