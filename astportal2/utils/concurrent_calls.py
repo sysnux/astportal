@@ -18,7 +18,7 @@
 #  |     #4    |     |        3        |
 #  |           |  #3 |        2        |
 #  |           |  #4 |        1        |
-#  |           |  #1 |        0        |
+#  |           |  #2 |        0        |
 #  +-----------+-----+-----------------+
 #
 # But Asterisk (usually) records only one CDR per call, after hangup:
@@ -65,7 +65,7 @@ ORDER BY ts, step DESC
 
 ccalls = max = 0
 #for id, ts, x in curs.fetchall():
-for id, ts, x in DBSession.query(CDR)curs.fetchall():
+for id, ts, x in DBSession.query(CDR):
    ccalls += x
    if ccalls > max: max = ccalls
    warning = ' ******' if ccalls<0 else '' # Something wrong !

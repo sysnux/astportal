@@ -102,10 +102,10 @@ def mk_filters(period, begin, end, queues, members):
       elif begin and end:
           date_filter = Queue_log.timestamp.between( \
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
-             datetime.datetime.strptime(end, '%d/%m/%Y').date())
+             datetime.datetime.strptime(end, '%d/%m/%Y').date() + datetime.timedelta(1))
           cdr_date_filter = CDR.calldate.between( \
              datetime.datetime.strptime(begin, '%d/%m/%Y').date(),
-             datetime.datetime.strptime(end, '%d/%m/%Y').date())
+             datetime.datetime.strptime(end, '%d/%m/%Y').date() + datetime.timedelta(1))
 
    queues_filter = Queue_log.queue.in_(check_access(queues))
    members_filter = Queue_log.user.in_(members)
@@ -667,10 +667,9 @@ def members_options():
    ''' Returns distinct members from queue log
    '''
    # queue_event_id==24 => AddMember
-#   return [a[0] for a in DBSession.query(Queue_log.user).distinct().\
-#         filter(Queue_log.queue_event_id==24).order_by(Queue_log.user)]
-   uids = [a.user for a in DBSession.query(Queue_log).distinct(). \
+   uids = [a.user for a in DBSession.query(Queue_log.user).distinct(). \
          filter(Queue_log.queue_event_id==24)]
+   log.debug(u'Queue members uids=%s' % uids)
 
    return [(a.user_id, a.display_name) for a in DBSession.query(User). \
          filter(User.user_id.in_(uids)).order_by(User.display_name)]
