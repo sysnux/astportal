@@ -22,9 +22,15 @@ from astportal2.model import DBSession, Sound, User, Group
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
-dir_tmp = '/tmp'
-dir_moh = '/var/lib/asterisk/moh/astportal'
-dir_sounds = '/var/lib/asterisk/sounds/astportal'
+dir_tmp = config.get('directory.tmp')
+dir_moh = config.get('directory.moh')
+dir_sounds = config.get('directory.sounds')
+
+# Language can be set via Asterisk dialplan: Set(CHANNEL(language)=en)
+# Directory structure:
+# dir_{sounds,moh}/en/astportal
+# dir_{sounds,moh}/fr/astportal
+languages = eval(config.get('sounds.languages'))
 
 # Common fields
 edit_sound_fields = [
@@ -47,6 +53,9 @@ new_sound_fields = [
       options=(('sound', u'message sonore'), 
          ('moh', u'musique d\'attente')),
       label_text=u'Type de son'),
+   RadioButtonList('lang', validator=NotEmpty,
+      options=languages, default='fr',
+      label_text=u'Langue'),
 ]
 
 
@@ -65,7 +74,7 @@ edit_sound_form = TableForm(
    hover_help = True
    )
 
-def process_file(wav, id, type, name):
+def process_file(wav, id, type, name, lang):
       ''' Convert and move to asterisk dir, with name "name.wav'
       '''
 
@@ -73,13 +82,14 @@ def process_file(wav, id, type, name):
       filename = wav.filename
       filetype = wav.type
       filedata = wav.file
+      log.debug('process_file: <%s> <%s> <%s>' % (filename, filetype, filedata))
 
       if filetype.split('/')[0]!='audio':
          return u'Le fichier doit être de type son !'
 
       orig = '%s/%d_%s' % (dir_tmp, id, filename)
       dir_dst = dir_moh if type==0 else dir_sounds
-      final = '%s/%s.wav' % (dir_dst, re.sub(r'\W', '_', name))
+      final = '%s/%s/%s.wav' % (dir_dst, lang, re.sub(r'\W', '_', name))
       out = open(orig, 'w')
       out.write(filedata.read())
       out.close()
@@ -157,7 +167,7 @@ def row(s):
 
    type = u'Sons' if s.type==1 else u'Musique'
 
-   return [Markup(action), type, s.name, s.comment , Markup(listen) ]
+   return [Markup(action), type, s.language, s.name, s.comment , Markup(listen) ]
 
 
 class MOH_ctrl(RestController):
@@ -174,9 +184,10 @@ class MOH_ctrl(RestController):
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u"Sons et musiques d\'attente",
             sortname='name', sortorder='asc',
-            colNames = [u'Action', u'Type', u'Nom', u'Commentaires', u'\u00C9coute' ],
+            colNames = [u'Action', u'Type', u'Langue', u'Nom', u'Commentaires', u'\u00C9coute' ],
             colModel = [ { 'width': 60, 'align': 'center', 'sortable': False },
                { 'name': 'type', 'width': 60 },
+               { 'name': 'language', 'width': 60 },
                { 'name': 'name', 'width': 60 },
                { 'name': 'comment', 'width': 280 },
                { 'width': 60, 'align': 'center', 'sortable': False },
@@ -264,7 +275,7 @@ class MOH_ctrl(RestController):
          flash(u'Impossible de créer le son (vérifier son nom)', 'error')
          redirect('/moh/')
 
-      ret = process_file(kw['file'], s.sound_id, s.type, s.name)
+      ret = process_file(kw['file'], s.sound_id, s.type, s.name, kw['lang'])
 
       if ret:
          flash(ret,'error')
@@ -302,7 +313,7 @@ class MOH_ctrl(RestController):
       if kw.has_key('owner_id'):
          s.owner_id = kw['owner_id']
       s.comment = kw['comment']
-      ret = process_file(kw['file'], id, s.type, s.name)
+      ret = process_file(kw['file'], id, s.type, s.name, kw['lang'])
 
       if ret:
          flash(ret,'error')

@@ -135,6 +135,7 @@ class Sound(DeclarativeBase):
    __tablename__ = 'sound'
    sound_id = Column(Integer, Sequence('sound_seq'), primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
+   language = Column(Unicode(2), default='fr')
    type = Column(Integer, default=0) # 0=moh (class?), 1=sound
    comment = Column(Unicode(80))
    owner_id = Column(Integer, ForeignKey('tg_user.user_id'))
