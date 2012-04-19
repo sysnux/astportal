@@ -41,33 +41,6 @@ base_config.DBSession = astportal2.model.DBSession
 # YOU MUST CHANGE THIS VALUE IN PRODUCTION TO SECURE YOUR APP
 base_config.sa_auth.cookie_secret = "AstPortal (c) SysNux \o/"
 
-# Configure the authentication backend
-base_config.auth_backend = 'sqlalchemy'
-base_config.sa_auth.dbsession = model.DBSession
-# what is the class you want to use to search for users in the database
-base_config.sa_auth.user_class = model.User
-# what is the class you want to use to search for groups in the database
-base_config.sa_auth.group_class = model.Group
-# what is the class you want to use to search for permissions in the database
-base_config.sa_auth.permission_class = model.Permission
-
-# Authentification expiration: expires after 600 sec of inactivity;
-# cookie is resent if request older than 10 sec
-base_config.sa_auth.cookie_timeout = 600
-base_config.sa_auth.cookie_reissue_time = 10
-
-# override this if you would like to provide a different who plugin for
-# managing login and logout of your application
-base_config.sa_auth.form_plugin = None
-
-# You may optionally define a page where you want users to be redirected to
-# on login:
-base_config.sa_auth.post_login_url = '/post_login'
-
-# You may optionally define a page where you want users to be redirected to
-# on logout:
-base_config.sa_auth.post_logout_url = '/post_logout'
-
 import tgext.menu
 base_config.variable_provider = tgext.menu.menu_variable_provider
 # base_config.tgext_menu = {}

@@ -6,6 +6,7 @@ from tgext.menu import sidebar
 from pylons.i18n import ugettext as _, lazy_ugettext as l_
 
 from repoze.what.predicates import is_anonymous, in_group
+import repoze.who
 
 from astportal2.lib.base import BaseController
 
@@ -91,14 +92,16 @@ class RootController(BaseController):
       return dict(page='index')
 
    @expose('astportal2.templates.login')
-   def login(self, came_from=url('/')):
+   def login(self, came_from=url('/'), **kw):
+      log.debug('login, env=%s' % request.environ)
       """Start the user login."""
-      login_counter = request.environ['repoze.who.logins']
-      if login_counter > 0:
-          flash(_("Erreur d'authentification"), 'warning')
-      log.debug('login: counter=%d, from=%s' % (login_counter, came_from))
-      return dict(page='login', login_counter=str(login_counter),
-          came_from=came_from)
+#      login_counter = request.environ['repoze.who.logins']
+#      if login_counter > 0:
+#          flash(_("Erreur d'authentification"), 'warning')
+#      log.debug('login: counter=%d, from=%s' % (login_counter, came_from))
+#      return dict(page='login', login_counter=str(login_counter),
+#          came_from=came_from)
+      return dict(page='login', login_counter='0', came_from=came_from)
  
    @expose()
    def post_login(self, came_from='/'):
@@ -124,4 +127,25 @@ class RootController(BaseController):
       """
       flash(u'A bientôt')
       redirect('/login')
+
+   @expose()
+   def CAS_test(self, **kw):
+      if request.identity is None:
+         log.debug(u'[CAS test] No identity !')
+         id = u'Pas d\'identité !'
+      else:
+         log.debug(u'[CAS test] identity=%s' % [(x, request.identity[x]) for x in request.identity])
+
+         id = 'Type=%s\n<ul>\n' % type(request.identity)
+         for x in request.identity:
+            id += '<li>%s=%s</li>\n' % (x, request.identity[x])
+         id += '</ul>\n'
+
+#      who = request.identity[repoze.who.identity]
+#      id = 'Type=%s\n<ul>\n' % type(who)
+#      for x in who:
+#         id += '<li>%s=%s</li>\n' % (x, who[x])
+#      id += '</ul>\n'
+
+      return '<h2>Test <em>CAS</em> (Central Authentication System)</h2>\n%s' % id
 
