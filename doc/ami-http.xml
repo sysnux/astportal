@@ -1,0 +1,101 @@
+<ajax-response>
+<response type="object" id="unknown">
+<generic response="Success" message="Waiting for Event..."/>
+</response>
+<response type="object" id="unknown">
+<generic event="Newchannel" privilege="call,all" channel="IAX2/tiare2ast-13848" state="Ring" calleridnum="483527" calleridname="100 Snom-360" uniqueid="1228787939.163"/>
+</response>
+<response type="object" id="unknown">
+<generic event="WaitEventComplete"/>
+</response>
+</ajax-response>
+
+<ajax-response>
+
+<response type='object' id='unknown'><generic response='Success' message='Waiting for Event...' /></response
+
+>
+
+<response type='object' id='unknown'><generic event='Unlink' privilege='call,all' channel1='Zap/1-1'
+
+ channel2='IAX2/tiare2ast-10510' uniqueid1='1228797684.199' uniqueid2='1228797685.200' callerid1='797527'
+
+ callerid2='1040' /></response>
+
+<response type='object' id='unknown'><generic event='WaitEventComplete' /></response>
+
+</ajax-response>
+
+<ajax-response>
+
+<response type='object' id='unknown'><generic response='Success' message='Waiting for Event...' /></response
+
+>
+
+<response type='object' id='unknown'><generic event='Hangup' privilege='call,all' channel='IAX2/tiare2ast-10510'
+
+ uniqueid='1228797685.200' cause='16' cause-txt='Normal Clearing' /></response>
+
+<response type='object' id='unknown'><generic event='Hangup' privilege='call,all' channel='Zap/1-1' uniqueid
+
+='1228797684.199' cause='16' cause-txt='Normal Clearing' /></response>
+
+<response type='object' id='unknown'><generic event='WaitEventComplete' /></response>
+
+</ajax-response>
+
+<ajax-response>
+
+<response type='object' id='unknown'><generic response='Success' message='Waiting for Event...' /></response
+
+>
+
+<response type='object' id='unknown'><generic event='Newchannel' privilege='call,all' channel='IAX2/tiare2ast-10510'
+
+ state='Down' calleridnum='&lt;unknown&gt;' calleridname='&lt;unknown&gt;' uniqueid='1228797685.200'
+
+ /></response>
+
+<response type='object' id='unknown'><generic event='Newstate' privilege='call,all' channel='IAX2/tiare2ast-10510'
+
+ state='Ringing' callerid='797527' calleridname='&lt;unknown&gt;' uniqueid='1228797685.200' /></response
+
+>
+
+<response type='object' id='unknown'><generic event='Dial' privilege='call,all' source='Zap/1-1' destination
+
+='IAX2/tiare2ast-10510' callerid='797527' calleridname='&lt;unknown&gt;' srcuniqueid='1228797684.199'
+
+ destuniqueid='1228797685.200' /></response>
+
+<response type='object' id='unknown'><generic event='Newcallerid' privilege='call,all' channel='IAX2
+
+/tiare2ast-10510' callerid='1040' calleridname='&lt;Unknown&gt;' uniqueid='1228797685.200' cid-callingpres
+
+='3 (Presentation Allowed, Network Number)' /></response>
+
+<response type='object' id='unknown'><generic event='WaitEventComplete' /></response>
+
+</ajax-response>
+
+<ajax-response>
+
+<response type='object' id='unknown'><generic response='Success' message='Waiting for Event...' /></response
+
+>
+
+<response type='object' id='unknown'><generic event='Newstate' privilege='call,all' channel='IAX2/tiare2ast-10510'
+
+ state='Up' callerid='1040' calleridname='&lt;unknown&gt;' uniqueid='1228797685.200' /></response>
+
+<response type='object' id='unknown'><generic event='Link' privilege='call,all' channel1='Zap/1-1' channel2
+
+='IAX2/tiare2ast-10510' uniqueid1='1228797684.199' uniqueid2='1228797685.200' callerid1='797527' callerid2
+
+='1040' /></response>
+
+<response type='object' id='unknown'><generic event='WaitEventComplete' /></response>
+
+</ajax-response>
+
+

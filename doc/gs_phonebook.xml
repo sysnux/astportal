@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<AddressBook>
+       <Contact>
+         <LastName>VERON</LastName>
+         <FirstName>Ilona</FirstName>
+         <Phone>
+           <phonenumber>999999</phonenumber>
+           <accountindex>0</accountindex>
+         </Phone>
+       </Contact>
+       <Contact>
+         <LastName>GIRARD</LastName>
+         <FirstName>Michael</FirstName>
+         <Phone>
+           <phonenumber>217952</phonenumber>
+           <accountindex>0</accountindex>
+         </Phone>
+       </Contact>
+       <Contact>
+         <LastName>GIRARD</LastName>
+         <FirstName>Jean-Denis</FirstName>
+         <Phone>
+           <phonenumber>797527</phonenumber>
+           <accountindex>0</accountindex>
+           <phonenumber>501040</phonenumber>
+           <accountindex>0</accountindex>
+         </Phone>
+       </Contact>
+       <Contact>
+         <LastName>FOURNY</LastName>
+         <FirstName>Cathy</FirstName>
+         <Phone>
+           <phonenumber>711112</phonenumber>
+           <accountindex>0</accountindex>
+         </Phone>
+       </Contact>
+</AddressBook>
