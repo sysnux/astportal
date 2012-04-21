@@ -16,7 +16,7 @@ from sqlalchemy import or_
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Phonebook, User, Phone, View_phonebook
+from astportal2.model import DBSession, Phonebook, User, View_phonebook
 from astportal2.lib.app_globals import Globals
 from astportal2.lib.myjqgrid import MyJqGrid
 
@@ -98,8 +98,10 @@ def row(pb):
       company = default_company
       private = ''
 
+#   uphones = request.identity['user'].phone)
+   uphones = DBSession.query(User).get(request.identity['user'].user_id).phone
    if pb.phone1:
-      if len(request.identity['user'].phone)<1:
+      if len(uphones)<1:
          phone1 = pb.phone1
       else:
          phone1 = u'<a href="#" onclick="originate(\'' + pb.phone1 + '\')" title="Appeler">' + pb.phone1 + '</a>'
@@ -107,7 +109,7 @@ def row(pb):
       phone1 = ''
 
    if pb.phone2:
-      if len(request.identity['user'].phone)<1:
+      if len(uphones)<1:
          phone2 = pb.phone2
       else:
          phone2 = u'<a href="#" onclick="originate(\'' + pb.phone2 + '\')" title="Appeler">' + pb.phone2 + '</a>'
@@ -115,7 +117,7 @@ def row(pb):
       phone2 = ''
 
    if pb.phone3:
-      if len(request.identity['user'].phone)<1:
+      if len(uphones)<1:
          phone2 = pb.phone2
       else:
          phone3 = u'<a href="#" onclick="originate(\'' + pb.phone3 + '\')" title="Appeler">' + pb.phone3 + '</a>'
@@ -374,13 +376,15 @@ class Phonebook_ctrl(RestController):
 
    @expose('json')
    def echo(self):
-      if len(request.identity['user'].phone)<1:
+#     uphones = request.identity['user'].phone)
+      uphones = DBSession.query(User).get(request.identity['user'].user_id).phone
+      if len(uphones)<1:
          return dict(status=2)
-      chan = request.identity['user'].phone[0].exten
+      chan = uphones[0].sip_id
       log.debug('Echo test for extension ' + chan)
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel
-            '199', # Extension
+            '*99', # Extension
             context='interne',
             priority='1',
             caller_id='AstPortal <501040>'
@@ -393,9 +397,11 @@ class Phonebook_ctrl(RestController):
    def originate(self, exten):
       '''
       '''
-      if len(request.identity['user'].phone)<1:
+#     uphones = request.identity['user'].phone)
+      uphones = DBSession.query(User).get(request.identity['user'].user_id).phone
+      if len(uphones)<1:
          return dict(status=2)
-      chan = request.identity['user'].phone[0].sip_id
+      chan = uphones[0].sip_id
       log.debug('Call from extension %s to %s' % (chan, exten))
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel

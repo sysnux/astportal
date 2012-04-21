@@ -108,7 +108,10 @@ def mk_filters(period, begin, end, queues, members):
              datetime.datetime.strptime(end, '%d/%m/%Y').date() + datetime.timedelta(1))
 
    queues_filter = Queue_log.queue.in_(check_access(queues))
-   members_filter = Queue_log.user.in_(members)
+
+   members_filter = Queue_log.user.in_(members) if type(members) == type([]) \
+         else Queue_log.user==members
+
    return date_filter, queues_filter, members_filter, cdr_date_filter
 
 
@@ -762,18 +765,6 @@ class CC_Stats_ctrl(BaseController):
 
    @expose(template='astportal2.templates.cc_stats')
    def do_stat(self, period, begin, end, stat, queues='', members=''):
-
-      if type(queues) != type([]):
-         queues = (queues)
-      queue_filter = Queue_log.queue.in_(queues)
-
-      if type(members) != type([]):
-         members = (members)
-      member_filter = Queue_log.user.in_(members)
-      log.debug('member_filter')
-
-# Dynamic template
-#tg.decorators.override_template(controller, "genshi:myproject.templates.index2")
 
       tmpl_context.flot_labels_rotated = 'false' # Rotate plot labels ?
 

@@ -45,7 +45,7 @@ def make_app(global_conf, full_stack=True, **app_conf):
       global_conf,
       app_conf.get('who.config_file', 'who.ini'),
       app_conf.get('who.log_file', 'stdout'),
-      app_conf.get('who.log_level', 'debug')
+      app_conf.get('who.log_level', 'warning')
     )
 
     return app
