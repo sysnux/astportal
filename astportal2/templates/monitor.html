@@ -61,7 +61,7 @@ function display() {
 //		table += '<td>' + c['Uniqueid'] + '</td>';
 //		table += '<td>' + p + '</td>'; // Channel
 		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';
-      if (c['Link']) {
+      if (c['Link'] && channels[c['Link']]!=undefined) {
    		table += '<td>' + channels[c['Link']]['CallerIDName'] + ' ' + channels[c['Link']]['CallerIDNum']  + '</td>';
       } else {
          table += '<td>&nbsp;</td>';

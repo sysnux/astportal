@@ -40,10 +40,10 @@ function del(mb, xid, msg) {
    }
 }
 
-function listen(mb, id) {
+function listen(mb, id, act) {
    $('#folder_form_mb').val(mb);
    $('#folder_form_id').val(id);
-   $('#folder_form').attr('action', 'listen');
+   $('#folder_form').attr('action', act);
    $('#folder_form').submit();
 }
 

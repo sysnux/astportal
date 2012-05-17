@@ -41,7 +41,7 @@ class SRC_select(SingleSelectField):
          dptm = [p.department.dptm_id for p in request.identity['user'].phone]
          q = q.filter(Phone.department_id.in_(dptm))
       q = q.order_by(Phone.exten)
-      d['options'] = [(p.exten,p.exten) for p in q]
+      d['options'] = [(p.exten, p.exten) for p in q]
       SingleSelectField.update_params(self, d)
       return d
  
@@ -50,10 +50,10 @@ class DST_select(SingleSelectField):
    help_text = u'Sélectionnez le poste interne destination du renvoi'
 
    def update_params(self,d):
-      opt_ext = [(p.exten,p.exten) for p in DBSession.query(Phone).order_by(Phone.exten)]
+      opt_ext = [(p.exten, p.exten) for p in DBSession.query(Phone).order_by(Phone.exten)]
       if in_group('admin'):
          help_text = u'Sélectionnez le poste interne ou le SVI destination du renvoi'
-         opt_ivr = [(a.exten,a.name) for a in DBSession.query(Application).order_by(Application.name)]
+         opt_ivr = [(a.exten, a.name) for a in DBSession.query(Application).order_by(Application.name)]
          d['options'] = [(u'Postes', opt_ext), (u'SVI', opt_ivr)]
       else:
          d['options'] = opt_ext
@@ -114,6 +114,8 @@ def row(cf):
 
 
 class Forward_ctrl(RestController):
+
+   allow_only = not_anonymous( msg=u'Veuillez vous connecter pour continuer' )
 
    @sidebar(u"Renvois", sortorder=2,
       icon = '/images/edit-redo.png')
@@ -176,7 +178,8 @@ class Forward_ctrl(RestController):
          u = DBSession.query(User).get(request.identity['user'].user_id)
          q = q.filter(Phone.user_id==u.user_id)
 
-      exten = [p.exten for p in q]
+
+      sip2ext = dict([(p.sip_id, p.exten) for p in q])
 
       cfs = []
       man = Globals.manager.command('database show CFIM')
@@ -184,29 +187,29 @@ class Forward_ctrl(RestController):
          match = re_db.search(r)
          if match:
             k, v = match.groups()
-            if k in exten:
-               cfs.append((k, 'CFIM', v))
+            if k in sip2ext.keys():
+               cfs.append((sip2ext[k], 'CFIM', v))
       man = Globals.manager.command('database show CFBS')
       for i,r in enumerate(man.response[3:-2]):
          match = re_db.search(r)
          if match:
             k, v = match.groups()
-            if k in exten:
-               cfs.append((k, 'CFBS', v))
+            if k in sip2ext.keys():
+               cfs.append((sip2ext[k], 'CFBS', v))
       man = Globals.manager.command('database show CFUN')
       for i,r in enumerate(man.response[3:-2]):
          match = re_db.search(r)
          if match:
             k, v = match.groups()
-            if k in exten:
-               cfs.append((k, 'CFUN', v))
+            if k in sip2ext.keys():
+               cfs.append((sip2ext[k], 'CFUN', v))
       man = Globals.manager.command('database show CFVM')
       for i,r in enumerate(man.response[3:-2]):
          match = re_db.search(r)
          if match:
             k, v = match.groups()
-            if k in exten:
-               cfs.append((k, 'CFVM', v))
+            if k in sip2ext.keys():
+               cfs.append((sip2ext[k], 'CFVM', v))
       log.debug('Call forwards-> %s' % (cfs))
 
 #      sort_key = lambda x : x[sidx]
@@ -256,11 +259,10 @@ class Forward_ctrl(RestController):
             filter(User.user_name==request.identity['repoze.who.userid']). \
             one()
       for phone in u.phone:
-         exten = phone.exten
          man = Globals.manager.command('database put %s %s %s' % (
-            cf_types, phone.exten, dest))
+            cf_types, phone.sip_id, dest))
          log.debug('database put %s %s %s returns %s' % (
-            cf_types, phone.exten, dest, man))
+            cf_types, phone.sip_id, dest, man))
 #      flash(u'Une erreur est survenue', 'error')
       redirect('/forwards/')
 
@@ -272,11 +274,18 @@ class Forward_ctrl(RestController):
    def create_admin(self, cf_types, exten, to_intern, to_extern):
       ''' Add call forward to Asterisk database
       '''
+      try:
+         p = DBSession.query(Phone).filter(Phone.exten==exten).one()
+      except:
+         log.warning('No phone for extension %s' % exten)
+         flash(u'Poste %s inexistant, renvoi non créé' % exten, 'error')
+         redirect('/forwards/')
+
       dest = to_extern if to_extern else to_intern
       man = Globals.manager.command('database put %s %s %s' % (
-         cf_types, exten, dest))
+         cf_types, p.sip_id, dest))
       log.debug('database put %s %s %s returns %s' % (
-         cf_types, exten, dest, man))
+         cf_types, p.sip_id, dest, man))
 #      flash(u'Une erreur est survenue', 'error')
       redirect('/forwards/')
 
@@ -286,20 +295,27 @@ class Forward_ctrl(RestController):
       ''' Delete call forward
       '''
       exten, cf, to = kw['_id'].split(':')
-      log.info('delete %s %s %s' % (exten, cf, to))
+      try:
+         p = DBSession.query(Phone).filter(Phone.exten==exten).one()
+      except:
+         log.warning('No phone for extension %s' % exten)
+         flash(u'Poste %s inexistant, renvoi non supprimé' % exten, 'error')
+         redirect('/forwards/')
+
+      log.info('delete %s %s %s' % (p.sip_id, cf, to))
       if in_any_group('admin', 'CDS'):
          man = Globals.manager.command('database del %s %s' % (
-            cf, exten))
+            cf, p.sip_id))
          log.debug('admin: database delete %s %s returns %s' % (
-            cf_types, exten, man))
+            cf_types, p.sip_id, man))
 
       else:
          u = DBSession.query(User).get(request.identity['user'].user_id)
          for p in u.phone:
             man = Globals.manager.command('database del %s %s' % (
-               cf, p.exten))
+               cf, p.sip_id))
             log.debug('database delete %s %s returns %s' % (
-               cf, p.exten, man))
+               cf, p.sip_id, man))
 #      flash(u'Une erreur est survenue', 'error')
 
       redirect('/forwards/')

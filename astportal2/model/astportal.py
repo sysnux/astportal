@@ -135,7 +135,7 @@ class Sound(DeclarativeBase):
    __tablename__ = 'sound'
    sound_id = Column(Integer, Sequence('sound_seq'), primary_key=True)
    name = Column(Unicode(64), nullable=False, unique=True)
-   language = Column(Unicode(2), default='fr')
+   language = Column(Unicode(2), default=u'fr')
    type = Column(Integer, default=0) # 0=moh (class?), 1=sound
    comment = Column(Unicode(80))
    owner_id = Column(Integer, ForeignKey('tg_user.user_id'))
@@ -297,6 +297,24 @@ class Record(DeclarativeBase):
    queue_id = Column(Integer)
    member_id = Column(Integer)
    user_id = Column(Integer)
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   def __repr__(self):
+      return '<Record: uniqueid="%d">' % (self.uniqueid)
+
+
+class Fax(DeclarativeBase):
+   ''' Definition of records
+   '''
+   __tablename__ = 'fax'
+   fax_id = Column(Integer, Sequence('fax_seq'), primary_key=True)
+   hyla_id = Column(Integer)
+   hyla_status = Column(Integer)
+   type = Column(Integer) # 0=Sent, 1=Received
+   user_id = Column(Integer) # relation('User', backref=backref('fax'))
+   dest = Column(Unicode(60))
+   src = Column(Unicode(60))
+   filename = Column(Unicode(60))
+   comment = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
       return '<Record: uniqueid="%d">' % (self.uniqueid)

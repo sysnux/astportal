@@ -659,6 +659,8 @@ class Phone_ctrl(RestController):
          # Update Asterisk DataBase
          Globals.manager.send_action({'Action': 'DBdel',
             'Family': 'exten', 'Key': p.exten})
+         Globals.manager.send_action({'Action': 'DBdel',
+            'Family': 'netxe', 'Key': p.sip_id})
 
          # Delete context, hint...
          actions = [ ('DelCat', p.sip_id),

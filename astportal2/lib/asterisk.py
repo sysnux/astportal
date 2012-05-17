@@ -90,9 +90,13 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
    # Update Asterisk exten database: Phone number <=> SIP user
    Globals.manager.send_action({'Action': 'DBdel',
          'Family': 'exten', 'Key': old_exten})
+   Globals.manager.send_action({'Action': 'DBdel',
+         'Family': 'netxe', 'Key': p.sip_id})
    if p.exten is not None:
       Globals.manager.send_action({'Action': 'DBput',
          'Family': 'exten', 'Key': p.exten, 'Val': p.sip_id})
+      Globals.manager.send_action({'Action': 'DBput',
+         'Family': 'netxe', 'Key': p.sip_id, 'Val': p.exten})
 
    # Voicemail.conf: allways delete old_exten (don't care if doesn't exists)
    if old_exten is None:
@@ -123,6 +127,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       log.debug('Contexts %s' % p.contexts)
       actions = [
          ('NewCat', p.sip_id),
+         ('Append', p.sip_id, 'include', '>SVI_internal'),
          ('Append', p.sip_id, 'include', '>hints')
          ]
       for c in p.contexts.split(','):

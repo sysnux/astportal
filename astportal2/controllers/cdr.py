@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
-from tg.controllers import CUSTOM_CONTENT_TYPE, WSGIAppController
+from tg.controllers import WSGIAppController
 from tgext.menu import sidebar
 import paste.fileapp
 from tg.decorators import allow_only

@@ -3,7 +3,7 @@
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
-from tg.controllers import RestController, CUSTOM_CONTENT_TYPE
+from tg.controllers import RestController
 from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group, not_anonymous, in_any_group
@@ -40,7 +40,7 @@ def row(r, users):
          r.Record.record_id
 
    return [Markup(action), r.Queue.name, 
-         users[r.Record.user_id], users[r.Record.member_id], 
+         users[r.Record.member_id], users[r.Record.user_id], 
          r.Record.created.strftime("%d %B, %Hh%Mm%Ss"), Markup(listen)]
 
 
@@ -164,14 +164,15 @@ class Record_ctrl(RestController):
          flash(u'Enregistrement introuvable: %s' % fn, 'error')
          redirect('/records/')
 
-      if len(request.identity['user'].phone)<1:
+      phones = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one().phone
+      if len(phones)<1:
          log.debug('Playback from user %s : no extension' % (
             request.identity['user']))
          flash(u'Poste de l\'utilisateur %s introuvable' % \
                request.identity['user'], 'error')
          redirect('/records/')
 
-      sip = request.identity['user'].phone[0].sip_id
+      sip = phones[0].sip_id
       res = Globals.manager.originate(
             'SIP/' + sip, # Channel
             sip, # Extension
@@ -184,7 +185,7 @@ class Record_ctrl(RestController):
       redirect('/records/')
 
 
-   @expose(content_type=CUSTOM_CONTENT_TYPE)
+   @expose()
    def download(self, id, **kw):
       ''' Download record
       '''

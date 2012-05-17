@@ -243,7 +243,7 @@ def stat_queues(page, rows, offset, sidx, sord, date_filter, queues_filter):
       if r.dissuasion: total_dissuasion += r.dissuasion
       if r.closed: total_closed += r.closed
 
-   data.append({ 'id'  : i, 'cell': (u'Total', total_enter, 
+   data.append({ 'id'  : 99999, 'cell': (u'Total', total_enter, 
       total_connect, 100 * total_connect / total_enter, 
       total_abandon, 100 * total_abandon / total_enter,
       total_dissuasion, 100 * total_dissuasion / total_enter, 
@@ -1018,8 +1018,8 @@ stat=%s
          'csv: period=%s, begin=%s, end=%s, stat=%s, queues=%s, members=%s, sidx=%s, sord=%s' % (
          period, begin, end, stat, queues, members, self.sort_index, self.sort_order))
 
-      date_filter, queues_filter, members_filter = mk_filters(period, begin, end,
-         queues.split(';'), members.split(';') )
+      date_filter, queues_filter, members_filter, cdr_date_filter = \
+         mk_filters(period, begin, end, queues.split(';'), members.split(';') )
 
       log.debug(u'date_filter=%s, queues_filter=%s, members_filter=%s' %(
          date_filter, queues_filter, members_filter))

@@ -170,11 +170,13 @@ application: chanspy
 data: SIP/Xx83G1ZQ
       '''
       log.debug('Listen %s (%s)' % (name, channel))
-      if len(request.identity['user'].phone)<1:
+      phones = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one().phone
+      if len(phones)<1:
          log.debug('ChanSpy from user %s to %s : no extension' % (
             request.identity['user'], channel))
          return dict(status=2)
-      sip = request.identity['user'].phone[0].sip_id
+
+      sip = phones[0].sip_id
       log.debug('ChanSpy from user %s (%s) to %s' % (
          request.identity['user'], sip, channel))
       res = Globals.manager.originate(

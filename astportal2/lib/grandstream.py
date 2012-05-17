@@ -11,7 +11,7 @@ from struct import pack, unpack
 from tg import config
 default_company = config.get('company')
 
-class Grandstream:
+class Grandstream(object):
 
    cj = cookielib.CookieJar()
    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
@@ -107,14 +107,15 @@ P30 = '',
       logged_in = False
       if self.get('dologin.htm', {'P2': self.pwd}) == None:
          log.debug('Login error, GXP-2xxx?')
-         if self.get('/cgi-bin/dologin', \
-               {'P2': self.pwd}) != None:
+         if self.get('/cgi-bin/dologin', {'P2': self.pwd}) != None:
             # GXP-2100
             for c in self.cj:
                log.debug('Cookie: %s = %s' % (c.name, c.value))
                if c.name=='session_id':
                   logged_in = True
                   self.type = 2
+         else:
+            log.warning('GXP-2xxx login failed!')
       else:
          for c in self.cj:
             log.debug('Cookie: %s = %s' % (c.name, c.value))

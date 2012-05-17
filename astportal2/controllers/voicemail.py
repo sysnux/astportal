@@ -3,7 +3,6 @@
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
-from tg.controllers import CUSTOM_CONTENT_TYPE
 from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group, not_anonymous, in_any_group
@@ -52,15 +51,20 @@ def row(vm, folder):
       vm['mb'], vm['id'], 1+vm['id'])
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
-   listen = u'''<a href="#" onclick="listen('%s',%d)" title="\u00C9coute">\u00C9coute</a>''' % (
-      vm['mb'], vm['id'])
+#   listen = u'''<a href="#" onclick="listen('%s',%d,'listen')" title="\u00C9coute">\u00C9coute</a>''' % (
+#      vm['mb'], vm['id'])
 
+   listen = u'''<a href="#" onclick="listen('%s',%d,'download')"><img src="/images/emblem-downloads.png" title="Télécharger"></a>''' % \
+      (vm['mb'], vm['id'])
+   listen += u'''&nbsp;&nbsp;&nbsp;<a href="#" onclick="listen('%s',%d,'listen')"><img src="/images/sound_section.png" title="&Eacute;couter"></a>''' % \
+      (vm['mb'], vm['id'])
    return [Markup(action), vm['mb'], 1+vm['id'], vm['callerid'], 
       vm['origdate'].strftime("%A %d %B, %Hh%Mm%Ss"), Markup(listen) ]
 
 
 class Voicemail_ctrl(BaseController):
    
+   allow_only = not_anonymous( msg=u'Veuillez vous connecter pour continuer' )
 
    @sidebar(u"Messagerie vocale", sortorder=3,
       icon = '/images/message.png')
@@ -83,7 +87,7 @@ class Voicemail_ctrl(BaseController):
                { 'name': 'id', 'width': 60 },
                { 'name': 'callerid', 'width': 100 },
                { 'name': 'origdate', 'width': 100 },
-               { 'width': 60, 'sortable': False },
+               { 'width': 60, 'align': 'center', 'sortable': False },
                ],
             navbuttons_options = {'view': False, 'edit': False, 'add': False,
                'del': False, 'search': False, 'refresh': True},
@@ -286,9 +290,44 @@ class Voicemail_ctrl(BaseController):
 
 
    @expose()
-   def listen(self, mb, folder, id, to):
-      ''' Listen message
+   def listen(self,  mb, folder, id, to):
+      ''' Listen sound
       '''
+      log.debug('listen %s %s %s %s' % (mb, folder, id, to))
+      name = 'msg%04d.wav' % int(id)
+      fn = '%s/%s/%s/%s' % (dir_vm, mb, folder, name)
+      try:
+         st = stat(fn)
+         f = open(fn)
+      except:
+         flash(u'Message introuvable: %s' % fn, 'error')
+
+      phones = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one().phone
+      if len(phones)<1:
+         log.debug('Playback from user %s : no extension' % (
+            request.identity['user']))
+         flash(u'Poste de l\'utilisateur %s introuvable' % \
+               request.identity['user'], 'error')
+         redirect('/voicemail/?folder=%s' % folder)
+
+      sip = phones[0].sip_id
+      res = Globals.manager.originate(
+            'SIP/' + sip, # Channel
+            sip, # Extension
+            application = 'Playback',
+            data = fn[:-4],
+            )
+      log.debug('Playback %s from user %s (%s) returns %s' % (
+         fn[:-4], request.identity['user'], sip, res))
+
+      redirect('/voicemail/?folder=%s' % folder)
+
+
+   @expose()
+   def download(self, mb, folder, id, to):
+      ''' Download message
+      '''
+      log.debug('download %s %s %s %s' % (mb, folder, id, to))
       name = 'msg%04d.wav' % int(id)
       fn = '%s/%s/%s/%s' % (dir_vm, mb, folder, name)
       try:

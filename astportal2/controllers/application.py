@@ -484,7 +484,7 @@ class Application_ctrl(RestController):
       elif 'scenario' in kw.keys():
          scenario = kw['scenario'].split('||')
 
-      else: #if 'scenario[]' not in kw.keys():
+      else:
          log.error('pdf_export: no scenario id %s' % (id) )
          scenario = None
          return dict(result=0) # XXX ?

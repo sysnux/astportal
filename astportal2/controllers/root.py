@@ -40,6 +40,7 @@ from astportal2.controllers.application import Application_ctrl
 from astportal2.controllers.forward import Forward_ctrl
 from astportal2.controllers.record import Record_ctrl
 from astportal2.controllers.incident import Incident_ctrl
+from astportal2.controllers.fax import Fax_ctrl
 
 
 class RootController(BaseController):
@@ -77,6 +78,7 @@ class RootController(BaseController):
    forwards = Forward_ctrl()
    records = Record_ctrl()
    incidents = Incident_ctrl()
+   fax = Fax_ctrl()
 
    db_schema = DB_schema()
 
@@ -89,18 +91,31 @@ class RootController(BaseController):
       """Handle the front-page."""
       if is_anonymous(msg=u'Veuiller vous connecter pour continuer'):
          redirect('/login')
+
+      from tw.jquery.autocomplete import AutoCompleteField
+      auto = AutoCompleteField(
+         id='auto',
+         completionURL = 'phonebook/search',
+         fetchJSON = True,
+         minChars = 2)
+
+      from tw.forms import TableForm
+      form = TableForm(id='form', children=[auto])
+      from tg import tmpl_context
+      tmpl_context.form = form
+
       return dict(page='index')
 
    @expose('astportal2.templates.login')
    def login(self, came_from=url('/'), **kw):
       log.debug('login, env=%s' % request.environ)
       """Start the user login."""
-#      login_counter = request.environ['repoze.who.logins']
-#      if login_counter > 0:
-#          flash(_("Erreur d'authentification"), 'warning')
-#      log.debug('login: counter=%d, from=%s' % (login_counter, came_from))
-#      return dict(page='login', login_counter=str(login_counter),
-#          came_from=came_from)
+      login_counter = request.environ['repoze.who.logins']
+      if login_counter > 0:
+          flash(_("Erreur d'authentification"), 'warning')
+      log.debug('login: counter=%d, from=%s' % (login_counter, came_from))
+      return dict(page='login', login_counter=str(login_counter),
+          came_from=came_from)
       return dict(page='login', login_counter='0', came_from=came_from)
  
    @expose()

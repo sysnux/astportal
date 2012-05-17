@@ -6,7 +6,7 @@ from tg import expose, flash, redirect, tmpl_context, validate, request, respons
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
-from repoze.what.predicates import in_group
+from repoze.what.predicates import in_group, not_anonymous
 
 from tw.api import js_callback
 from tw.forms import TableForm, TextField, CheckBox, HiddenField
@@ -130,6 +130,7 @@ def row(pb):
 
 class Phonebook_ctrl(RestController):
    
+#   allow_only = not_anonymous( msg=u'Veuillez vous connecter pour continuer' )
 
    @sidebar(u'Annuaire',
          sortorder = 1,
@@ -385,7 +386,7 @@ class Phonebook_ctrl(RestController):
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel
             '*99', # Extension
-            context='interne',
+            context=chan.encode('iso-8859-1'),
             priority='1',
             caller_id='AstPortal <501040>'
             )
@@ -406,7 +407,7 @@ class Phonebook_ctrl(RestController):
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel
             exten.encode('iso-8859-1'), # Extension
-            context='interne',
+            context=chan.encode('iso-8859-1'),
             priority='1',
             caller_id='AstPortal <501040>'
             )
@@ -414,3 +415,18 @@ class Phonebook_ctrl(RestController):
       status = 0 if res=='Success' else 1
       return dict(status=status)
 
+
+   @expose('json')
+   def search(self, **kw):
+      '''
+      '''
+      log.debug('kw=%s' % kw)
+      auto = None
+      if 'q' in kw and len(kw['q'])>3:
+         from sqlalchemy import or_
+         data = [u'%s %s (%s, %s, %s)' % (pb.firstname, pb .lastname, pb.phone1, pb.phone2, pb.phone3) \
+            for pb in DBSession.query(Phonebook)]
+      else:
+         data=[]
+      log.debug('data=%s' % data)
+      return dict(data=['azerty', 'qwerty', 'toto', 'titi'])
