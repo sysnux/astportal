@@ -88,8 +88,7 @@ def process_file(wav, id, type, name, lang):
          return u'Le fichier doit être de type son !'
 
       orig = '%s/%d_%s' % (dir_tmp, id, filename)
-      dir_dst = dir_moh if type==0 else dir_sounds
-#      final = '%s/%s/%s.wav' % (dir_dst, lang, re.sub(r'\W', '_', name))
+      dir_dst = (dir_moh if type==0 else dir_sounds) % lang
       final = '%s/%s.wav' % (dir_dst, re.sub(r'\W', '_', name))
       out = open(orig, 'w')
       out.write(filedata.read())
@@ -263,6 +262,7 @@ class MOH_ctrl(RestController):
       s.name = kw['name']
       s.type = 0 if kw['type']=='moh' else 1
       s.comment = kw['comment']
+      s.language = kw['lang']
       if 'owner_id' in kw.keys():
          s.owner_id = kw['owner_id']
       else:
@@ -350,8 +350,8 @@ class MOH_ctrl(RestController):
       ''' Listen sound
       '''
       s = DBSession.query(Sound).get(id)
-      dir = dir_moh if s.type==0 else dir_sounds
-      fn = '%s/%s.wav' % (dir, s.name)
+      dir = (dir_moh if s.type==0 else dir_sounds) % s.language
+      fn = '%s/%s.wav' % (dir_dst, re.sub(r'\W', '_', s.name))
       import os
       try:
          st = os.stat(fn)
@@ -386,8 +386,8 @@ class MOH_ctrl(RestController):
       ''' Download sound
       '''
       s = DBSession.query(Sound).get(id)
-      dir = dir_moh if s.type==0 else dir_sounds
-      fn = '%s/%s.wav' % (dir, s.name)
+      dir = (dir_moh if s.type==0 else dir_sounds) % s.language
+      fn = '%s/%s.wav' % (dir_dst, re.sub(r'\W', '_', s.name))
       import os
       try:
          st = os.stat(fn)

@@ -47,6 +47,8 @@ var texts = new Object();
 var texts_by_id = new Object();
 var queues = new Object();
 var queues_by_id = new Object();
+var qevents = new Object();
+var qe_by_id = new Object();
 var labels = new Object();
 var contexts_pos = new Object();
 var current=-1, unload_warning=1;
@@ -75,6 +77,7 @@ $(document).ready(
          sounds = data.sounds;
          texts = data.texts;
          queues = data.queues;
+         qevents = data.qevents;
          contexts_pos = data.positions;
 
          var o = '<option value="-1"> - - - </option>\n';
@@ -127,6 +130,14 @@ $(document).ready(
          }
          $('#20_queuename').html(o);
          $('#21_queuename').html(o);
+
+         o = '<option value="-1"> - - - </option>\n';
+         for (qe in qevents) {
+            qe_by_id[qevents[qe].qe_id] = qevents[qe].event;
+            o += '<option value="' + qevents[qe].qe_id + '">'; 
+            o += qevents[qe].event + '</option>\n';
+         }
+         $('#21_event').html(o);
 
          $('#11_begin').timeEntry({show24Hours: true,
             spinnerImage: '/images/spinnerDefault.png',
@@ -372,7 +383,9 @@ function valid_action() {
          break;
 
       case 21: // QueueLog
-         param = $("#21_queuename").val() + '::' + $("#21_message").val();
+         param = $("#21_queuename").val();
+			param += '::' + $("#21_event").val();
+			param += '::' + $("#21_info").val();
          break;
 
       case 22: // Open playback
@@ -411,10 +424,11 @@ function cancel_action() {
 }
 
 function display(redraw) {
-   var context_re=RegExp('^xxx$'), divs='', row=0;
+   var context_re = RegExp('^xxx$'), divs='', row=0;
    var context_opts = '<option value="-1"> - - - </option>';
    context_opts += '<optgroup label="Blocs">\n';
    var label_opts = '<optgroup label="étiquettes">\n';
+
    for (r=0; r<scenario.length; r++) {
 
       if (!context_re.test(scenario[r].context)) { // New bloc
@@ -432,7 +446,7 @@ function display(redraw) {
       scenario[r].priority = row-1;
       divs += '<tr id="row_' + r + '" '+ row_style + '><td>';
 
-      if (r==0) { // Incoming context -> delete forbidden !
+      if (scenario[r].context=='Entrant') { // Incoming context -> delete forbidden !
          divs += ' <a href="#" onclick="add_action(0)"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
       } else {
          divs += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
@@ -608,7 +622,8 @@ function display(redraw) {
          case 21: // QueueLog
             act = actions_by_id[app];
             var a = scenario[r].parameters.split('::');
-            par = queues_by_id[a[0]] + ': ' + a[1];
+            par = queues_by_id[a[0]] + ': ' + qe_by_id[a[1]];
+            if (a[2]) par += ': ' + a[2];
             break;
 
          case 22: // Open playback
@@ -669,9 +684,20 @@ function display(redraw) {
    $('#18_if_false').html(context_opts);
    $('#18_if_true').html(context_opts);
 
-   top=0; context = '';
+   // HTML divs are updated, now compute positions
+   var context = '';
+   var pos, top=0, left=0; 
    for (r=0; r<scenario.length; r++) {
-      var pos, left;
+      // Look for first bloc (incoming): defines origin of drawing
+      context = scenario[r].context.replace(/([*#])$/g,'\\$1');
+      if (context=='Entrant') { // Origin
+         pos = $('#context_' + context).position();
+         left = pos.left;
+         top = pos.top + $('#context_' + context).height() +5;
+         break;
+      } 
+   }
+   for (r=0; r<scenario.length; r++) {
       if (context==scenario[r].context) continue;
       context = scenario[r].context.replace(/([*#])$/g,'\\$1');
       // Make div draggable
@@ -689,11 +715,7 @@ function display(redraw) {
          }
       });
       // Automatic positionning !
-      if (context=='Entrant') { // Origin
-         pos = $('#context_' + context).position();
-         left = pos.left;
-         top = pos.top + $('#context_' + context).height() +5;
-      } else {
+      if (context!='Entrant') {
          $('#context_' + context).css('left',
                left + context.replace(/[^_]/g,'').length * 40);
          $('#context_' + context).css('top', top);
@@ -847,7 +869,8 @@ function edit_action(i) {
       case 21: //QueueLog
          var a = scenario[i].parameters.split('::');
          $("#21_queuename").val(a[0]);
-         $("#22_message").val(a[1]);
+         $("#21_event").val(a[1]);
+         $("#21_info").val(a[2]);
          break;
 
       case 22: // Open playback
@@ -1423,9 +1446,14 @@ function update_canvas() {
 
    <!-- Queue: 21 -->
    <div id="action_params_21" style="display: none">
-      Nom du groupe d'appel:
-      <select id="21_queuename"></select>
-      <input type="text" id="21_message"/>
+		<table>
+      	<tr><td>Nom du groupe d'appel:</td>
+      		<td><select id="21_queuename"></select></td></tr>
+			<tr><td>Evénement:</td>
+      		<td><select id="21_event"></select></td></tr>
+			<tr><td>Information:</td>
+      		<td><input type="text" id="21_info"/></td></tr>
+		</table>
    </div>
 
    <!-- Open playback: 22 -->

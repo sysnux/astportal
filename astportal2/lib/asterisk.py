@@ -204,6 +204,8 @@ def asterisk_update_queue(q):
             ('Append', moh_class, 'announce-holdtime', holdtime),
             ('Append', moh_class, 'announce-position', position),
             ('Append', moh_class, 'ringinuse', 'no'),
+            ('Append', moh_class, 'setqueuevar', 'yes'),
+            ('Append', moh_class, 'priority', q.priority),
          ]
 
    if q.announce_id is not None:

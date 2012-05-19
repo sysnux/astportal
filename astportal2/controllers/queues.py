@@ -68,6 +68,9 @@ common_fields = [
    SingleSelectField('announce_position',
       options = [ ('no', u'Non'), ('yes', u'Oui')],
       label_text=u'Annonce position', help_text=u''),
+   SingleSelectField('priority',
+      options = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      label_text=u'Priorité', help_text=u'Priorité par rapport aux autres groupes'),
    HiddenField('_method',validator=None), # Needed by RestController
    HiddenField('queue_id',validator=Int),
    ]
@@ -108,7 +111,7 @@ def row(q):
          u'\',\'Suppression du groupe d\\\'appels ' + q.name + u'\')" title="Supprimer">'
    html += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
-   return [Markup(html), q.name, q.comment ]
+   return [Markup(html), q.name, q.priority, q.comment ]
 
 
 class Queue_ctrl(RestController):
@@ -124,10 +127,11 @@ class Queue_ctrl(RestController):
       '''
       grid = MyJqGrid( 
             id='grid', url='fetch', caption=u'Groupes ACD',
-            colNames = [u'Action', u'Nom', u'Description'],
+            colNames = [u'Action', u'Nom', u'Priorité', u'Description'],
             colModel = [ 
                { 'width': 80, 'align': 'center', 'sortable': False, 'search': False },
                { 'display': u'Nom', 'name': 'name', 'width': 80 },
+               { 'display': u'Priorité', 'name': 'priority', 'width': 60 },
                { 'display': u'Description', 'name': 'comment', 'width': 160 },
             ],
             sortname = 'name',
@@ -142,7 +146,7 @@ class Queue_ctrl(RestController):
 
 
    @expose('json')
-   def fetch(self, page, rows, sidx='user_name', sord='asc', _search='false',
+   def fetch(self, page, rows, sidx='name', sord='desc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by Grid JS component
       Fetch data from DB, return the list of rows + total + current page
@@ -203,6 +207,7 @@ class Queue_ctrl(RestController):
       q.min_announce_frequency = int(kw['min_announce_frequency'])
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
+      q.priority = kw['priority']
       DBSession.add(q)
 
       # Create new group for supervisors
@@ -237,7 +242,8 @@ class Queue_ctrl(RestController):
       v = {'queue_id': q.queue_id, 'comment': q.comment, '_method': 'PUT',
             'music': q.music_id, 'announce': q.announce_id, 'strategy': q.strategy, 
             'wrapuptime': q.wrapuptime, 'announce_frequency': q.announce_frequency, 
-            'announce_holdtime': q.announce_holdtime, 'announce_position': q.announce_position}
+            'announce_holdtime': q.announce_holdtime, 
+            'announce_position': q.announce_position, 'priority': q.priority}
       tmpl_context.form = edit_queue_form
       return dict(title = u'Modification groupe d\'appels ' + q.name, debug='', values=v)
 
@@ -258,6 +264,7 @@ class Queue_ctrl(RestController):
       q.min_announce_frequency = int(kw['min_announce_frequency'])
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
+      q.priority = kw['priority']
       flash(u'Groupe d\'appel modifié')
 
       # Update Asterisk queue

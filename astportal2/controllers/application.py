@@ -2,7 +2,8 @@
 # Application CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
-from tg import expose, flash, redirect, tmpl_context, validate, request, response, session, config
+from tg import expose, flash, redirect, tmpl_context, validate, request, \
+   response, session, config
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
@@ -12,12 +13,14 @@ from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
 from tw.api import js_callback
-from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, CheckBox, CalendarDateTimePicker, TextArea
+from tw.forms import TableForm, Label, SingleSelectField, TextField, \
+   HiddenField, CheckBox, CalendarDateTimePicker, TextArea
 from tw.forms.validators import NotEmpty, Int, DateConverter, DateTimeConverter
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Application, User, Group, Action, Scenario, Sound, User, Queue
+from astportal2.model import DBSession, Application, User, Group, Action, \
+   Scenario, Sound, User, Queue, Queue_event
 
 from datetime import datetime
 import re
@@ -415,6 +418,9 @@ class Application_ctrl(RestController):
          'queue_comment': x.comment}
          for x in DBSession.query(Queue).order_by(Queue.name)]
 
+      qevents = [{'qe_id': x.qe_id, 'event': x.event}
+         for x in DBSession.query(Queue_event).order_by(Queue_event.event)]
+
       scenario = []
       positions = {}
       for x in DBSession.query(Scenario).filter(Scenario.app_id==id).order_by(Scenario.context).order_by(Scenario.step):
@@ -427,7 +433,7 @@ class Application_ctrl(RestController):
             positions[context] = {'top': x.top, 'left': x.left}
 
       return dict(scenario=scenario, sounds=sounds, texts=texts, 
-            actions=actions, queues=queues, positions=positions)
+            actions=actions, queues=queues, qevents=qevents, positions=positions)
 
 
    @expose('json')
@@ -497,7 +503,7 @@ class Application_ctrl(RestController):
 
       action_by_id = {}
       for a in DBSession.query(Action):
-         action_by_id['%s' % a.action_id] = a.name
+         action_by_id[a.action_id] = a.name
 
       prev_context = None
       nodes = []
@@ -618,6 +624,7 @@ def generate_dialplan():
          (a.exten, a.name, a.dnis))
       svi_out.write(u'exten => %s,n,Goto(SVI_dnis,%s,1)\n' % \
          (a.exten, a.dnis))
+   svi_out.write(u'\n')
 
 
    for a in apps:
@@ -806,7 +813,8 @@ def generate_dialplan():
          prio +=1
          svi_out.write(u'exten => s,%d,Set(%s=$[1 + ${%s}])\n' % (prio, cpt, cpt))
          prio +=1
-         svi_out.write(u'exten => s,%d,GoSubIf($[ 0${%s} > %s ]?%d:App_%d_%s,s,1)\n' % (prio, cpt, num, prio+2, app_id,bloc[2:]))
+         svi_out.write(u'exten => s,%d,GoSubIf($[ 0${%s} > %s ]?%d:App_%d_%s,s,1)\n' % (
+            prio, cpt, num, prio+2, app_id,bloc[2:]))
          prio +=1
          svi_out.write(u'exten => s,%d,GoTo(%d)\n' % (prio,prio-2))
          prio +=1
@@ -941,10 +949,13 @@ def generate_dialplan():
          continue
 
       elif action==21: # Queue_log
-         q, m = parameters.split('::')
+         q, e, i = parameters.split('::')
+         if i!='':
+            i = ',' + i
          q = DBSession.query(Queue).get(int(q))
-         svi_out.write(u"exten => s,%d,QueueLog(%s,%s)\n" % 
-               (prio, q.name, m))
+         qe = DBSession.query(Queue_event).get(int(e))
+         svi_out.write(u"exten => s,%d,QueueLog(%s,${UNIQUEID},-,%s%s)\n" % \
+            (prio, q.name, qe.event, i))
          prio += 1
          continue
 
@@ -1007,27 +1018,33 @@ def mk_edges(s):
    elif action==10: # Test
       if_true, if_false = s.parameters.split('::')[3:5]
       if if_true.startswith('c'):
+         # Context jump
          edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
             s.context, s.step, if_true[2:], colors[color]))
          color += 1
          color = (1+color)%len(colors)
       elif if_true.startswith('l'):
-         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
-            s.context, s.step, if_true[2:], colors[color]))
+         # Label jump
+         (c,l) = if_true[2:].split(',')
+         edges.append(u'''"%s":%d -> "%s":"%s" [color=%s];\n''' % (
+            s.context, s.step, c, l, colors[color]))
          color = (1+color)%len(colors)
 
       if if_false.startswith('c'):
+         # Context jump
          edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
             s.context, s.step, if_false[2:], colors[color]))
+         color += 1
          color = (1+color)%len(colors)
       elif if_false.startswith('l'):
-         edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
-            s.context, s.step, if_false[2:], colors[color]))
+         # Label jump
+         (c,l) = if_false[2:].split(',')
+         edges.append(u'''"%s":%d -> "%s":"%s" [color=%s];\n''' % (
+            s.context, s.step, c, l, colors[color]))
          color = (1+color)%len(colors)
 
    elif action==11: # Time based test
       if_true, if_false = s.parameters.split('::')[5:7]
-      log.debug('action 11: %s %s' % (if_true, if_false))
       if if_true!='-2':
          edges.append(u'''"%s":%d -> "%s" [color=%s];\n''' % (
             s.context, s.step, if_true[2:], colors[color]))
@@ -1081,52 +1098,71 @@ def mk_label(scenario, action_by_id):
 
    labels = []
    for s in scenario:
+      # Cleanup parameters and comments
+      trans = { ord(u'{'): u'\{', ord(u'}'): u'\}'}
+      if s.parameters is not None:
+         params = s.parameters.translate(trans)
+      else:
+         params = ''
+      if s.comments is not None:
+         comments = s.comments.translate(trans)
+      else:
+         comments = ''
+
       act = int(s.action)
-      if act==16: # Label
+      if act==1: # Playback
+         (a, p) = play_or_tts(params[0], int(params[2:]))
+         labels.append(u'<%d>%s %s (%s)' % ( s.step, action_by_id[act], p, comments))
+
+      elif act==16: # Label
          labels.append(u'<%s>%s %s %s' % (
-               s.parameters, action_by_id['%s' % s.action],
-               s.parameters if s.parameters is not None else '',
-               s.comments if s.comments is not None else ''))
+               params, action_by_id[act], params, comments))
 
       elif act==10: # Test
-         (var, ope, val, if_true, if_false) = s.parameters.split('::')
-         #ops = {'eq': '=', 'ne': '#', 'lt': '<', 'le': '<=', 'gt': '>', 'ge': '>='}
-         x = u'%s %s %s' % (var, ope, val)
-         x += u" ?\\n"
+         (var, ope, val, if_true, if_false) = params.split('::')
+         ops = {'eq': u'=', 'ne': u'#', 'lt': u'&lt;', 
+            'le': u'&le;', 'gt': u'&gt;', 'ge': u'&ge;'}
+         x = u'%s %s %s ?\\n' % (var, ops[ope], val)
          x += u'Continuer' if if_true=='-2' else if_true[2:]
          x += ', sinon '
          x += u'continuer' if if_false=='-2' else if_false[2:]
-         labels.append(u'<%d>%s (%s)' % ( s.step, x,
-               s.comments if s.comments is not None else ''))
+         labels.append(u'<%d>%s (%s)' % ( s.step, x, comments))
 
       elif act==11: # Time based test
-         begin, end, dow, days, months, if_true, if_false = s.parameters.split('::')
-         x = begin if begin else u''
-         x += u', %s' % end if end else u''
-         x += u', %s' % dow if dow else u''
-         x += u', %s' % days if days else u''
-         x += u', %s' % months if months else u''
-         x += u" ?\\n"
+         begin, end, dow, days, months, if_true, if_false = params.split('::')
+         x = u'%s à %s, %s, %s, %s ?\\n' % (begin if begin else u'', end if end else u'', 
+            dow if dow else u'', days if days else u'', months if months else u'')
          x += u'Continuer' if if_true=='-2' else if_true[2:]
          x += ', sinon '
          x += u'continuer' if if_false=='-2' else if_false[2:]
-         labels.append(u'<%d>%s (%s)' % ( s.step, x,
-               s.comments if s.comments is not None else ''))
+         labels.append(u'<%d>%s (%s)' % (s.step, x, comments))
+
+      elif act==13: # Variable
+         (name, value) = params.split('::')
+         param = u'%s=' % name
+         if (value=='__1__'): param += u'$\{CALLERID(num)\}'
+         elif (value=='__2__'): param += u'$\{UNIQUEID\}'
+         else: param += value
+         labels.append(u'<%d>%s (%s)' % ( s.step, param, comments))
 
       elif act==18: # Holidays
-         if_true, if_false = s.parameters.split('::')
+         if_true, if_false = params.split('::')
          x = u'continuer' if if_true=='-2' else if_true[2:]
          x += ', sinon '
          x += u'continuer' if if_false=='-2' else if_false[2:]
          labels.append(u'<%d>%s ? %s %s' % (
-               s.step, action_by_id['%s' % s.action], x,
-               s.comments if s.comments is not None else ''))
+               s.step, action_by_id[act], x, comments))
+
+      elif act==21: # Queue_log
+         q, e, i = params.split('::')
+         q = DBSession.query(Queue).get(int(q))
+         e = DBSession.query(Queue_event).get(int(e))
+         labels.append(u'<%d>%s, %s, %s, %s (%s)' % (
+               s.step, action_by_id[act], q.name, e.event, i, comments))
 
       else:
-         labels.append(u'<%d>%s %s %s' % (
-               s.step, action_by_id['%s' % s.action], 
-               s.parameters if s.parameters is not None else '', 
-               s.comments if s.comments is not None else ''))
+         labels.append(u'<%d>%s %s (%s)' % (
+               s.step, action_by_id[act], params, comments))
 
    return u'"%s" [ label= "{<0>%s|%s}", shape="Mrecord"];\n' % (
          scenario[0].context, scenario[0].context, '|'.join(labels))
