@@ -446,7 +446,7 @@ function display(redraw) {
       scenario[r].priority = row-1;
       divs += '<tr id="row_' + r + '" '+ row_style + '><td>';
 
-      if (scenario[r].context=='Entrant') { // Incoming context -> delete forbidden !
+      if (row==1 && scenario[r].context=='Entrant') { // Incoming context -> delete forbidden !
          divs += ' <a href="#" onclick="add_action(0)"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
       } else {
          divs += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
@@ -697,6 +697,7 @@ function display(redraw) {
          break;
       } 
    }
+   context = '';
    for (r=0; r<scenario.length; r++) {
       if (context==scenario[r].context) continue;
       context = scenario[r].context.replace(/([*#])$/g,'\\$1');
@@ -971,18 +972,8 @@ function submit() {
 }
 
 function pdf_export() {
-   // Convert array of objects to array of arrays 
-   var sce = new Array();
-   for (i in scenario) {
-      sce.push([scenario[i].comments, 
-            scenario[i].context, 
-            scenario[i].extension, 
-            scenario[i].priority, scenario[i].application, 
-            scenario[i].parameters].join('::'))
-   }
    with (document.pdf_export_form) {
       id.value = ${tmpl_context.app_id};
-      scenario.value = sce.join('||');
       submit();
    }
 }
@@ -1158,7 +1149,7 @@ function update_canvas() {
       <span style="font-weight: bold;"><a href="#" onclick="submit();">valider</a></span> 
       après modification du scénario. 
       <a href="#" onclick="display(true)">Redessiner</a> l'écran. 
-      <a href="#" onclick="pdf_export(true)">Exporter</a> au format PDF. 
+      <a href="#" onclick="pdf_export()">Exporter</a> au format PDF. 
       <br/>
 	   <canvas id="canvas"></canvas>
       <div id="scenario"></div>
@@ -1468,7 +1459,6 @@ function update_canvas() {
 </div>
 <form name="pdf_export_form" action="pdf_export" method="post">
    <input type="hidden" name="id"/>
-   <input type="hidden" name="scenario"/>
 </form>
 </body>
 </html>

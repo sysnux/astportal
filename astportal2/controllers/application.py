@@ -25,6 +25,9 @@ from astportal2.model import DBSession, Application, User, Group, Action, \
 from datetime import datetime
 import re
 from os import rename, system
+from tempfile import mkdtemp
+from unicodedata import normalize
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -484,22 +487,9 @@ class Application_ctrl(RestController):
 
    @expose()
    def pdf_export(self, id, **kw):
-      if 'scenario[]' in kw.keys():
-         scenario = kw['scenario[]']
 
-      elif 'scenario' in kw.keys():
-         scenario = kw['scenario'].split('||')
-
-      else:
-         log.error('pdf_export: no scenario id %s' % (id) )
-         scenario = None
-         return dict(result=0) # XXX ?
-
-      log.info('id %s, type %s' % (id, type(scenario)) )
-      log.debug('scenario <%s>' % scenario)
-
-      if type(scenario)!=type([]):
-            scenario = (scenario,)
+      app = DBSession.query(Application).get(id)
+      log.info('pdf_export: id=%s' % (id))
 
       action_by_id = {}
       for a in DBSession.query(Action):
@@ -528,7 +518,8 @@ class Application_ctrl(RestController):
       log.debug(' * * * Write last %s' % prev_context)
       nodes.append(mk_label(label, action_by_id))
 
-      dot = open('/tmp/graphviz.dot', 'w')
+      dir_tmp = mkdtemp()
+      dot = open(dir_tmp + '/graphviz.dot', 'w')
       dot.write('digraph g {\n')
       for n in nodes:
          dot.write(n.encode('utf-8'))
@@ -538,14 +529,12 @@ class Application_ctrl(RestController):
       dot.write('}\n')
       dot.close()
 
-      filename = 'graphviz'# XXX use TempFile
-
-      import pygraphviz
-      g = pygraphviz.AGraph('/tmp/%s.dot' % filename)
+      fn = '%s/%s.pdf' % (dir_tmp, app.name)
+      from pygraphviz import AGraph
+      g = AGraph(dir_tmp + '/graphviz.dot')
       g.layout(prog='dot')
-      g.draw('/tmp/%s.pdf' % filename)
+      g.draw(fn)
 
-      fn = '/tmp/%s.pdf' % (filename)
       import os
       try:
          st = os.stat(fn)
@@ -557,9 +546,10 @@ class Application_ctrl(RestController):
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
       rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-control'] = 'max-age=0' # for IE
       rh['Content-Type'] = 'application/pdf'
-      rh['Content-disposition'] = u'attachment; filename="%s"; size=%d;' % (fn, st.st_size)
+      rh['Content-disposition'] = u'attachment; filename="%s.pdf"; size=%d;' % (
+         normalize('NFKD', app.name).encode('ascii','ignore'), st.st_size)
       rh['Content-Transfer-Encoding'] = 'binary'
       return f.read()
 
@@ -1099,7 +1089,7 @@ def mk_label(scenario, action_by_id):
    labels = []
    for s in scenario:
       # Cleanup parameters and comments
-      trans = { ord(u'{'): u'\{', ord(u'}'): u'\}'}
+      trans = { ord(u'{'): u'\{', ord(u'}'): u'\}', ord(u'<'): u'&lt;', ord(u'>'): u'&gt;'}
       if s.parameters is not None:
          params = s.parameters.translate(trans)
       else:
@@ -1114,8 +1104,16 @@ def mk_label(scenario, action_by_id):
          (a, p) = play_or_tts(params[0], int(params[2:]))
          labels.append(u'<%d>%s %s (%s)' % ( s.step, action_by_id[act], p, comments))
 
+      elif act==2: # Menu
+         (msg, err, abandon, choices) = params.split('::')
+         (a, msg) = play_or_tts(msg[0], int(msg[2:]))
+         (a, err) = play_or_tts(err[0], int(err[2:]))
+         (a, abandon) = play_or_tts(abandon[0], int(abandon[2:]))
+         labels.append(u'<%d>%s %s, %s, %s (%s)' % (
+         s.step, action_by_id[act], msg, err, abandon, comments))
+
       elif act==16: # Label
-         labels.append(u'<%s>%s %s %s' % (
+         labels.append(u'<%s>%s %s (%s)' % (
                params, action_by_id[act], params, comments))
 
       elif act==10: # Test
@@ -1153,12 +1151,19 @@ def mk_label(scenario, action_by_id):
          labels.append(u'<%d>%s ? %s %s' % (
                s.step, action_by_id[act], x, comments))
 
+      elif act==20: # Queue
+         q = DBSession.query(Queue).get(int(params))
+         qname = q.name if q is not None else u'INCONNU'
+         labels.append(u'<%d>%s %s, (%s)' % (
+                  s.step, action_by_id[act], qname, comments))
+
       elif act==21: # Queue_log
          q, e, i = params.split('::')
          q = DBSession.query(Queue).get(int(q))
+         qname = q.name if q is not None else u'INCONNU'         
          e = DBSession.query(Queue_event).get(int(e))
          labels.append(u'<%d>%s, %s, %s, %s (%s)' % (
-               s.step, action_by_id[act], q.name, e.event, i, comments))
+               s.step, action_by_id[act], qname, e.event, i, comments))
 
       else:
          labels.append(u'<%d>%s %s (%s)' % (
