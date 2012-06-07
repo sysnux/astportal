@@ -53,7 +53,7 @@ print install_requires
 
 setup(
     name='astportal2',
-    version='20111230.1',
+    version='20120520-597aeea0f6a56c446d89c589b8e943c554d9c7c4',
     description='Asterisk Portal',
     author='Jean-Denis Girard',
     author_email='jd.girard@sysnux.pf',

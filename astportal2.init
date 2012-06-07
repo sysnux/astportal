@@ -6,16 +6,16 @@
 # description: astportal2 application
  
 #-------- Configure here   
-paster=/opt/Python-2.6.7/bin/paster
-ini=/home/sysnux/astportal21/csb.ini
+paster=/opt/Python-2.7.3/bin/paster
+home=/opt/astportal21
+ini=sgbdp.ini
 pid=/var/run/astportal2/astportal2.pid
 log=/var/log/astportal2/astportal2.log
-eggs=/home/sysnux/.python-eggs
-user=sysnux
-group=sysnux
+user=asterisk
+group=asterisk
 #-------- End configuration
 
-export PYTHON_EGG_CACHE=$eggs
+cd $home
 paster="$paster serve --daemon --user=$user --group=$group --pid-file=$pid --log-file=$log $ini"
 
 case "$1" in

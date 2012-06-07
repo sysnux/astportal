@@ -28,6 +28,7 @@ tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
 
 var last=0, // last_update
     me = "${tg.request.identity['user']}", // Current user
+    admin = false,
     my_status = null, // Current user status (1=> not in use)
     time_diff=0, // Time diff beween client and server
     change=true, // Change in list of queues or members, need rebuild list
@@ -100,9 +101,12 @@ function list_queues() { // Builds main part of the screen
 
          html += '<h2>Groupe ' + q + '</h2>';
          var table = '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
-         table += '<th rowspan="2">Durée</th><th colspan="2">Appels reçus</th><th colspan="2">Appel émis</th><th rowspan="2">&Eacute;couter</th>';
-         table += '<th rowspan="2">Enreg.</th rowspan="2"><th rowspan="2">Retirer</th></tr>';
-         table += '<tr><th>Nb</th><th>Total</th><th>Nb</th><th>Total</th></tr>';
+         if (admin) {
+            table += '<th rowspan="2">Durée</th><th colspan="2">Appels reçus</th><th colspan="2">Appel émis</th><th rowspan="2">&Eacute;couter</th>';
+            table += '<th rowspan="2">Enreg.</th rowspan="2"><th rowspan="2">Retirer</th></tr>';
+            table += '<tr><th>Nb</th><th>Total</th><th>Nb</th><th>Total</th>'; 
+         }
+         table += '</tr>';
          var i=1;
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
@@ -119,9 +123,11 @@ function list_queues() { // Builds main part of the screen
             table += '<td id="tco_' + id + '">' + a[6] + '</td>';
             table += '<td id="lis_' + id + '">' + a[7] + '</td>';
             table += '<td id="rec_' + id + '">' + a[8] + '</td>';
-            table += '<td><input type="checkbox" onclick="remove_member(\'' + 
-               q + '\',\'' + members[qm[m]]['Location']  + 
-               '\',\'' + qm[m].replace(/'/, ' ') + '\')"/></td>';
+            if (admin) {
+               table += '<td><input type="checkbox" onclick="remove_member(\'' + 
+                  q + '\',\'' + members[qm[m]]['Location']  + 
+                  '\',\'' + qm[m].replace(/'/, ' ') + '\')"/></td>';
+            }
             table += '</tr>';
             i++;
          }
