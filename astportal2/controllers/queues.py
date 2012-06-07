@@ -38,7 +38,7 @@ class Sounds_list(SingleSelectField):
       return d
 
 common_fields = [
-   TextField('comment', validator=NotEmpty,
+   TextField('comment', validator=NotEmpty, size=40,
       label_text=u'Descriptif',
       help_text=u'Entrez le descriptif du groupe d\'appel'),
    Sounds_list('music', sound_type=0, not_empty=False,
@@ -55,8 +55,14 @@ common_fields = [
          ('rrmemory', u'Circulaire'),
       ],
       label_text=u'Distribution des appels', help_text=u''),
+   TextField('connectdelay', validator=Int, size=4, default=0,
+      label_text=u'Temps de pré-traitement (sec)', help_text=u'Délai avant prise appel'),
+   TextField('connecturl', size=40, default=None,
+      label_text=u'URL chargée à la réception', help_text=u''),
    TextField('wrapuptime', validator=Int, size=4, default=0,
-      label_text=u'Temps de réflexion (sec)', help_text=u''),
+      label_text=u'Temps de post-traitement (sec)', help_text=u'Délai avant nouvel appel'),
+   TextField('hangupurl', size=40, default=None,
+      label_text=u'URL chargée au raccroché', help_text=u''),
    TextField('announce_frequency', validator=Int, size=4, default=0,
       label_text=u'Fréquence d\'annonce (sec)', 
       help_text=u'Entrez "0" pour supprimer les annonces'),
@@ -207,7 +213,10 @@ class Queue_ctrl(RestController):
       q.min_announce_frequency = int(kw['min_announce_frequency'])
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
-      q.priority = kw['priority']
+      q.priority = int(kw['priority'])
+      q.connectdelay = int(kw['connectdelay'])
+      q.connecturl = kw['connecturl']
+      q.hangupurl = kw['hangupurl']
       DBSession.add(q)
 
       # Create new group for supervisors
@@ -243,7 +252,9 @@ class Queue_ctrl(RestController):
             'music': q.music_id, 'announce': q.announce_id, 'strategy': q.strategy, 
             'wrapuptime': q.wrapuptime, 'announce_frequency': q.announce_frequency, 
             'announce_holdtime': q.announce_holdtime, 
-            'announce_position': q.announce_position, 'priority': q.priority}
+            'announce_position': q.announce_position, 'priority': q.priority,
+            'connectdelay': q.connectdelay, 'connecturl': q.connecturl,
+            'hangupurl': q.hangupurl}
       tmpl_context.form = edit_queue_form
       return dict(title = u'Modification groupe d\'appels ' + q.name, debug='', values=v)
 
@@ -260,6 +271,9 @@ class Queue_ctrl(RestController):
       q.announce_id = int(kw['announce']) if kw['announce']!='-1' else None
       q.strategy = kw['strategy']
       q.wrapuptime = int(kw['wrapuptime'])
+      q.connectdelay = int(kw['connectdelay'])
+      q.connecturl = kw['connecturl']
+      q.hangupurl = kw['hangupurl']
       q.announce_frequency = int(kw['announce_frequency'])
       q.min_announce_frequency = int(kw['min_announce_frequency'])
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
@@ -291,7 +305,7 @@ class Queue_ctrl(RestController):
 
       # Remove MOH dir
       moh_class = asterisk_string(q.name, no_space=True)
-      moh_dir = '/var/lib/asterisk/moh/astportal/%s' % moh_class
+      moh_dir = '/var/lib/asterisk/moh/fr/astportal/%s' % moh_class
       asterisk_shell('rm -rf "%s"' % moh_dir)
       res = Globals.manager.update_config(
          dir_asterisk  + 'musiconhold.conf', None, [('DelCat', moh_class)])

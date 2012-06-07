@@ -27,8 +27,8 @@ tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
 <![CDATA[
 
 var last=0, // last_update
-    me = "${tg.request.identity['user']}", // Current user
-    admin = false,
+    me = null, // Current user
+    admin = false, // Is administrator?
     my_status = null, // Current user status (1=> not in use)
     time_diff=0, // Time diff beween client and server
     change=true, // Change in list of queues or members, need rebuild list
@@ -61,6 +61,8 @@ function updates_ready(data) {
       queues = data.queues;
       members = data.members;
       change = data.change;
+      me = data.me;
+      admin = data.admin;
       last = data.last;
       time_diff = last - ((new Date()).getTime()/1000); // Epoch time
       if (first_time) {
@@ -100,13 +102,17 @@ function list_queues() { // Builds main part of the screen
          qt += '<td id="wait_' + qid + '">' + waiting.join(', ') + '</td></tr>';
 
          html += '<h2>Groupe ' + q + '</h2>';
-         var table = '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
+         var table = '';
          if (admin) {
+            table += '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
             table += '<th rowspan="2">Durée</th><th colspan="2">Appels reçus</th><th colspan="2">Appel émis</th><th rowspan="2">&Eacute;couter</th>';
             table += '<th rowspan="2">Enreg.</th rowspan="2"><th rowspan="2">Retirer</th></tr>';
-            table += '<tr><th>Nb</th><th>Total</th><th>Nb</th><th>Total</th>'; 
+            table += '<tr><th>Nb</th><th>Total</th><th>Nb</th><th>Total</th></tr>';
+         } else {
+            table += '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
+            table += '<th rowspan="2">Durée</th><th colspan="2">Appels reçus</th><th colspan="2">Appel émis</th>';
+            table += '</tr><tr><th>Nb</th><th>Total</th><th>Nb</th><th>Total</th></tr>';
          }
-         table += '</tr>';
          var i=1;
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
@@ -121,9 +127,9 @@ function list_queues() { // Builds main part of the screen
             table += '<td id="tci_' + id + '">' + a[4] + '</td>';
             table += '<td id="nco_' + id + '">' + a[5] + '</td>';
             table += '<td id="tco_' + id + '">' + a[6] + '</td>';
-            table += '<td id="lis_' + id + '">' + a[7] + '</td>';
-            table += '<td id="rec_' + id + '">' + a[8] + '</td>';
             if (admin) {
+               table += '<td id="lis_' + id + '">' + a[7] + '</td>';
+               table += '<td id="rec_' + id + '">' + a[8] + '</td>';
                table += '<td><input type="checkbox" onclick="remove_member(\'' + 
                   q + '\',\'' + members[qm[m]]['Location']  + 
                   '\',\'' + qm[m].replace(/'/, ' ') + '\')"/></td>';
@@ -136,7 +142,9 @@ function list_queues() { // Builds main part of the screen
          } else {
             html += table +'</table>';
          }
-         html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
+         if (admin) {
+            html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
+         }
       }
       html += "<h2>File d'attente</h2>" + qt + '</table>';
       $('#queues_list').html(html);
@@ -180,10 +188,11 @@ function member_status(name, now, queue) {
    var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE
-if (name==me && my_status) {
-	window.open('http://localhost/cgi-bin/crm.py?action=hangup&uniqueid=' + my_status, 'Hangup', 'location=no,width=600,height=400');
-	my_status = null
-}
+         if (name==me && my_status && member['HangupURL']!='') {
+	         window.open(member['HangupUrl'], 'Hangup', 'location=no,width=600,height=400');
+//	         window.open('http://localhost/cgi-bin/crm.py?action=hangup&uniqueid=' + my_status, 'Hangup', 'location=no,width=600,height=400');
+	         my_status = null
+         }
          if (member['Paused']=='1') {
             sclass='paused'; stat='En pause';
          } else {
@@ -192,10 +201,12 @@ if (name==me && my_status) {
          dur = '';
          break;
       case '2': // AST_DEVICE_INUSE
-if (name==me && member['PeerChannel']!='' && !my_status) {
-	my_status = member['Uniqueid'];
-	window.open('http://localhost/cgi-bin/crm.py?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
-}
+         if (name==me && member['PeerChannel']!='' && !my_status && member['ConnectURL']!='') {
+	         my_status = member['Uniqueid'];
+	         window.open(member['ConnectURL'], 'CRM', 'location=no,width=600,height=400');
+//            window.open('https://10.152.50.12:7002/WebCRM/jsp/login.jsp?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
+//	         window.open('http://localhost/cgi-bin/crm.py?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
+         }
       case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
          sclass='inuse'; 

@@ -581,7 +581,7 @@ def generate_dialplan():
       end = a.end
       exten = a.exten
 
-      svi_out.write(u'; %s (%d): %s <-> %s\n' % (name, app_id, exten, dnis))
+      svi_out.write(u'; %s (App %d)\n' % (name, app_id))
       svi_out.write(u'%s,1,Noop(%s: %s)\n' % (dnis, name, exten))
       if begin:
          svi_out.write(u'%s,n,GotoIf($[ 0%s < ${STRFTIME(,,%%s)} ]?test_end)\n' % (
@@ -594,26 +594,41 @@ def generate_dialplan():
       else:
          svi_out.write(u'%s,n(test_end),Noop(No end)\n' % dnis)
       svi_out.write(u'%s,n(ok),Wait(1)\n' % dnis)
-      svi_out.write(u'%s,n,Answer()\n' % dnis)
-#      svi_out.write(u'%s,n,Set(TIMEOUT(digit)=15)\n' % dnis)
       svi_out.write(u'%s,n,Set(CDR(accountcode)=%s)\n' % (dnis, app_id))
       svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
 
 
-   # Internal context: send to corresponding DNIS number
-   svi_out.write(u'[SVI_internal] ; Main context RNIS -> App\n')
+   # Internal context: same as above
+   svi_out.write(u'[SVI_internal] ; Internal context -> App\n')
    apps = DBSession.query(Application)
    apps = apps.filter(Application.active==True)
    apps = apps.order_by(Application.exten)
    for a in apps:
-      svi_out.write(u'; %s (%d): %s <-> %s\n' % \
-         (a.name, a.app_id, a.exten, a.dnis))
-      svi_out.write(u'exten => %s,1,Noop(%s: %s)\n' % \
-         (a.exten, a.name, a.dnis))
-      svi_out.write(u'exten => %s,n,Goto(SVI_dnis,%s,1)\n' % \
-         (a.exten, a.dnis))
+      dnis = u'exten => %s' % a.exten
+      app_id = a.app_id
+      name = a.name
+      begin = a.begin
+      end = a.end
+      exten = a.exten
+
+      svi_out.write(u'; %s (App %d)\n' % (name, app_id))
+      svi_out.write(u'%s,1,Noop(%s: %s)\n' % (dnis, name, exten))
+      if begin:
+         svi_out.write(u'%s,n,GotoIf($[ 0%s < ${STRFTIME(,,%%s)} ]?test_end)\n' % (
+            dnis, begin.strftime('%s') ))
+         svi_out.write(u'%s,n,Hangup()\n' % dnis)
+      if end:
+         svi_out.write(u'%s,n(test_end),GotoIf($[ 0${STRFTIME(,,%%s)} < %s ]?ok)\n' % (
+            dnis, end.strftime('%s') ))
+         svi_out.write(u'%s,n,Hangup()\n' % dnis)
+      else:
+         svi_out.write(u'%s,n(test_end),Noop(No end)\n' % dnis)
+      svi_out.write(u'%s,n(ok),Wait(1)\n' % dnis)
+      svi_out.write(u'%s,n,Set(CDR(accountcode)=%s)\n' % (dnis, app_id))
+      svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
+      svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
 
 
@@ -931,7 +946,22 @@ def generate_dialplan():
       elif action==20: # Queue
          q = DBSession.query(Queue).get(int(parameters))
          if q:
-            svi_out.write(u"exten => s,%d,Queue(%s)\n" % 
+            if q.connecturl:
+               svi_out.write(u"exten => s,%d,Set(CONNECTURL=%s)\n" %
+                  (prio, q.connecturl) ) 
+               prio += 1
+
+            if q.hangupurl:
+               svi_out.write(u"exten => s,%d,Set(HANGUPURL=%s)\n" %
+                  (prio, q.hangupurl) ) 
+               prio += 1
+
+            if q.connectdelay:
+               svi_out.write(u"exten => s,%d,Set(CONNECTDELAY=%d)\n" %
+                  (prio, q.connectdelay) ) 
+               prio += 1
+
+            svi_out.write(u"exten => s,%d,Queue(%s,,,,,,,agent_connect)\n" % 
                (prio, q.name) )
          else:
             svi_out.write(u"exten => s,%d,Queue(UNDEFINED)\n" % prio)

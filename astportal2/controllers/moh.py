@@ -314,7 +314,7 @@ class MOH_ctrl(RestController):
       if kw.has_key('owner_id'):
          s.owner_id = kw['owner_id']
       s.comment = kw['comment']
-      ret = process_file(kw['file'], id, s.type, s.name, kw['lang'])
+      ret = process_file(kw['file'], id, s.type, s.name, s.language)
 
       if ret:
          flash(ret,'error')
@@ -334,7 +334,7 @@ class MOH_ctrl(RestController):
       s = DBSession.query(Sound).get(id)
       # remove uploaded file
       try:
-         dir = dir_moh if s.type==0 else dir_sounds
+         dir = (dir_moh if s.type==0 else dir_sounds) % s.language
          unlink('%s/%s.wav' % (dir, s.name))
       except:
          log.error('unlink failed %s' % s.name)

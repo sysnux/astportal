@@ -184,7 +184,7 @@ def asterisk_update_queue(q):
 
    # Always delete old queue and MOH class
    moh_class = asterisk_string(q.name, no_space=True)
-   moh_dir = '/var/lib/asterisk/moh/astportal/%s' % moh_class
+   moh_dir = '/var/lib/asterisk/moh/fr/astportal/%s' % moh_class
    res = Globals.manager.update_config(
          directory_asterisk  + 'queues.conf', None, [('DelCat', moh_class)])
    log.debug('Delete queue "%s" returns %s' % (moh_class, res))
@@ -204,10 +204,10 @@ def asterisk_update_queue(q):
             ('Append', moh_class, 'announce-holdtime', holdtime),
             ('Append', moh_class, 'announce-position', position),
             ('Append', moh_class, 'ringinuse', 'no'),
-            ('Append', moh_class, 'weight', q.priority),
             ('Append', moh_class, 'setqueuevar', 'yes'),
-            ('Append', moh_class, 'setqueueentryvar', 'yes'),
             ('Append', moh_class, 'setinterfacevar', 'yes'),
+            ('Append', moh_class, 'setqueueentryvar', 'yes'),
+            ('Append', moh_class, 'weight', q.priority),
          ]
 
    if q.announce_id is not None:
@@ -218,7 +218,7 @@ def asterisk_update_queue(q):
       # Queue music on hold is actually a music class, need to create it
       log.debug('Queue music_id <%d>' % q.music_id)
       music = DBSession.query(Sound).get(q.music_id).name
-      src_dir = '/var/lib/asterisk/moh/astportal'
+      src_dir = '/var/lib/asterisk/moh/fr/astportal'
       asterisk_shell('%s/queue_moh_create.sh "%s" "%s" "%s"' % (
          utils_dir, moh_dir, src_dir, music))
       sleep(2)
@@ -662,6 +662,8 @@ Channel: SIP/100-0000001f
             self.members[m]['Uniqueid'] = ''
             self.members[m]['PeerChannel'] = ''
             self.members[m]['HoldTime'] = ''
+            self.members[m]['ConnectURL'] = ''
+            self.members[m]['HangupURL'] = ''
             self.members[m]['Custom1'] = ''
             self.members[m]['Custom2'] = ''
             self.last_queue_update = time()
@@ -783,6 +785,8 @@ Channel: SIP/100-0000001f
          self.members[dict['Agent']]['PeerCallerid'] = dict['PeerCallerid']
          self.members[dict['Agent']]['HoldTime'] = dict['HoldTime']
          self.members[dict['Agent']]['Uniqueid'] = dict['PeerUniqueid']
+         self.members[dict['Agent']]['ConnectURL'] = dict.get('ConnectURL', '')
+         self.members[dict['Agent']]['HangupURL'] = dict.get('HangupURL', '')
          self.members[dict['Agent']]['Custom1'] = dict.get('Custom1', '')
          self.members[dict['Agent']]['Custom2'] = dict.get('Custom2', '')
          #self.last_update = time() # XXX nécessaire ou non ?

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import config, expose, flash, request
+from tg import config, expose, flash, request, redirect
 from tg.controllers import TGController
 from tgext.menu import navbar, sidebar, menu
 
@@ -33,9 +33,11 @@ class CC_Monitor_ctrl(TGController):
       sv = ['admin']
       for q in Globals.asterisk.queues:
          sv.append('SV ' + q)
+         sv.append('AG ' + q)
       if not in_any_group(*sv):
          auth = 0
          flash(u'Accès interdit !', 'error')
+         redirect('/')
       else:
          auth=1
       return dict( title=u'\u00C9tat des groupes d\'appels', debug='', auth=auth)
@@ -121,18 +123,26 @@ class CC_Monitor_ctrl(TGController):
          sleep(1)
       log.debug(' * * * update_queues returns after sleeping %d sec, change=%s' % (i,change))
 
+      admin = False
       if in_group('admin'):
          queues = Globals.asterisk.queues
+         admin = True
       else:
          queues = {}
          for q in Globals.asterisk.queues:
             if in_group('SV ' + q):
                queues[q] = Globals.asterisk.queues[q]
+               admin = True
+            elif in_group('AG ' + q):
+               queues[q] = Globals.asterisk.queues[q]
 
       log.debug('Q AFTER %s' % Globals.asterisk.queues)
       log.debug('M AFTER %s' % Globals.asterisk.members)
+
+      me = unicodedata.normalize('NFKD', request.identity['user'].display_name).encode('ascii', 'ignore')
+
       return dict(last=last_update, change=True, # XXX
-            queues=queues, members=Globals.asterisk.members)
+            queues=queues, members=Globals.asterisk.members, me=me, admin=admin)
 
 
    @expose('json')

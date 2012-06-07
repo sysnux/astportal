@@ -11,23 +11,6 @@
 
 <script type="text/javascript">
 //<![CDATA[
-function ac_cb(req, resp) {
-   alert('autocomplete callback');
-   resp(['azerty', 'qwerty', 'toto', 'titi']);
-}
-
-$(document).ready(function () {
-      $('#form_auto').autocomplete({source: ac_cb});
-/*   $('#form_auto').keypress(function() {
-         $.post('/phonebook/search', 
-         {auto: $('#form_auto').val()},
-         function (json) {
-//alert(json.data);
-            $('#form_auto').autocomplete('option', 'source', json.data);
-          })
-   });
-*/
-});
 //]]>
 </script>
 </head>

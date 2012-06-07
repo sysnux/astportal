@@ -26,7 +26,6 @@ default_company = config.get('company')
 import logging
 log = logging.getLogger(__name__)
 
-
 class New_contact_form(TableForm):
    ''' New contact form
    '''
