@@ -347,7 +347,7 @@ function valid_action() {
          break;
 
       case 13: // Variable
-         var name = $("#13_name").val().replace(/\W/g, '_');
+         var name = $("#13_name").val().replace(/[^()\w]/g, '_');
          var value = $("#13_predefined").val();
          if (value==-1) {
             // XXX nettoyage valeur

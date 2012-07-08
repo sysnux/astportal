@@ -52,6 +52,12 @@ class CC_Monitor_ctrl(TGController):
       Globals.manager.sippeers()
 
       phones = []
+#      if queue=='__ALL__':
+#         users = set(DBSession.query(User).all())
+#         for g in DBSession.query(Group).filter(Group.group_name.like('AG %')):
+#            users = users & g.users
+#            log.debug(u'Users & %s: %s' % (g.group_name, users))
+
       try:
          g = DBSession.query(Group).filter(Group.group_name=='AG %s' % queue).one()
          for u in g.users:
@@ -141,8 +147,14 @@ class CC_Monitor_ctrl(TGController):
 
       me = unicodedata.normalize('NFKD', request.identity['user'].display_name).encode('ascii', 'ignore')
 
+      qq = [{'name': k,
+         'params': Globals.asterisk.queues[k]
+         } for k in sorted(Globals.asterisk.queues, 
+               key=lambda x: int(Globals.asterisk.queues[x]['Weight']), 
+               reverse=True)
+         ]
       return dict(last=last_update, change=True, # XXX
-            queues=queues, members=Globals.asterisk.members, me=me, admin=admin)
+            queues=qq, members=Globals.asterisk.members, me=me, admin=admin)
 
 
    @expose('json')
@@ -166,8 +178,15 @@ class CC_Monitor_ctrl(TGController):
          sleep(1)
       log.debug('Sending response, last=%s' % last_update)
       last_update = int(last_update*100)
+
+      qq = [{'name': k,
+         'params': Globals.asterisk.queues[k]
+         } for k in sorted(Globals.asterisk.queues, 
+               key=lambda x: int(Globals.asterisk.queues[x]['Weight']), 
+               reverse=True)
+         ]
       return dict(last=last_update, change=True, # XXX
-            queues=Globals.asterisk.queues)
+            queues=qq) # Globals.asterisk.queues)
 
 
    @expose('json')
