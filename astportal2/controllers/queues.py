@@ -251,8 +251,9 @@ class Queue_ctrl(RestController):
       v = {'queue_id': q.queue_id, 'comment': q.comment, '_method': 'PUT',
             'music': q.music_id, 'announce': q.announce_id, 'strategy': q.strategy, 
             'wrapuptime': q.wrapuptime, 'announce_frequency': q.announce_frequency, 
-            'announce_holdtime': q.announce_holdtime, 
-            'announce_position': q.announce_position, 'priority': q.priority,
+            'announce_holdtime': 'yes' if q.announce_holdtime==1 else 'no', 
+            'announce_position': 'yes' if q.announce_position==1 else 'no', 
+            'priority': q.priority,
             'connectdelay': q.connectdelay, 'connecturl': q.connecturl,
             'hangupurl': q.hangupurl}
       tmpl_context.form = edit_queue_form

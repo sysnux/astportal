@@ -351,7 +351,7 @@ class MOH_ctrl(RestController):
       '''
       s = DBSession.query(Sound).get(id)
       dir = (dir_moh if s.type==0 else dir_sounds) % s.language
-      fn = '%s/%s.wav' % (dir_dst, re.sub(r'\W', '_', s.name))
+      fn = '%s/%s.wav' % (dir, re.sub(r'\W', '_', s.name))
       import os
       try:
          st = os.stat(fn)
@@ -387,7 +387,7 @@ class MOH_ctrl(RestController):
       '''
       s = DBSession.query(Sound).get(id)
       dir = (dir_moh if s.type==0 else dir_sounds) % s.language
-      fn = '%s/%s.wav' % (dir_dst, re.sub(r'\W', '_', s.name))
+      fn = '%s/%s.wav' % (dir, re.sub(r'\W', '_', s.name))
       import os
       try:
          st = os.stat(fn)
