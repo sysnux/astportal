@@ -15,7 +15,6 @@ import unicodedata
 sys.path.append('/home/astportal21')
 from paste.deploy import appconfig
 conf = appconfig('config:/home/SysNux/Projets/astportal21/tiare.ini')
-#conf = appconfig('config:/home/astportal21/csb-shell.ini')
 
 from astportal2.config.environment import load_environment
 load_environment(conf.global_conf, conf.local_conf)
@@ -34,6 +33,7 @@ Options:
 \t-h     help
 ''' % ( sys.argv[0] )
    sys.exit(1)
+
 
 def options( argv ):
    v = False;
@@ -54,14 +54,16 @@ def options( argv ):
 	    sys.exit(1)
    return ( v, f )
 
+
 def check_none(x):
-   if x=='NONE': return None
-   else: return x
+   return x if x!='NONE': else None
+
 
 def event2id():
    '''Event name to event id mapping
    '''
    return dict([(e.event, e.qe_id) for e in DBSession.query(Queue_event)])
+
 
 def channel2user_dept():
    '''Channel to user, department mapping
@@ -82,6 +84,7 @@ def channel2user_dept():
       d[k] = (u.user_id, did)
 
    return d
+
 
 class __main__:
 
