@@ -77,17 +77,15 @@ common_fields = [
    SingleSelectField('priority',
       options = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
       label_text=u'Priorité', help_text=u'Priorité par rapport aux autres groupes'),
-   HiddenField('_method',validator=None), # Needed by RestController
    HiddenField('queue_id',validator=Int),
    ]
 
 class New_queue_form(TableForm):
    ''' New queue form
    '''
-   fields = []
-   fields.extend(common_fields)
-   fields.insert(0, TextField('name', validator=NotEmpty,
-      label_text=u'Nom', help_text=u'Entrez le nom du groupe d\'appel'))
+   fields= [ TextField('name', validator=NotEmpty,
+         label_text=u'Nom', help_text=u'Entrez le nom du groupe d\'appel')
+      ] + common_fields
    submit_text = u'Valider...'
    action = '/queues/create'
    hover_help = True
@@ -97,8 +95,8 @@ new_queue_form = New_queue_form('new_queue_form')
 class Edit_queue_form(TableForm):
    ''' Edit Queue form
    '''
-   fields = []
-   fields.extend(common_fields)
+   fields = common_fields + [
+      HiddenField('_method',validator=None)] # Needed by RestController
    submit_text = u'Valider...'
    action = '/queues/'
    hover_help = True

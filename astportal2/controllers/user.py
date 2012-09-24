@@ -45,35 +45,31 @@ common_fields = [
       label_text=u'Confirmation mot de passe',
       help_text=u'Entrez à nouveau le mot de passe'),
    Label( text = u'(Le mot de passe ne doit contenir que des chiffres ; il est visible par les administrateurs)'),
-   HiddenField('_method',validator=None), # Needed by RestController
-   HiddenField('user_id',validator=Int),
+   HiddenField('user_id', validator=Int),
    ]
 
 
 # Fields for admin
-admin_form_fields = []
-admin_form_fields.extend(common_fields)
-admin_form_fields.insert(0,
+admin_form_fields = [
    TextField('user_name', validator=NotEmpty,
       label_text=u'Compte',
-      help_text=u'Entrez le nom d\'utilisateur'))
-admin_form_fields.insert(1,
+      help_text=u'Entrez le nom d\'utilisateur'),
    TextField('firstname',
       label_text=u'Prénom', validator=NotEmpty,
-      help_text=u'Entrez le prénom de l\'utilisateur'))
-admin_form_fields.insert(2,
+      help_text=u'Entrez le prénom de l\'utilisateur'),
    TextField('lastname', validator=NotEmpty,
       label_text=u'Nom de famille',
-      help_text=u'Entrez le nom de famille de l\'utilisateur'))
-admin_form_fields.insert(3,
+      help_text=u'Entrez le nom de famille de l\'utilisateur'),
    TextField('email_address', validator=Email,
       label_text=u'Adresse email',
-      help_text=u'Entrez l\'adresse email de l\'utisateur'))
-admin_form_fields.append( CheckBoxList('groups', validator=Int,
+      help_text=u'Entrez l\'adresse email de l\'utisateur'),
+   CheckBoxList('groups', validator=Int,
    options=DBSession.query(Group.group_id, 
       Group.group_name).order_by(Group.group_name),
    label_text=u'Groupes', 
-   help_text=u'Cochez les groupes auxquels appartient l\'utilisateur') )
+   help_text=u'Cochez les groupes auxquels appartient l\'utilisateur')
+]
+admin_form_fields[4:2] = common_fields
 
 # New user form (only for admin)
 new_user_form = TableForm(
@@ -91,29 +87,29 @@ admin_edit_user_form = TableForm(
    validator = Schema(
       chained_validators = [FieldsMatch('pwd1', 'pwd2')]
    ),
-   fields = admin_form_fields,
+   fields = admin_form_fields + 
+      [HiddenField('_method', validator=None)], # Needed by RestController
    submit_text = u'Valider...',
    action = '/users/',
    hover_help = True
 )
 
 # Edit user form for normal user (not admin)
-user_fields = []
-user_fields.extend(common_fields)
-user_fields.insert(0,
+user_fields = [
    LabelHiddenField('firstname', suppress_label=False,
       label_text=u'Prénom',
-      help_text=u'Entrez le prénom de l\'utilisateur'))
-user_fields.insert(1,
-   LabelHiddenField('lastname', 
+      help_text=u'Entrez le prénom de l\'utilisateur'),
+   LabelHiddenField('lastname',
       label_text=u'Nom de famille', suppress_label=False,
-      help_text=u'Entrez le nom de famille de l\'utilisateur'))
-user_fields.insert(2,
+      help_text=u'Entrez le nom de famille de l\'utilisateur'),
    LabelHiddenField('email_address', suppress_label=False,
       label_text=u'Adresse email',
-      help_text=u'Entrez l\'adresse email de l\'utisateur'))
-user_fields.append(LabelHiddenField( 'groups',
-   label_text=u'Groupes', suppress_label=False))
+      help_text=u'Entrez l\'adresse email de l\'utisateur'),
+   LabelHiddenField( 'groups',
+      label_text=u'Groupes', suppress_label=False),
+   HiddenField('_method', validator=None) # Needed by RestController
+]
+user_fields[3:2] = common_fields[:]
 edit_user_form = TableForm(
    validator = Schema(
       chained_validators = [FieldsMatch('pwd1', 'pwd2')]
@@ -316,10 +312,14 @@ class User_ctrl(RestController):
          log.info('user not found %d !' % id)
          redirect('/users/')
 
-      ln = u.display_name.split(' ')[0]
-      fn = u.display_name.split(' ')[1:]
-      if type(fn)==type([]):
-         fn = ' '.join(fn)
+      try:
+         ln = u.display_name.split(' ')[0]
+         fn = u.display_name.split(' ')[1:]
+         if type(fn)==type([]):
+            fn = ' '.join(fn)
+      except:
+         ln = u.display_name
+         fn = ''
       if u.phone: phone = u.phone[0].phone_id
       else: phone=None
 
@@ -363,6 +363,7 @@ class User_ctrl(RestController):
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
       u.password = kw['pwd1'] 
+      u.display_name = u.lastname + ' ' + u.firstname
 
       # Update voicemail
       cidname = unicodedata.normalize('NFKD', u.display_name). \

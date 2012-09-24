@@ -72,77 +72,53 @@ class SVI_user_select_field(SingleSelectField):
 
 # Common fields for application form
 common_fields = [
-         CheckBox('active', 
-            label_text=u'Active', default=True,
-            help_text=u'Application active'),
-         CalendarDateTimePicker('app_begin',
-            label_text=u'Début', help_text=u'Date de début',
-            date_format =  '%d/%m/%y %Hh%mm',
-            not_empty = False, picker_shows_time = True,
-            validator = DateTimeConverter(format='%d/%m/%y %Hh%Mm',
-               messages = {'badFormat': 'Format date / heure invalide'})),
-         CalendarDateTimePicker('app_end',
-            label_text=u'Fin', help_text=u'Date de fin',
-            date_format =  '%d/%m/%y %Hh%mm',
-            not_empty = False, picker_shows_time = True,
-            validator = DateTimeConverter(format='%d/%m/%y %Hh%Mm',
-               messages = {'badFormat': 'Format date / heure invalide'})),
-         TextArea('comment',
-            label_text=u'Commentaires', help_text=u"Description de l'application"),
-         HiddenField('_method', validator=None), # Needed by RestController
-         HiddenField('app_id', validator=Int),
+   TextField('exten', not_empty=False, #validator=None,
+      label_text=u'Numéro interne', help_text=u'Choisissez l\'extension'),
+   TextField('dnis', not_empty=False, #validator=None,
+      label_text=u'Numéro extérieur', help_text=u'Choisissez le numéro RNIS'),
+   TextField('exten', not_empty=False, #validator=None,
+      label_text=u'Numéro interne', help_text=u'Choisissez le numéro interne'),
+   CheckBox('active', 
+      label_text=u'Active', default=True,
+      help_text=u'Application active'),
+   CalendarDateTimePicker('app_begin',
+      label_text=u'Début', help_text=u'Date de début',
+      date_format =  '%d/%m/%y %Hh%mm',
+      not_empty = False, picker_shows_time = True,
+      validator = DateTimeConverter(format='%d/%m/%y %Hh%Mm',
+         messages = {'badFormat': 'Format date / heure invalide'})),
+   CalendarDateTimePicker('app_end',
+      label_text=u'Fin', help_text=u'Date de fin',
+      date_format =  '%d/%m/%y %Hh%mm',
+      not_empty = False, picker_shows_time = True,
+      validator = DateTimeConverter(format='%d/%m/%y %Hh%Mm',
+         messages = {'badFormat': 'Format date / heure invalide'})),
+   TextArea('comment',
+      label_text=u'Commentaires', help_text=u"Description de l'application"),
+#         HiddenField('_method', validator=None), # Needed by RestController
+   HiddenField('app_id', validator=Int),
          ]
 
-# Add application form for 'admin'
-admin_fields = []
-admin_fields.extend(common_fields)
-#admin_fields.insert(0, SVI_user_select_field('owner_id', not_empty=False, #options = [],
-#   label_text=u'Client', help_text=u"Propriétaire de l'application"))
-admin_fields.insert(0, TextField('name', validator=NotEmpty,
-      label_text=u'Nom', help_text=u"Entrez le nom de l'application"))
-admin_fields.insert(1, TextField('exten', not_empty=False, #validator=None,
-      label_text=u'Numéro interne', help_text=u'Choisissez l\'extension'))
-admin_fields.insert(2, TextField('dnis', not_empty=False, #validator=None,
-      label_text=u'Numéro extérieur', help_text=u'Choisissez le numéro RNIS'))
-admin_new_application_form = TableForm(
-   fields = admin_fields,
-   submit_text = u'Valider...',
-   action = '/applications/create',
-   hover_help = True
-   )
-
-# Add application form for 'normal' user
-user_fields = []
-user_fields.extend(common_fields)
-user_fields.insert(0, TextField('name', validator=NotEmpty,
-      label_text=u'Nom', help_text=u"Entrez le nom de l'application"))
+# New application form
+new_fields = common_fields[:]
+new_fields[0:1] = [
+   TextField('name', validator=NotEmpty,
+      label_text=u'Nom', help_text=u"Entrez le nom de l'application"),
+]
 new_application_form = TableForm(
-   fields = user_fields,
+   fields = new_fields,
    submit_text = u'Valider...',
    action = '/applications/create',
    hover_help = True
    )
 
-# Edit application form for 'normal' user
-edit_fields = []
-edit_fields.extend(common_fields)
+# Edit application form
+edit_fields = common_fields[:]
+edit_fields[0:1] = [
+   HiddenField('_method', validator=None), # Needed by RestController
+]
 edit_application_form = TableForm(
    fields = edit_fields,
-   submit_text = u'Valider...',
-   action = '/applications/',
-   hover_help = True
-   )
-
-
-# Edit application form for 'admin' user
-admin_edit_fields = []
-admin_edit_fields.extend(common_fields)
-admin_edit_fields.insert(0, TextField('exten', not_empty=False, #validator=None,
-      label_text=u'Numéro interne', help_text=u'Choisissez l\'extension'))
-admin_edit_fields.insert(1, TextField('dnis', not_empty=False, #validator=None,
-      label_text=u'Numéro extérieur', help_text=u'Choisissez le numéro RNIS'))
-admin_edit_application_form = TableForm(
-   fields = admin_edit_fields,
    submit_text = u'Valider...',
    action = '/applications/',
    hover_help = True
@@ -182,14 +158,15 @@ def row(a):
       row.append(u'Non')
    scenario = u'<a href="/applications/scenario?id=%d" title="Scénario">Scénario</a>' %a.app_id
    row.append(Markup(scenario))
-   if in_group('admin'): row.append(user)
+# XXX   if in_group('admin'): row.append(user)
 
    return row
 
 
 class Application_ctrl(RestController):
    
-   allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
+   allow_only = in_group('admin', 
+      msg=u'Vous devez appartenir au groupe "admin" pour gérer les applications')
 
    @sidebar(u'-- Administration || Applications (SVI)', sortorder = 12,
       icon = '/images/code-class.png',
@@ -214,10 +191,6 @@ class Application_ctrl(RestController):
             'del': False, 'search': False, 'refresh': True, 
             'addfunc': js_callback('add'), }
       )
-
-#      if in_group('admin'):
-#         grid.colNames.append(u'Utilisateur')
-#         grid.colModel.append({ 'name': 'owner_id', 'width': 100 })
 
       tmpl_context.grid = grid
       tmpl_context.form = None
@@ -263,16 +236,12 @@ class Application_ctrl(RestController):
    def new(self, **kw):
       ''' Display new application form
       '''
-      if in_group('admin'):
-         tmpl_context.form = admin_new_application_form
-      else:
-         tmpl_context.form = new_application_form
+      tmpl_context.form = new_application_form
       return dict(title = u'Nouvelle application', debug='', values='')
       
    class new_form_valid(object):
       def validate(self, params, state):
-         f = admin_new_application_form if in_group('admin') \
-            else new_application_form
+         f = new_application_form
          return f.validate(params, state)
 
    @validate(new_form_valid(), error_handler=new)
@@ -327,17 +296,14 @@ class Application_ctrl(RestController):
             'app_begin': a.begin, 'app_end': a.end,
             'comment': a.comment, '_method': 'PUT', 'old_number': a.exten}
 
-      if in_group('admin'):
-         tmpl_context.form = admin_edit_application_form
-      else:
-         tmpl_context.form = edit_application_form
+      tmpl_context.form = edit_application_form
       return dict(title = u'Modification application ' + a.name, debug='', values=v)
 
 
    class application_form_valid(object):
       def validate(self, params, state):
          log.debug(params)
-         f = admin_edit_application_form if in_group('admin') else edit_application_form
+         f = edit_application_form
          return f.validate(params, state)
 
    @validate(application_form_valid(), error_handler=edit)
@@ -346,9 +312,6 @@ class Application_ctrl(RestController):
       ''' Update application in DB
       '''
       a = DBSession.query(Application).get(kw['app_id'])
-      if not in_group('admin') and a.owner_id != request.identity['user'].user_id:
-         flash(u'Accès interdit !', 'error')
-         redirect('/')
 
       if 'exten' in kw.keys():
          a.exten = kw['exten']

@@ -38,7 +38,7 @@ edit_sound_fields = [
       label_text=u'Fichier sonore', help_text=u'Fichier au format WAV'),
    TextField('comment',
       label_text=u'Commentaires', help_text=u'Description du son' ),
-   HiddenField('_method'), # Needed by RestController
+   HiddenField('_method', validator=None), # Needed by RestController
    HiddenField('id', validator=Int),
    ]
 
@@ -106,8 +106,11 @@ def process_file(wav, id, type, name, lang):
       else:
          # remove uploaded file
          unlink(orig)
-         Globals.manager.send_action({'Action': 'Command',
-            'Command': 'moh reload'})
+         try:
+            Globals.manager.send_action({'Action': 'Command',
+               'Command': 'moh reload'})
+         except:
+            pass
 
       return None
 
@@ -119,34 +122,6 @@ class SVI_users(SingleSelectField):
       d['options'] = options
       SingleSelectField.update_params(self, d)
       return d
-
-# Fields for admin
-admin_edit_sound_fields = []
-admin_edit_sound_fields.extend(edit_sound_fields)
-admin_edit_sound_fields.insert(0,
-   SVI_users('owner_id',
-      label_text=u'Client', help_text=u'Propriétaire du message')
-   )
-admin_new_sound_fields = []
-admin_new_sound_fields.extend(new_sound_fields)
-admin_new_sound_fields.insert(0,
-   SVI_users('owner_id',
-      label_text=u'Client', help_text=u'Propriétaire du message') 
-   )
-
-# Admin forms (new and edit)
-admin_edit_sound_form = TableForm(
-   fields = admin_edit_sound_fields,
-   submit_text = u'Valider...',
-   action = '/moh/',
-   hover_help = True,
-   )
-admin_new_sound_form = TableForm(
-   fields = admin_new_sound_fields,
-   submit_text = u'Valider...',
-   action = '/moh/create',
-   hover_help = True,
-   )
 
 
 def row(s):
@@ -242,15 +217,12 @@ class MOH_ctrl(RestController):
    def new(self, **kw):
       ''' Display new sound form
       '''
-      if in_group('ADM'):
-         tmpl_context.form = admin_new_sound_form
-      else:
-         tmpl_context.form = new_sound_form
+      tmpl_context.form = new_sound_form
       return dict(title = u"Nouvelle musique d'attente", debug='', values='')
 
    class new_form_valid(object):
       def validate(self, params, state):
-         f = admin_new_sound_form if in_group('ADM') else new_sound_form
+         f = new_sound_form
          return f.validate(params, state)
 
    @validate(new_form_valid(), error_handler=new)
@@ -301,10 +273,10 @@ class MOH_ctrl(RestController):
 
    class edit_form_valid(object):
       def validate(self, params, state):
-         f = admin_edit_sound_form if in_group('ADM') else edit_sound_form
+         f = edit_sound_form
          return f.validate(params, state)
 
-#   @validate(edit_form_valid(), error_handler=edit)
+   @validate(edit_form_valid(), error_handler=edit)
    @expose()
    def put(self, **kw):
       ''' Update sound in DB
@@ -339,8 +311,11 @@ class MOH_ctrl(RestController):
       except:
          log.error('unlink failed %s' % s.name)
       s = DBSession.delete(s)
-      Globals.manager.send_action({'Action': 'Command',
-         'Command': 'moh reload'})
+      try:
+         Globals.manager.send_action({'Action': 'Command',
+            'Command': 'moh reload'})
+      except:
+         pass
       flash(u'Son supprimé', 'notice')
       redirect('/moh/')
 
