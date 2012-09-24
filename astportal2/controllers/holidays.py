@@ -79,7 +79,6 @@ class Holiday_form(TableForm):
          label_text=u'Date',
          calendar_lang = 'fr',
          button_text=u'Choisir...'),
-      HiddenField('_method',validator=None), # Needed by RestController
       HiddenField('holiday_id',validator=Int),
    ]
    submit_text = u'Valider...'
@@ -96,6 +95,8 @@ new_holiday_form = New_holiday_form('new_holiday_form')
 class Edit_holiday_form(Holiday_form):
    ''' Holiday form
    '''
+   fields = Holiday_form.fields + [
+      HiddenField('_method',validator=None)] # Needed by RestController
    action = '/holidays'
 edit_holiday_form = Edit_holiday_form('edit_holiday_form')
 
@@ -235,8 +236,8 @@ class Holiday_ctrl(RestController):
       log.info('update %d' % holiday_id)
       h = DBSession.query(Holiday).get(holiday_id)
       h.name = kw['name']
-      h.day = kw['day']
-      h.month = kw['month']
+      h.day = kw['date'].day
+      h.month = kw['date'].month
       update_extensions()
       flash(u'Jour férié modifié')
       redirect('/holidays/%d/edit' % holiday_id)

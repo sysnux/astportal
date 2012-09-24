@@ -30,7 +30,6 @@ class Pickup_form(TableForm):
          label_text=u'Nom', help_text=u'Entrez le nom du groupe d\'interception'),
       TextField('comment', validator=NotEmpty,
          label_text=u'Descriptif', help_text=u'Entrez le descriptif du groupe d\'appel'),
-      HiddenField('_method',validator=None), # Needed by RestController
       HiddenField('pickup_id',validator=Int),
    ]
    submit_text = u'Valider...'
@@ -47,6 +46,8 @@ new_pickup_form = New_pickup_form('new_pickup_form')
 class Edit_pickup_form(Pickup_form):
    ''' Pickup form
    '''
+   fields = Pickup_form.fields + [
+      HiddenField('_method',validator=None)] # Needed by RestController
    action = '/pickups'
 edit_pickup_form = Edit_pickup_form('edit_pickup_form')
 
