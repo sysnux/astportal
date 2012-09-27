@@ -9,6 +9,7 @@ import tgscheduler
 import logging
 log = logging.getLogger(__name__)
 from tg import config
+from astportal2.pyst import manager
 
 
 def manager_check():
@@ -17,9 +18,9 @@ def manager_check():
     Function called by tgscheduler
     '''
 
-    # Start Asterisk manager thread(s)
-    from astportal2.pyst import manager
     from astportal2.lib.app_globals import Globals
+
+    # Start Asterisk manager thread(s)
     if Globals.manager is not None and Globals.manager.connected():
        return
 

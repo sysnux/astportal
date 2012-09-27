@@ -9,8 +9,10 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group, not_anonymous, in_any_group
 
 from tw.api import js_callback
-from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, FileField, RadioButtonList
-from tw.forms.validators import NotEmpty, Int, FieldStorageUploadConverter
+from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, RadioButtonList, CalendarDatePicker
+from tw.forms.validators import NotEmpty, Int, DateConverter, TimeConverter
+
+from tw.jquery.ui import ui_tabs_js
 
 from genshi import Markup
 from os import system, unlink
@@ -19,7 +21,7 @@ log = logging.getLogger(__name__)
 import re
 from os import stat
 
-from astportal2.model import DBSession, Record, User, Queue
+from astportal2.model import DBSession, Record, User, Queue, Queue_log
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
@@ -44,11 +46,82 @@ def row(r, users):
          r.Record.created.strftime("%d %B, %Hh%Mm%Ss"), Markup(listen)]
 
 
+def check_access(queues):
+   '''Check access rigths to queues
+   '''
+   if in_group('admin'):
+      user_queues = queues
+   else:
+      user_queues = []
+      if type(queues)!=type([]):
+         queues = [queues]
+      for q in queues:
+         if in_group('SV ' + q):
+            user_queues.append(q)
+   log.debug('User queues: %s' % user_queues)
+   return user_queues
+
+
+def queues_options():
+   ''' Returns distinct queues from queue log
+   '''
+   # queue_event_id==24 => AddMember
+   queues = [q[0] for q in DBSession.query(Queue_log.queue).distinct().\
+         filter(Queue_log.queue_event_id==24).order_by(Queue_log.queue)]
+   return check_access(queues)
+
+
+def members_options():
+   ''' Returns distinct members from queue log
+   '''
+   # queue_event_id==24 => AddMember
+   uids = [a.user for a in DBSession.query(Queue_log.user).distinct(). \
+         filter(Queue_log.queue_event_id==24)]
+   log.debug(u'Queue members uids=%s' % uids)
+
+   return [(a.user_id, a.display_name) for a in DBSession.query(User). \
+         filter(User.user_id.in_(uids)).order_by(User.display_name)]
+
+interval = '30 min'
+class Search_CDR(TableForm):
+   name = 'search_form'
+   submit_text = u'Valider...'
+   fields = [
+      Label(text = u'Sélectionnez un ou plusieurs critères'),
+      TextField( 'Client',
+         attrs = {'size': 20, 'maxlength': 20},
+         validator = Int(not_empty=False),
+         label_text = u"Numéro d'abonné"),
+      SingleSelectField('member',
+         label_text = u'Agent',
+         options = [ (-1, ' - - -') ] + members_options()),
+      SingleSelectField('queue',
+         label_text = u'Groupe ACD',
+         options = [ (-1, ' - - -') ] + queues_options()),
+      CalendarDatePicker('date',
+         attrs = {'readonly': True, 'size': 8},
+         default = '', # end or '',
+         date_format = '%d/%m/%Y',
+         calendar_lang = 'fr',
+         label_text=u'Date',
+         button_text=u'Choisir...',
+         not_empty = False,
+         validator = DateConverter(month_style='dd/mm/yyyy'),
+         picker_shows_time = False ),
+      TextField('hour',
+         attrs = {'size': 5, 'maxlength': 5},
+         validator = TimeConverter(),
+         label_text = u'Heure +/- ' + interval),
+      ]
+search_form = Search_CDR('search_cdr_form', action='index2')
+
+
+
 class Record_ctrl(RestController):
    
    @sidebar(u"-- Groupes d'appels || Enregistre- -ments", sortorder=10,
       icon = '/images/media-record.png')
-   @expose(template="astportal2.templates.grid")
+   @expose(template="astportal2.templates.cdr")
    def get_all(self):
       ''' List all records
       '''
@@ -82,8 +155,12 @@ class Record_ctrl(RestController):
             )
          tmpl_context.grid = grid
 
-      tmpl_context.form = None
-      return dict( title=u"Liste des enregistrements", debug='')
+      tmpl_context.form = search_form
+
+      # Use tabs
+      ui_tabs_js.inject()
+
+      return dict( title=u"Liste des enregistrements", debug='', values={})
 
 
    @expose('json')
