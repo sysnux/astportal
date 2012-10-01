@@ -271,7 +271,7 @@ data: SIP/Xx83G1ZQ
    @expose('json')
    def record(self, name, channel, queue, custom1=None, custom2=None):
       '''Record a queue member
-         Can be called from call center monitor web page
+         Called from call center monitor web page
 
 Action: Monitor
 Mix: 1
