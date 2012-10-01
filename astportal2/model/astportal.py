@@ -99,6 +99,7 @@ class Phonebook(DeclarativeBase):
    phone2 = Column(Unicode(16))
    phone3 = Column(Unicode(16))
    private = Column(Boolean())
+   email = Column(Unicode(64))
    created = Column(DateTime, nullable=False, default=datetime.now)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    user = relation('User', backref=backref('phonebook'))
@@ -125,6 +126,7 @@ UNION
    phone1 = Column(Unicode())
    phone2 = Column(Unicode())
    phone3 = Column(Unicode())
+   email = Column(Unicode())
    private = Column(Boolean())
    user_id = Column(Integer)
 
@@ -166,6 +168,7 @@ class Queue(DeclarativeBase):
    announce_holdtime  = Column(Integer)
    announce_position  = Column(Integer)
    priority = Column(Integer)
+   monitor = Column(Boolean)
    def __repr__(self):
       return '<Queue: name="%s", comment="%s">' % (
             self.name, self.comment)
@@ -301,6 +304,8 @@ class Record(DeclarativeBase):
    queue_id = Column(Integer)
    member_id = Column(Integer)
    user_id = Column(Integer)
+   custom1 = Column(Unicode(32))
+   custom2 = Column(Unicode(32))
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
       return '<Record: uniqueid="%d">' % (self.uniqueid)

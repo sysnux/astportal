@@ -648,7 +648,7 @@ Channel: SIP/100-0000001f
       # Check if channel belongs to a queue member
       loc = c[:c.find('-')] # SIP/100-000000a6 -> SIP/100
       for m in self.members:
-         if self.members[m]['Location'] == loc:
+         if self.members[m]['Location'] == loc and self.members[m]['Status'] == '2':
             log.debug('Hangup: member "%s"' % m)
             if self.members[m]['Outgoing']:
                self.members[m]['Outgoing'] = False
@@ -657,15 +657,11 @@ Channel: SIP/100-0000001f
             else:
                # XXX attention ne pas compter s'il n'y a pas eu de réponse XXX
                self.members[m]['InTotal'] += time() - self.members[m]['InBegin']
+
+            # Reset members properties, but not Uniqueid, HangupURL, 
+            # Custom... or hangup window will not work
             self.members[m]['Spied'] = False
             self.members[m]['Recorded'] = False
-            self.members[m]['Uniqueid'] = ''
-            self.members[m]['PeerChannel'] = ''
-            self.members[m]['HoldTime'] = ''
-            self.members[m]['ConnectURL'] = ''
-            self.members[m]['HangupURL'] = ''
-            self.members[m]['Custom1'] = ''
-            self.members[m]['Custom2'] = ''
             self.last_queue_update = time()
             break
 

@@ -42,6 +42,8 @@ class New_contact_form(TableForm):
             label_text=u'Téléphone 2', help_text=u'Deuxième numéro de téléphone'),
          TextField('phone3', not_empty = False,
             label_text=u'Téléphone 3', help_text=u'Troisième numéro de téléphone'),
+         TextField('email', not_empty = False,
+            label_text=u'@ email', help_text=u'Adresse email'),
          CheckBox('private', not_empty = False, default = True,
             label_text=u'Contact privé', help_text=u'Cochez si privé'),
          ]
@@ -67,6 +69,8 @@ class Edit_contact_form(TableForm):
             label_text=u'Téléphone 2', help_text=u'Deuxième numéro de téléphone'),
          TextField('phone3', not_empty = False,
             label_text=u'Téléphone 3', help_text=u'Troisième numéro de téléphone'),
+         TextField('email', not_empty = False,
+            label_text=u'@ email', help_text=u'Adresse email'),
          CheckBox('private', default = True, validator=Bool,
             label_text=u'Contact privé', help_text=u'Cochez si privé'),
          HiddenField('_method', validator=None), # Needed by RestController
@@ -123,8 +127,11 @@ def row(pb):
    else:
       phone3 = ''
 
+   email = u'<a href="mailto:%s">%s</a>' % (pb.email, pb.email) if pb.email is not None\
+      else ''
+
    return [Markup(action), pb.firstname, pb.lastname, company, 
-         Markup(phone1), Markup(phone2), Markup(phone3), private]
+         Markup(phone1), Markup(phone2), Markup(phone3), Markup(email), private]
 
 
 class Phonebook_ctrl(RestController):
@@ -141,15 +148,16 @@ class Phonebook_ctrl(RestController):
       grid = MyJqGrid( 
             id='grid', url='fetch', caption=u'Services',
             colNames = [u'Action', u'Prénom', u'Nom', u'Société', u'Téléphone 1',
-               u'Téléphone 2', u'Téléphone 3', u'Privé'],
+               u'Téléphone 2', u'Téléphone 3', u'@ email', u'Privé'],
             colModel = [ 
                { 'width': 80, 'align': 'center', 'sortable': False, 'search': False },
                { 'name': 'firstname', 'width': 100 },
                { 'name': 'lastname', 'width': 100 },
-               { 'name': 'company', 'width': 100 },
-               { 'name': 'phone1', 'width': 100,  },
-               { 'name': 'phone2', 'width': 100,  },
-               { 'name': 'phone3', 'width': 100,  },
+               { 'name': 'company', 'width': 120 },
+               { 'name': 'phone1', 'width': 60,  },
+               { 'name': 'phone2', 'width': 60,  },
+               { 'name': 'phone3', 'width': 60,  },
+               { 'name': 'email', 'width': 100,  },
                { 'name': 'private', 'width': 40,  },
             ],
             sortname = 'lastname',
@@ -248,8 +256,8 @@ class Phonebook_ctrl(RestController):
    @validate(new_contact_form, error_handler=new)
    @expose()
    def create(self, firstname, lastname, company, phone1, phone2, 
-         phone3, private=None):
-      ''' Add new department to DB
+         phone3, email, private=None):
+      ''' Add new phonebook entry to DB
       '''
       d = Phonebook()
       d.firstname = firstname
@@ -258,6 +266,7 @@ class Phonebook_ctrl(RestController):
       d.phone1 = phone1
       d.phone2 = phone2
       d.phone3 = phone3
+      d.email = email
       d.private = private
       d.user_id = request.identity['user'].user_id
       DBSession.add(d)
@@ -275,7 +284,7 @@ class Phonebook_ctrl(RestController):
             'lastname': pb.lastname, 'phone1': pb.phone1,
             'phone2': pb.phone2, 'phone3': pb.phone3,
             'company': pb.company, 'private': pb.private,
-            '_method': 'PUT'}
+            'email': pb.email, '_method': 'PUT'}
       tmpl_context.form = edit_contact_form
       return dict(title = u'Modification contact ', debug='', values=v)
 
@@ -283,16 +292,19 @@ class Phonebook_ctrl(RestController):
    @validate(edit_contact_form, error_handler=edit)
    @expose()
    def put(self, pb_id, firstname, lastname, company, phone1, phone2,
-         phone3, private=False):
+         phone3, email, private=False):
       ''' Update contact in DB
       '''
       log.info('update %d' % pb_id)
       pb = DBSession.query(Phonebook).get(pb_id)
       pb.firstname = firstname
       pb.lastname = lastname
+      pb.company = company
       pb.phone1 = phone1
       pb.phone2 = phone2
       pb.phone3 = phone3
+      pb.company = company
+      pb.email = email
       pb.private = private
       flash(u'Contact modifié')
       redirect('/phonebook/%d/edit' % pb_id)

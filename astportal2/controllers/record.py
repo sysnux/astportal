@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-# Record CReate / Update / Delete RESTful controller
-# http://turbogears.org/2.0/docs/main/RestControllers.html
 
 from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
-from tg.controllers import RestController
+from astportal2.lib.base import BaseController
 from tgext.menu import sidebar
 
 from repoze.what.predicates import in_group, not_anonymous, in_any_group
@@ -24,7 +22,10 @@ from os import stat
 from astportal2.model import DBSession, Record, User, Queue, Queue_log
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
+from datetime import timedelta
 
+import sqlalchemy
+db_engine = DBSession.connection().engine.name
 dir_monitor = config.get('directory.monitor')
 
 def row(r, users):
@@ -32,17 +33,19 @@ def row(r, users):
    Parameter: Record object, users dict
    '''
 
-   action = u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (
-      str(r.Record.record_id), u"Suppression de l\\'enregistrement ?")
-   action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+#   action = u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (
+#      str(r.Record.record_id), u"Suppression de l\\'enregistrement ?")
+#   action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    listen = u'''<a href="/records/download?id=%s"><img src="/images/emblem-downloads.png" title="Télécharger l'enregitrement"></a>''' % \
          r.Record.record_id
    listen += u'''&nbsp;&nbsp;&nbsp;<a href="/records/listen?id=%s"><img src="/images/sound_section.png" title="&Eacute;couter l'enregitrement"></a>''' % \
          r.Record.record_id
 
-   return [Markup(action), r.Queue.name, 
-         users[r.Record.member_id], users[r.Record.user_id], 
+   user = users[r.Record.user_id] if r.Record.user_id is not None else ''
+
+   return [#Markup(action), 
+         r.Queue.name, users[r.Record.member_id], user, 
          r.Record.created.strftime("%d %B, %Hh%Mm%Ss"), Markup(listen)]
 
 
@@ -83,20 +86,21 @@ def members_options():
          filter(User.user_id.in_(uids)).order_by(User.display_name)]
 
 interval = '30 min'
-class Search_CDR(TableForm):
+class Search_Record(TableForm):
    name = 'search_form'
    submit_text = u'Valider...'
    fields = [
       Label(text = u'Sélectionnez un ou plusieurs critères'),
-      TextField( 'Client',
+      TextField( 'custom1',
          attrs = {'size': 20, 'maxlength': 20},
-         validator = Int(not_empty=False),
          label_text = u"Numéro d'abonné"),
       SingleSelectField('member',
          label_text = u'Agent',
+         validator = Int(not_empty=False),
          options = [ (-1, ' - - -') ] + members_options()),
       SingleSelectField('queue',
          label_text = u'Groupe ACD',
+         validator = Int(not_empty=False),
          options = [ (-1, ' - - -') ] + queues_options()),
       CalendarDatePicker('date',
          attrs = {'readonly': True, 'size': 8},
@@ -110,26 +114,49 @@ class Search_CDR(TableForm):
          picker_shows_time = False ),
       TextField('hour',
          attrs = {'size': 5, 'maxlength': 5},
-         validator = TimeConverter(),
+         validator = TimeConverter(not_empty=False),
          label_text = u'Heure +/- ' + interval),
       ]
-search_form = Search_CDR('search_cdr_form', action='index2')
+search_form = Search_Record('search_record_form', action='index2')
 
 
+grid = MyJqGrid( id='grid', url='fetch', caption=u"Enregistrements ACD",
+            sortname='created', sortorder='asc',
+#            colNames = [u'Action', 
+            colNames = [u'Groupe ACD', u'Agent', u'Enregistré par', 
+               u'Date', u'\u00C9coute' ],
+#            colModel = [ { 'width': 50, 'align': 'center', 'sortable': False},
+            colModel = [ { 'name': 'queue_id', 'width': 80, 'sortable': False },
+               { 'name': 'member_id', 'width': 60, 'sortable': False },
+               { 'name': 'user_id', 'width': 70, 'sortable': False },
+               { 'name': 'created', 'width': 120 },
+               { 'name': 'listen', 'width': 50, 'sortable': False, 'align': 'center'},
+               ],
+            navbuttons_options = {'view': False, 'edit': False, 'add': False,
+               'del': False, 'search': False, 'refresh': True, 
+               }
+            )
 
-class Record_ctrl(RestController):
+class Record_ctrl(BaseController):
    
    @sidebar(u"-- Groupes d'appels || Enregistre- -ments", sortorder=10,
       icon = '/images/media-record.png')
    @expose(template="astportal2.templates.cdr")
-   def get_all(self):
-      ''' List all records
-      '''
+   def index(self, **kw):
+
+      log.debug('index')
 
       if Globals.manager is None:
          flash(u'Vérifier la connexion Asterisk', 'error')
       else:
          Globals.manager.send_action({'Action': 'QueueStatus'})
+
+      for k in ('custom1', 'member', 'queue', 'date', 'hour'):
+         if k in session.keys():
+            del(session[k])
+      session.save()
+
+      # User must be admin or queue supervisor
       sv = ['admin']
       for q in Globals.asterisk.queues:
          sv.append('SV ' + q)
@@ -137,22 +164,6 @@ class Record_ctrl(RestController):
          tmpl_context.grid = None
          flash(u'Accès interdit !', 'error')
       else:
-         grid = MyJqGrid( id='grid', url='fetch', caption=u"Enregistrements ACD",
-            sortname='created', sortorder='asc',
-            colNames = [u'Action', u'Groupe ACD', u'Agent', u'Enregistré par', 
-               u'Date', u'\u00C9coute' ],
-            colModel = [ { 'width': 60, 'align': 'center', 'sortable': False},
-               { 'name': 'queue_id', 'width': 80, 'sortable': False },
-               { 'name': 'member_id', 'width': 80, 'sortable': False },
-               { 'name': 'user_id', 'width': 80, 'sortable': False },
-               { 'name': 'created', 'width': 80 },
-               { 'name': 'listen', 'width': 60, 'sortable': False, 'align': 'center'},
-               ],
-            navbuttons_options = {'view': False, 'edit': False, 'add': False,
-               'del': False, 'search': False, 'refresh': True, 
-               'addfunc': js_callback('add'),
-               }
-            )
          tmpl_context.grid = grid
 
       tmpl_context.form = search_form
@@ -160,7 +171,42 @@ class Record_ctrl(RestController):
       # Use tabs
       ui_tabs_js.inject()
 
-      return dict( title=u"Liste des enregistrements", debug='', values={})
+      return dict(title=u"Liste des enregistrements", debug='', values={})
+
+
+   @expose(template="astportal2.templates.cdr")
+   @validate(search_form, index)
+   def index2(self, custom1=None, member=None, queue=None, date=None, hour=None):
+      ''' List records
+      '''
+
+      log.debug('index2: custom1=%s (%s), member=%s (%s), queue=%s (%s), date=%s (%s), hour=%s (%s).' % (
+         custom1, type(custom1), member, type(member), queue, type(queue), date, type(date), hour, type(hour)))
+      session['custom1'] = custom1 if custom1 is not None and custom1!='' else None
+      session['member'] = member if member is not None and member!=-1 else None
+      session['queue'] = queue if queue is not None and queue!=-1 else None
+      session['date'] = date if date is not None else None
+      session['hour'] = hour if hour is not None and hour!='' else None
+      session.save()
+
+      # User must be admin or queue supervisor
+      sv = ['admin']
+      for q in Globals.asterisk.queues:
+         sv.append('SV ' + q)
+      if not in_any_group(*sv):
+         tmpl_context.grid = None
+         flash(u'Accès interdit !', 'error')
+      else:
+         tmpl_context.grid = grid
+
+      tmpl_context.form = search_form
+
+      # Use tabs
+      ui_tabs_js.inject()
+
+      return dict( title=u"Liste des enregistrements", debug='', 
+         values={'custom1': custom1, 'member': member, 'queue': queue, 
+            'date': date, 'hour': hour})
 
 
    @expose('json')
@@ -192,6 +238,52 @@ class Record_ctrl(RestController):
 
       records = DBSession.query(Record, Queue). \
             filter(Record.queue_id==Queue.queue_id)
+
+      filter = []
+      custom1 = session.get('custom1', None)
+      member = session.get('member', None)
+      queue = session.get('queue', None)
+      date = session.get('date', None)
+      hour = session.get('hour', None)
+
+      if custom1 is not None:
+         filter.append(u'Client %s' % custom1)
+         records = records.filter(Record.custom1==custom1)
+
+      if member is not None and member!=-1:
+         filter.append(u'Groupe %s' % member)
+         records = records.filter(Record.member_id==member)
+
+      if queue is not None and queue!=-1:
+         filter.append(u'Groupe %s' % queue)
+         records = records.filter(Record.queue_id==queue)
+
+      if date is not None:
+         filter.append(u'date %s' % date.strftime('%d/%m/%Y'))
+         if db_engine=='oracle':
+            records = records.filter(sqlalchemy.func.trunc(CDR.calldate, 'J')==date)
+         else: # PostgreSql
+            records = records.filter(sqlalchemy.sql.cast(Record.created, 
+               sqlalchemy.types.DATE) == date)
+
+      if hour is not None:
+         filter.append(u'heure approximative %dh%02d' % (hour[0], hour[1]))
+         if db_engine=='oracle':
+            if hour[1]>=30: 
+               hour1 = '%02d:%02d' % (hour[0], hour[1]-30)
+               hour2 = '%02d:%02d' % (hour[0]+1, hour[1]-30)
+            else:
+               hour1 = '%02d:%02d' % (hour[0]-1, hour[1]+30)
+               hour2 = '%02d:%02d' % (hour[0], hour[1]+30)
+            records = records.filter(hour1<=sqlalchemy.func.to_char(Record.created, 'HH24:MI'))
+            records = records.filter(sqlalchemy.func.to_char(Record.created, 'HH24:MI')<=hour2)
+         else: # PostgreSql
+            hour = '%d:%02d' % (hour[0], hour[1])
+            records = records.filter("'%s' - '%s'::interval <= record.created::time AND record.created::time <= '%s' + '%s'::interval" % (hour, interval, hour, interval))
+
+#      if len(filter):
+#         m = u'Critères: ' if len(filter)>1 else u'Critere: '
+#         flash( m + ', et '.join(filter) + '.')
 
       # Access rights
       if not in_group('admin'):

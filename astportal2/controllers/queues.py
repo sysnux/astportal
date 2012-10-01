@@ -10,7 +10,7 @@ from repoze.what.predicates import in_group
 
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
-from tw.forms.validators import NotEmpty, Int
+from tw.forms.validators import NotEmpty, Int, Bool
 
 from genshi import Markup
 
@@ -77,6 +77,10 @@ common_fields = [
    SingleSelectField('priority',
       options = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
       label_text=u'Priorité', help_text=u'Priorité par rapport aux autres groupes'),
+   SingleSelectField('monitor',
+      options = [ (False, u'Non'), (True, u'Oui')],
+      validator=Bool,
+      label_text=u'Enregistrement de la conversation', help_text=u''),
    HiddenField('queue_id',validator=Int),
    ]
 
@@ -212,6 +216,7 @@ class Queue_ctrl(RestController):
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
       q.priority = int(kw['priority'])
+      q.monitor = int(kw['monitor'])
       q.connectdelay = int(kw['connectdelay'])
       q.connecturl = kw['connecturl']
       q.hangupurl = kw['hangupurl']
@@ -251,7 +256,7 @@ class Queue_ctrl(RestController):
             'wrapuptime': q.wrapuptime, 'announce_frequency': q.announce_frequency, 
             'announce_holdtime': 'yes' if q.announce_holdtime==1 else 'no', 
             'announce_position': 'yes' if q.announce_position==1 else 'no', 
-            'priority': q.priority,
+            'priority': q.priority, 'monitor': q.monitor,
             'connectdelay': q.connectdelay, 'connecturl': q.connecturl,
             'hangupurl': q.hangupurl}
       tmpl_context.form = edit_queue_form
@@ -278,6 +283,7 @@ class Queue_ctrl(RestController):
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
       q.priority = kw['priority']
+      q.monitor = kw['monitor']
       flash(u'Groupe d\'appel modifié')
 
       # Update Asterisk queue

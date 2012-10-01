@@ -192,10 +192,14 @@ function member_status(name, now, queue) {
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE
          if (name==me && my_status && member['HangupURL']!='') {
-//alert(member['HangupURL']);
-	         window.open(member['HangupUrl'], 'Hangup', 'location=no,width=600,height=400');
-//	         window.open('http://localhost/cgi-bin/crm.py?action=hangup&uniqueid=' + my_status, 'Hangup', 'location=no,width=600,height=400');
-	         my_status = null
+            // Open hangup window
+            var params = '?uid=' + member['Uniqueid'];
+            params += '&queue=' + queue;
+            params += '&custom1=' + member['Custom1'];
+            params += '&custom2=' + member['Custom2'];
+	         window.open(member['HangupURL'] + params, 
+               'Hangup', 'location=no,width=600,height=400');
+	         my_status = null;
          }
          if (member['Paused']=='1') {
             sclass='paused'; stat='En pause';
@@ -206,11 +210,15 @@ function member_status(name, now, queue) {
          break;
       case '2': // AST_DEVICE_INUSE
          if (name==me && member['PeerChannel']!='' && !my_status && member['ConnectURL']!='') {
+            // Open connect window
 	         my_status = member['Uniqueid'];
-//alert(member['ConnectURL']);
-	         window.open(member['ConnectURL'], 'CRM', 'location=no,width=600,height=400');
-//            window.open('https://10.152.50.12:7002/WebCRM/jsp/login.jsp?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
-//	         window.open('http://localhost/cgi-bin/crm.py?action=incoming&uniqueid=' + my_status + '&callerid=' + member['PeerCallerid'] + '&attente=' + member['HoldTime'] + '&abo=' +  member['Custom1'], 'CRM', 'location=no,width=600,height=400');
+            var params = '?uid=' + member['Uniqueid'];
+            params += '&queue=' + queue;
+            params += '&holdtime=' + member['HoldTime'];
+            params += '&custom1=' + member['Custom1'];
+            params += '&custom2=' + member['Custom2'];
+	         window.open(member['ConnectURL'] + params,
+               'CRM', 'location=no,width=600,height=400');
          }
       case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
@@ -259,7 +267,9 @@ function spy(name, channel) {
 function record(name,channel,queue) {
    $.post(
       "${tg.url('/cc_monitor/record')}",
-      {'name': name, 'channel': channel, 'queue': queue},
+      {'name': name, 'channel': channel, 'queue': queue,
+         'custom1': members[name]['Custom1'], 
+         'custom2': members[name]['Custom2']},
       function (data) { // 
       },
       'json');

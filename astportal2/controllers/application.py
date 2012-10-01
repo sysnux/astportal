@@ -923,6 +923,16 @@ def generate_dialplan():
                svi_out.write(u"exten => s,%d,Set(CONNECTDELAY=%d)\n" %
                   (prio, q.connectdelay) ) 
                prio += 1
+            else:
+               svi_out.write(u"exten => s,%d,Set(CONNECTDELAY=0)\n" % prio) 
+               prio += 1
+
+            if q.monitor:
+               svi_out.write(u"exten => s,%d,Set(MONITOR=1)\n" % prio) 
+               prio += 1
+            else:
+               svi_out.write(u"exten => s,%d,Set(MONITOR=0)\n" % prio) 
+               prio += 1
 
             svi_out.write(u"exten => s,%d,Queue(%s,,,,,,,agent_connect)\n" % 
                (prio, q.name) )

@@ -1,4 +1,24 @@
 # -*- coding: utf-8 -*-
+'''
+Call Center Monitor controller
+
+Some functionnalities depend on Asterisk
+
+[agent_connect] 
+; Called from Queue() when member has accepted call, but before he is bridged
+; to the caller:
+;  . start monitoring and call AstPortal if needed
+;  . send UserEvent so that AstPortal can open customer window (CRM) if needed
+;  . give the member a few seconds to check the customer window (CRM) if needed
+; On return, the member will actually be bridged to the caller
+exten => s,1,Noop(uid=${UNIQUEID} mon=${MASTER_CHANNEL(MONITOR)})
+   same => n,GotoIf($[${MASTER_CHANNEL(MONITOR)} != 1]?nomon)
+   same => n,MixMonitor(rec-${MASTER_CHANNEL(UNIQUEID)}.wav)
+   same => n,Set(mon=${CURL(http://192.168.0.200:8080/cc_monitor/auto_record,name=${MEMBERNAME}&channel=${MASTER_CHANNEL(CHANNEL)}&queue=${QUEUENAME}&uid=${MASTER_CHANNEL(UNIQUEID)}&custom1=${MASTER_CHANNEL(CUSTOM1)}&custom2=${MASTER_CHANNEL(CUSTOM2)})})
+   same => n(nomon),UserEvent(AgentWillConnect,Agent: ${MEMBERNAME},HoldTime: ${QEHOLDTIME},PeerChannel: ${MASTER_CHANNEL(CHANNEL)},PeerCallerid: ${MASTER_CHANNEL(CALLERID(all))},PeerUniqueid: ${MASTER_CHANNEL(UNIQUEID)},ConnectURL: ${MASTER_CHANNEL(CONNECTURL)},HangupURL: ${MASTER_CHANNEL(HANGUPURL)},Custom1: ${MASTER_CHANNEL(CUSTOM1)},Custom2: ${MASTER_CHANNEL(CUSTOM2)})
+   same => n,Wait(${MASTER_CHANNEL(CONNECTDELAY)})
+   same => n,Return
+'''
 
 from tg import config, expose, flash, request, redirect
 from tg.controllers import TGController
@@ -211,50 +231,120 @@ data: SIP/Xx83G1ZQ
       return dict(status=status)
 
 
+   @expose()
+   def auto_record(self, name, channel, queue, uid, custom1, custom2):
+      ''' Auto record
+      Called from Asterisk dialplan / func_curl
+      '''
+
+      # Check channel exists, else abort
+      for cha in Globals.asterisk.channels.keys():
+         if cha.startswith(channel):
+            unique_id = Globals.asterisk.channels[cha]['Uniqueid']
+            break
+      else:
+         log.warning('auto_record: no active channel for %s ?' % channel)
+         return '1'
+
+      # Poor man's authentification!
+      if uid!=unique_id: 
+         log.warning('auto_record: unique_id "%s" != "%s"' % (unique_id, uid))
+         return '1'
+
+      # Set "recorded" flag on member
+      Globals.asterisk.members[name]['Recorded'] = True
+
+      # Insert record info into database
+      r = Record()
+      r.uniqueid = unique_id
+      r.queue_id = DBSession.query(Queue).filter(
+            Queue.name==queue).one().queue_id
+      r.member_id = DBSession.query(User).filter(
+         User.display_name==name).one().user_id
+      r.custom1 = custom1
+      r.custom2 = custom2
+      DBSession.add(r)
+
+      return '0'
+
+
    @expose('json')
-   def record(self, name, channel, queue):
+   def record(self, name, channel, queue, custom1=None, custom2=None):
       '''Record a queue member
+         Can be called from call center monitor web page
 
 Action: Monitor
 Mix: 1
 File: test
 Channel: SIP/pEpSNlcv-000001b9
    '''
-      log.debug('Record %s (%s)' % (name, channel))
+      log.debug('Record request "%s" (%s) on "%s"' % (name, channel, queue))
+
+      # Check channel exists, else abort
       for cha in Globals.asterisk.channels.keys():
          if cha.startswith(channel):
-            uid = Globals.asterisk.channels[cha]['Uniqueid']
+            unique_id = Globals.asterisk.channels[cha]['Uniqueid']
             break
       else:
          log.warning('No active channel for %s ?' % channel)
          return dict(status=0)
 
-      f = 'rec-%s' % uid
+      # XXX Authentification
+
+      # Gather data from database
+      user_id = DBSession.query(User).filter(
+         User.user_name==request.identity['repoze.who.userid']).one().user_id
+      member_id = DBSession.query(Phone).filter(
+         Phone.sip_id==channel[-8:]).one().user_id
+      queue_id = DBSession.query(Queue).filter(
+            Queue.name==queue).one().queue_id
+
+      # Create filename and send record action to Asterisk via manager
+      f = 'rec-%s' % unique_id
       res = Globals.manager.send_action(
             {  'Action': 'Monitor',
                'Mix': 1,
                'Channel': cha,
                'File': f})
-
-      log.info('Record request from user "%s" to channel %s returns "%s"' % ( 
-         request.identity['user'], cha, res))
-
-      m = DBSession.query(Phone).filter(Phone.sip_id==channel[-8:]).one()
-      q = DBSession.query(Queue).filter(Queue.name==queue).one()
-      u = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one()
-
-      r = Record()
-      r.uniqueid = uid
-      r.queue_id = q.queue_id
-      r.member_id = m.user_id
-      r.user_id = u.user_id
-      DBSession.add(r)
+      log.info('Record request from userid "%s" to channel %s returns "%s"' % ( 
+         user_id, cha, res))
 
       if res.get_header('Response')=='Success':
          status = 0
+         # Set "recorded" flag on member
          Globals.asterisk.members[name]['Recorded'] = True
-         log.debug(Globals.asterisk.members)
+         # Insert record info into database
+         r = Record()
+         r.uniqueid = unique_id
+         r.queue_id = queue_id
+         r.member_id = member_id
+         r.user_id = user_id
+         r.custom1 = custom1
+         r.custom2 = custom2
+         DBSession.add(r)
+
       else:
          status = 1
+
       return dict(status=status)
+
+
+   @expose()
+   def test_connect(self, **kw):
+      ''' Function to test URL load on member answer
+      '''
+      data = u''
+      for k in kw:
+         data += u'<li>%s =&gt; %s</li>' % (k, kw[k])
+      return u'<h2>Connect !</h2><ul>%s</ul>' % data
+
+
+   @expose()
+   def test_hangup(self, **kw):
+      ''' Function to test URL load on hangup
+      '''
+      data = u''
+      for k in kw:
+         data += u'<li>%s =&gt; %s</li>' % (k, kw[k])
+      return u'<h2>Hangup !</h2><ul>%s</ul>' % data
 
