@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /opt/Python-2.7.3/bin/python
 # -*- coding: utf-8 -*-
 #
 # Import lines from Asterisk queue_log to astportal database
@@ -12,9 +12,9 @@ import datetime
 import unicodedata
 
 # Open database connection
-sys.path.append('/home/astportal21')
+sys.path.append('/opt/astportal21')
 from paste.deploy import appconfig
-conf = appconfig('config:/home/SysNux/Projets/astportal21/tiare.ini')
+conf = appconfig('config:/opt/astportal21/sgbdp.ini')
 
 from astportal2.config.environment import load_environment
 load_environment(conf.global_conf, conf.local_conf)
@@ -56,7 +56,7 @@ def options( argv ):
 
 
 def check_none(x):
-   return x if x!='NONE': else None
+   return x if x!='NONE' else None
 
 
 def event2id():
@@ -75,6 +75,7 @@ def channel2user_dept():
       d['SIP/' + p.sip_id] = (uid, did)
    for u in DBSession.query(User):
       # cidname
+      if u.display_name is None: continue
       k = unicodedata.normalize('NFKD', u.display_name).encode('ascii','ignore')
       did = None
       if u.phone:
@@ -145,7 +146,7 @@ class __main__:
          data3 = data[7]
 
       if verbose:
-         sys.stderr.write('\t%s, %s, %s, %s, %d, %s, %s, %s, %s, %s => ' % 
+         sys.stderr.write('\t%s, %s, %s, %s, %s, %s, %s, %s, %s, %s => ' % 
                (ts, uniqueid, queue, channel, event, user, dptm, data1, data2, data3))
 
 #      ql = Queue_log(timestamp=ts, uniqueid=uniqueid, queue=queue, channel=channel, 

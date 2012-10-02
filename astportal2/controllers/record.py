@@ -82,7 +82,8 @@ def members_options():
          filter(Queue_log.queue_event_id==24)]
    log.debug(u'Queue members uids=%s' % uids)
 
-   return [(a.user_id, a.display_name) for a in DBSession.query(User). \
+   return [(a.user_id, u'%s (%s)' % (a.display_name, a.user_name)) \
+      for a in DBSession.query(User). \
          filter(User.user_id.in_(uids)).order_by(User.display_name)]
 
 interval = '30 min'
