@@ -84,24 +84,26 @@ function list_queues() { // Builds main part of the screen
       var html = '';
       var j=1;
       var qt = '<table><tr><th>Agents connectés</th><th>Groupes</th><th>Appels en attente</th><th>Temps en attente</th></tr>'; // Queues table
-      for (q in queues) { // For each queue, display name and table
-         var qm=queues[q]['Members'], lm;
-	 if (qm==undefined) lm=0;
+      for (var q in queues) { // For each queue, display name and table
+         var qname = queues[q]['name'];
+         var qparams = queues[q]['params'];
+         var qm = qparams['Members'], lm;
+         if (qm==undefined) lm=0;
          else lm=qm.length;
          qt += '<tr class="' + ((j++%2) ? 'even':'odd') + '"><td>' + lm + '</td>';
-         qt += '<td>' + q + '</td>';
+         qt += '<td>' + qname + '</td>';
          var qw;
-         if (queues[q]['Wait']==undefined) qw=0;
-         else qw = queues[q]['Wait'].length;
+         if (qparams['Wait']==undefined) qw=0;
+         else qw = qparams['Wait'].length;
          qt += '<td>' + qw + '</td>';
          var waiting = new Array();
          for (var i=0;  i<qw; i++) {
-            waiting.push((1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]));
+            waiting.push((1+i) + ' : ' + min_sec(now - qparams['Wait'][i]));
          }
-         var qid = q.replace(/\W/g,'_');
+         var qid = qname.replace(/\W/g,'_');
          qt += '<td id="wait_' + qid + '">' + waiting.join(', ') + '</td></tr>';
 
-         html += '<h2>Groupe ' + q + '</h2>';
+         html += '<h2>Groupe ' + qname + '</h2>';
          var table = '';
          if (admin) {
             table += '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
@@ -118,9 +120,9 @@ function list_queues() { // Builds main part of the screen
             if (members[qm[m]]==undefined) continue; // XXX
             var id = qid + '_' + qm[m].replace(/\W/g,'_');
             table += '<tr class="' + ((i%2) ? 'even':'odd') + '"><td>' + i + '</td>';
-            table += '<td>' + qm[m] + ' (' + members[qm[m]]['Queues'][q]['Penalty'] + ')' + '</td>';
+            table += '<td>' + qm[m] + ' (' + members[qm[m]]['Queues'][qname]['Penalty'] + ')' + '</td>';
             //[sclass, sta, dur, nci, tci, nco, tco, lis, rec] = NOT working in chrome !
-            var a = member_status(qm[m], now, q);
+            var a = member_status(qm[m], now, qname);
             table += '<td id="sta_' + id + '"class="' + a[0] + '">' + a[1] + '</td>';
             table += '<td id="dur_' + id + '">' + a[2] + '</td>';
             table += '<td id="nci_' + id + '">' + a[3] + '</td>';
@@ -131,7 +133,7 @@ function list_queues() { // Builds main part of the screen
                table += '<td id="lis_' + id + '">' + a[7] + '</td>';
                table += '<td id="rec_' + id + '">' + a[8] + '</td>';
                table += '<td><input type="checkbox" onclick="remove_member(\'' + 
-                  q + '\',\'' + members[qm[m]]['Location']  + 
+                  qname + '\',\'' + members[qm[m]]['Location']  + 
                   '\',\'' + qm[m].replace(/'/, ' ') + '\')"/></td>';
             }
             table += '</tr>';
@@ -143,7 +145,7 @@ function list_queues() { // Builds main part of the screen
             html += table +'</table>';
          }
          if (admin) {
-            html += '<a href="#" onclick="fetch_exten(\'' + q + '\')">Ajouter un agent</a>';
+            html += '<a href="#" onclick="fetch_exten(\'' + qname + '\')">Ajouter un agent</a>';
          }
       }
       html += "<h2>&Eacute;tat des files d'attente</h2>" + qt + '</table>';
@@ -156,20 +158,22 @@ function list_queues() { // Builds main part of the screen
    else {
       // No change, just update variable fields
       for (q in queues) { // For each queue, display name and table
-         var qm = queues[q]['Members'];
-         var qid = q.replace(/\W/g,'_');
+         var qname =  queues[q]['name'];
+         var qparams =  queues[q]['params'];
+         var qm = qparams['Members'];
+         var qid = qname.replace(/\W/g,'_');
          var waiting = new Array();
          var qw;
-         if (queues[q]['Wait']==undefined) qw=0;
-         else qw = queues[q]['Wait'].length;
+         if (qparams['Wait']==undefined) qw=0;
+         else qw = qparams['Wait'].length;
          for (var i=0;  i<qw; i++) {
-            waiting.push((1+i) + ' : ' + min_sec(now - queues[q]['Wait'][i]));
+            waiting.push((1+i) + ' : ' + min_sec(now - qparams['Wait'][i]));
          }
          $('#wait_' + qid).html(waiting.join(', '));
          for (m in qm) { // For each member in this queue
             if (members[qm[m]]==undefined) continue; // XXX
             var id = qid + '_' + qm[m].replace(/\W/g,'_');
-            var a = member_status(qm[m], now, q);
+            var a = member_status(qm[m], now, qname);
             $('#sta_' + id).attr('class', a[0]);
             $('#sta_' + id).html(a[1]);
             $('#dur_' + id).html(a[2]);

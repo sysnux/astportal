@@ -167,9 +167,14 @@ class CC_Monitor_ctrl(TGController):
 
       me = unicodedata.normalize('NFKD', request.identity['user'].display_name).encode('ascii', 'ignore')
 
-#      qq = [(k, queues[k]) for k in sorted(queues, key=lambda x: int(queues[x]['Weight']), reverse=True)]
+      qq = [{'name': k,
+         'params': Globals.asterisk.queues[k]
+         } for k in sorted(Globals.asterisk.queues, 
+               key=lambda x: int(Globals.asterisk.queues[x]['Weight']), 
+               reverse=True)
+         ]
       return dict(last=last_update, change=True, # XXX
-            queues=queues, members=Globals.asterisk.members, me=me, admin=admin)
+            queues=qq, members=Globals.asterisk.members, me=me, admin=admin)
 
 
    @expose('json')
@@ -193,8 +198,15 @@ class CC_Monitor_ctrl(TGController):
          sleep(1)
       log.debug('Sending response, last=%s' % last_update)
       last_update = int(last_update*100)
+
+      qq = [{'name': k,
+         'params': Globals.asterisk.queues[k]
+         } for k in sorted(Globals.asterisk.queues, 
+               key=lambda x: int(Globals.asterisk.queues[x]['Weight']), 
+               reverse=True)
+         ]
       return dict(last=last_update, change=True, # XXX
-            queues=Globals.asterisk.queues)
+            queues=qq)
 
 
    @expose('json')
