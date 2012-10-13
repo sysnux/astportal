@@ -22,6 +22,7 @@ from astportal2.lib.myjqgrid import MyJqGrid
 
 from tg import config
 default_company = config.get('company')
+default_cid = config.get('default_cid')
 
 import logging
 log = logging.getLogger(__name__)
@@ -303,7 +304,6 @@ class Phonebook_ctrl(RestController):
       pb.phone1 = phone1
       pb.phone2 = phone2
       pb.phone3 = phone3
-      pb.company = company
       pb.email = email
       pb.private = private
       flash(u'Contact modifié')
@@ -399,7 +399,7 @@ class Phonebook_ctrl(RestController):
             '*99', # Extension
             context=chan.encode('iso-8859-1'),
             priority='1',
-            caller_id='AstPortal <501040>'
+            caller_id=default_cid
             )
       status = 0 if res=='Success' else 1
       return dict(status=status)
@@ -420,7 +420,7 @@ class Phonebook_ctrl(RestController):
             exten.encode('iso-8859-1'), # Extension
             context=chan.encode('iso-8859-1'),
             priority='1',
-            caller_id='AstPortal <501040>'
+            caller_id=default_cid
             )
       log.debug(res)
       status = 0 if res=='Success' else 1
