@@ -103,6 +103,7 @@ class Phonebook(DeclarativeBase):
    created = Column(DateTime, nullable=False, default=datetime.now)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    user = relation('User', backref=backref('phonebook'))
+   code = Column(Unicode(4))
 
 class View_phonebook(DeclarativeBase):
    '''
@@ -326,5 +327,23 @@ class Fax(DeclarativeBase):
    comment = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
-      return '<Record: uniqueid="%d">' % (self.uniqueid)
+      return '<Record: uniqueid="%d">' % (self.fax_id)
+
+
+class Report(DeclarativeBase):
+   ''' Post call report
+   '''
+   __tablename__ = 'report'
+   report_id = Column(Integer, Sequence('report_seq'), primary_key=True)
+   uniqueid = Column(Unicode(32))
+   member_id = Column(Integer)
+   queue_id = Column(Integer)
+   custom1 = Column(Unicode(80))
+   custom2 = Column(Unicode(80))
+   subject = Column(Unicode(80))
+   customer = Column(Unicode(80))
+   manager = Column(Unicode(80))
+   message = Column(Unicode(255))
+   email = Column(Unicode(80))
+   created = Column(DateTime, nullable=False, default=datetime.now)
 

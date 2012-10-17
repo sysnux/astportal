@@ -2,7 +2,7 @@
 '''
 Call Center Monitor controller
 
-Some functionnalities depend on Asterisk
+Some functionnalities depend on Asterisk configuration
 
 [agent_connect] 
 ; Called from Queue() when member has accepted call, but before he is bridged

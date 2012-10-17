@@ -198,6 +198,7 @@ function member_status(name, now, queue) {
          if (name==me && my_status && member['HangupURL']!='') {
             // Open hangup window
             var params = '?uid=' + member['Uniqueid'];
+            params += '&member=' + name;
             params += '&queue=' + queue;
             params += '&custom1=' + member['Custom1'];
             params += '&custom2=' + member['Custom2'];
@@ -217,6 +218,7 @@ function member_status(name, now, queue) {
             // Open connect window
 	         my_status = member['Uniqueid'];
             var params = '?uid=' + member['Uniqueid'];
+            params += '&member=' + name;
             params += '&queue=' + queue;
             params += '&holdtime=' + member['HoldTime'];
             params += '&custom1=' + member['Custom1'];
