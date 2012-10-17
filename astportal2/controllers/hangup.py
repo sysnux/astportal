@@ -19,6 +19,8 @@ import logging
 log = logging.getLogger(__name__)
 
 subjects = [ 
+   (None,[
+      (-1, u' - - - ') ]),
    ('Banque au quotidien',[
       (0, u'Information produits/services'),
       (1, u'Information sur compte') ]),
@@ -40,6 +42,62 @@ subjects = [
       (14, u'Autres') ]),
 ]
 
+def managers():
+   m = [(-1, u' - - - ')]
+   for pb in DBSession.query(Phonebook). \
+      filter(Phonebook.code!=None). \
+      filter(Phonebook.email!=None). \
+      order_by(Phonebook.lastname). \
+      order_by(Phonebook.firstname):
+      name = pb.firstname + ' ' if pb.firstname is not None else u''
+      name += pb.lastname if pb.lastname is not None else u''
+      m.append((pb.code, name))
+   return m
+
+#------------------------------------
+def email(sender, to, customer, manager, message, subject):
+
+   # Création email avec pièce jointe CSV
+   from email.message import Message
+   from email.mime.multipart import MIMEMultipart
+   from email.mime.text import MIMEText
+   from time import strftime
+
+   now = strftime('%d/%m/%Y %H:%M:%S')
+   recipients = ('jd.girard@sysnux.pf',)
+
+   msg = MIMEMultipart()
+   msg['Subject'] = u'Appel au Call Center Multimédia %s' %  (now)
+   msg['To'] = ', '.join(recipients)
+   msg['From'] = sender
+
+   msg.preamble = 'Please use a MIME-aware mail reader to read this email.\n'
+
+   part = MIMEText(u'''\
+Nom/Prénom Client : %s
+Nom du gestionnaire : %s
+
+Bonjour,
+Votre client vient de contacter le Call Center Multimédia, 
+il souhaite :
+%s
+(%s).
+Merci et bonne réception
+   
+Merci'''.encode('utf_8') % (customer, manager, message, subject), \
+   _subtype='plain', _charset='utf-8')
+
+   msg.attach(part)
+
+   # Envoi email
+   import smtplib
+   s = smtplib.SMTP()
+   s.connect('localhost')
+   s.sendmail(sender, recipients, msg.as_string())
+   s.close()
+
+#------------------------------------
+
 
 class Hangup_form(TableForm):
    fields = [
@@ -49,7 +107,8 @@ class Hangup_form(TableForm):
       TextField('customer',
          label_text = u'Nom / Prénom du client', 
          help_text = u'Entrez les nom et prénom du client'),
-      TextField('manager',
+      SingleSelectField('manager',
+         options = managers,
          label_text = u'Nom du gestionnaire', 
          help_text = u'Entrez le nom du gestionnaire'),
       TextArea('message',
