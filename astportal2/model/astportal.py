@@ -313,7 +313,7 @@ class Record(DeclarativeBase):
 
 
 class Fax(DeclarativeBase):
-   ''' Definition of records
+   ''' Fax data
    '''
    __tablename__ = 'fax'
    fax_id = Column(Integer, Sequence('fax_seq'), primary_key=True)
@@ -346,4 +346,6 @@ class Report(DeclarativeBase):
    message = Column(Unicode(255))
    email = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
+   user_id = Column(Integer, ForeignKey('tg_user.user_id'))
+   user = relation('User', backref=backref('report'))
 

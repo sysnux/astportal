@@ -42,7 +42,7 @@ from astportal2.controllers.record import Record_ctrl
 from astportal2.controllers.incident import Incident_ctrl
 from astportal2.controllers.fax import Fax_ctrl
 from astportal2.controllers.close import Close_ctrl
-from astportal2.controllers.hangup import Hangup_ctrl
+from astportal2.controllers.cc_report import CC_Report_ctrl
 
 
 class RootController(BaseController):
@@ -82,7 +82,7 @@ class RootController(BaseController):
    incidents = Incident_ctrl()
    fax = Fax_ctrl()
    closed = Close_ctrl()
-   hangup = Hangup_ctrl()
+   cc_report = CC_Report_ctrl()
 
    db_schema = DB_schema()
 
