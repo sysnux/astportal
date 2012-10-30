@@ -342,10 +342,69 @@ class Report(DeclarativeBase):
    custom2 = Column(Unicode(80))
    subject = Column(Unicode(80))
    customer = Column(Unicode(80))
-   manager = Column(Unicode(80))
+   manager = Column(Unicode(3))
    message = Column(Unicode(255))
    email = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    user = relation('User', backref=backref('report'))
+
+
+class Campaign(DeclarativeBase):
+   ''' Outgoing campaign
+   '''
+   __tablename__ = 'campaign'
+   cmp_id =  Column(Integer, Sequence('campaign_seq'), primary_key=True)
+   name = Column(Unicode(80))
+   comment = Column(Unicode(255))
+   type = Column(Integer) # 0=commerciale, 1=récurrente, 2=événementielle
+   active = Column(Boolean, default=False)
+   begin = Column(DateTime)
+   end = Column(DateTime)
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   deleted = Column(DateTime)
+
+
+class Customer(DeclarativeBase):
+   ''' Outgoing campaign targets
+   '''
+   __tablename__ = 'customer'
+   cust_id = Column(Integer, Sequence('customer_seq'), primary_key=True)
+   cmp_id = Column(Integer, ForeignKey('campaign.cmp_id'))
+   campaign = relation('Campaign', backref=backref('campaign'))
+   code = Column(Unicode(7))
+   gender = Column(Unicode(80))
+   firstname = Column(Unicode(80))
+   lastname = Column(Unicode(80))
+   type = Column(Integer) # 0=CLIPRI, 1=CLICOM, 2=CLIPRO
+   phone1 = Column(Unicode(20)) # Domicile
+   phone2 = Column(Unicode(20)) # Bureau
+   phone3 = Column(Unicode(20)) # Bureau 2
+   phone4 = Column(Unicode(20)) # Vini perso
+   phone5 = Column(Unicode(20)) # Vini pro
+   email = Column(Unicode(80))
+   manager = Column(Unicode(3)) # Gestionnaire
+   branch = Column(Unicode(5)) # Agence
+   created = Column(DateTime, nullable=False, default=datetime.now)
+   active = Column(Boolean, default=True) # Faux quand il ne faut plus 
+                                          # appeler le client
+   filename = Column(Unicode(80))
+
+class Outcall(DeclarativeBase):
+   ''' Outgoing campaign call
+   '''
+   __tablename__ = 'outcall'
+   out_id = Column(Integer, Sequence('outcall_seq'), primary_key=True)
+   cust_id = Column(Integer, ForeignKey('customer.cust_id'))
+   customer = relation('Customer', backref=backref('customer'))
+   user_id = Column(Integer, ForeignKey('tg_user.user_id'))
+   uniqueid = Column(Unicode(32))
+   phone = Column(Unicode(32))
+   cookie = Column(Integer)
+   result = Column(Integer)
+   message = Column(Unicode(255))
+   comment = Column(Unicode(255))
+   begin = Column(DateTime)
+   duration = Column(Integer)
+   created = Column(DateTime, nullable=False, default=datetime.now)
 

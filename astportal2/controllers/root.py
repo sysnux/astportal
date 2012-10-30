@@ -34,15 +34,17 @@ from astportal2.controllers.db_schema import DB_schema
 from astportal2.controllers.queues import Queue_ctrl
 from astportal2.controllers.pickups import Pickup_ctrl
 from astportal2.controllers.holidays import Holiday_ctrl
-from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
-from astportal2.controllers.cc_stats import CC_Stats_ctrl
 from astportal2.controllers.application import Application_ctrl
 from astportal2.controllers.forward import Forward_ctrl
 from astportal2.controllers.record import Record_ctrl
 from astportal2.controllers.incident import Incident_ctrl
 from astportal2.controllers.fax import Fax_ctrl
 from astportal2.controllers.close import Close_ctrl
+from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
+from astportal2.controllers.cc_stats import CC_Stats_ctrl
 from astportal2.controllers.cc_report import CC_Report_ctrl
+from astportal2.controllers.cc_campaign import CC_Campaign_ctrl
+from astportal2.controllers.cc_outcall import CC_Outcall_ctrl
 
 
 class RootController(BaseController):
@@ -75,14 +77,16 @@ class RootController(BaseController):
    pickups = Pickup_ctrl()
    holidays = Holiday_ctrl()
    applications = Application_ctrl()
-   cc_monitor = CC_Monitor_ctrl()
-   cc_stats = CC_Stats_ctrl()
    forwards = Forward_ctrl()
    records = Record_ctrl()
    incidents = Incident_ctrl()
    fax = Fax_ctrl()
    closed = Close_ctrl()
+   cc_monitor = CC_Monitor_ctrl()
+   cc_stats = CC_Stats_ctrl()
    cc_report = CC_Report_ctrl()
+   cc_campaign = CC_Campaign_ctrl()
+   cc_outcall = CC_Outcall_ctrl()
 
    db_schema = DB_schema()
 

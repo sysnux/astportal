@@ -166,7 +166,7 @@ class CC_Report_form(TableForm):
          validator=Int(min=0, messages= {
             'tooLow': u'Veuillez choisir un objet'}),
          options = subjects,
-         label_text=u'Objet', help_text=u'Choisisséz un objet'),
+         label_text=u'Objet', help_text=u'Choisissez l\'objet du rapport'),
       TextField('customer', validator=NotEmpty,
          label_text = u'Nom / Prénom du client', 
          help_text = u'Entrez les nom et prénom du client'),
@@ -225,9 +225,6 @@ class CC_Report_ctrl(BaseController):
    @validate(cc_report_form, error_handler=index)
    def save(self, uid, member, queue, custom1, custom2, send_or_save,
          subject, customer, manager, message):
-
-      log.debug(u'Action: %s' % send_or_save)
-      log.debug(request.identity['user'])
 
       if manager!='null':
          m = DBSession.query(Phonebook).filter(Phonebook.code==manager).one()
