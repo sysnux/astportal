@@ -3,7 +3,8 @@
 Call center outgoing campaign
 '''
 
-from tg import expose, tmpl_context, validate, request, session, flash, redirect
+from tg import expose, tmpl_context, validate, request, session, flash, \
+   redirect, response
 from tg.controllers import RestController
 from tgext.menu import sidebar
 from repoze.what.predicates import in_any_group, not_anonymous
@@ -14,24 +15,33 @@ from tw.forms.validators import NotEmpty, Int, DateTimeConverter, \
 from tw.api import js_callback
 from genshi import Markup
 
-from astportal2.model import DBSession, Campaign, Customer
+from astportal2.model import DBSession, Campaign, Customer, Outcall
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
+from sqlalchemy import desc, func, sql, types, outerjoin, extract, and_
+
 from datetime import datetime
+from time import time
 import logging
 log = logging.getLogger(__name__)
 
+import StringIO
+import csv
+import re
+re_pri = re.compile(r'CLIPRI')
+re_com = re.compile(r'CLICOM')
+re_pro = re.compile(r'CLIPRO')
+
 grid = MyJqGrid( 
    id='grid', url='fetch', caption=u'Campagnes',
-   colNames = [u'Action', u'Nom', u'Active',
-      u'Type', u'Utiliser'],
+   colNames = [u'Action', u'Nom', u'Active', u'Type', u'Statistiques'],
    colModel = [ 
       { 'width': 80, 'align': 'center', 'sortable': False, 'search': False },
       { 'name': 'name', 'width': 80 },
       { 'name': 'active', 'width': 160 },
       { 'name': 'type', 'width': 100,  },
-      { 'name': 'Utiliser', 'width': 80,  },
+      { 'name': 'stats', 'width': 100,  'sortable': False, 'search': False },
    ],
    sortname = 'name',
    navbuttons_options = {'view': False, 'edit': False, 'add': True,
@@ -43,6 +53,44 @@ grid = MyJqGrid(
 
 cmp_types = ((-1, ' - - - '), (0, u'Commerciale'), 
    (1, u'Récurrente'), (2, u'\u00C9vénementielle'))
+
+def percent(n, t):
+   if t==0: return '-'
+   r = 100*n/t
+   return  u'%d %%' % r
+
+def stats_compute(cmp_id):
+      p = DBSession.query(Campaign).get(cmp_id)
+
+      members = dict()
+      total = dict(tot=0, answ=0, no_answ=0, 
+         r0=0, r1=0, r2=0, r3=0, r4=0, r5=0, r6=0, r7=0, 
+         r8=0, r9=0, r10=0, r11=0, r12=0)
+
+      # Compute totals, global and by member
+      for c in p.customers: # For all customers in this campaign
+         for o in c.outcalls: # For all calls to these customers
+            total['tot'] += 1
+            if o.user.display_name not in members.keys():
+               members[o.user.display_name] = dict(tot=0, answ=0, no_answ=0, 
+                  r0=0, r1=0, r2=0, r3=0, r4=0, r5=0, r6=0, r7=0, 
+                  r8=0, r9=0, r10=0, r11=0, r12=0)
+            if o.result is None:
+               log.warning('stats_fetch: "None" result for outcall "%d"' % o.out_id)
+               continue
+            total['r%d' % o.result] += 1
+            members[o.user.display_name]['r%d' % o.result] += 1
+            members[o.user.display_name]['tot'] += 1
+            if o.result in (0, 1, 2, 3, 4, 5): 
+               total['answ'] += 1
+               members[o.user.display_name]['answ'] += 1
+            elif o.result in (6, 7, 8, 9): 
+               total['no_answ'] += 1
+               members[o.user.display_name]['no_answ'] += 1
+#      log.debug(members)
+
+      return members, total
+
 
 def row(c):
    '''Displays a formatted row of the campaigns list
@@ -70,11 +118,19 @@ def row(c):
    else:
       row.append(u'Non')
    row.append(cmp_types[1+c.type][1])
-   use = u'<a href="/cc_campaign/use?id=%d" title="Utiliser">Utiliser</a>' % c.cmp_id
-   row.append(Markup(use))
+   row.append(Markup(
+      u'''<a href="/cc_campaign/stats?cmp_id=%d" 
+      title="Afficher les statistiques de cette campagne">Afficher</a>''' % c.cmp_id))
 
    return row
 
+
+def line2data(l):
+   data = []
+   for d in l.split(';'):
+      d = d.strip()
+      data.append(d if d!='' else None)
+   return data
 
 
 def process_file(csv, cmp_id):
@@ -85,47 +141,46 @@ def process_file(csv, cmp_id):
    filedata = csv.file
    log.debug('process_file: <%s> <%s> <%s>' % (filename, filetype, filedata))
 
-   if filetype!='text/csv':
+   if filetype not in ('text/csv/', 'application/csv'):
+      log.warning('process_file: not CSV : <%s> <%s> <%s>' % (
+         filename, filetype, filedata))
       return u'Le fichier doit être de type CSV !'
 
    # Temporarily save uploaded file
-   tmp = open('/tmp/customer-%d.csv' % cmp_id, 'w')
+   tmpfn = '/tmp/customer-%d-%d.csv' % (cmp_id, int(time()))
+   tmp = open(tmpfn, 'w')
    tmp.write(filedata.read())
    tmp.close()
 
-   import re
-   re_pri = re.compile(r'CLIPRI')
-   re_com = re.compile(r'CLICOM')
-   re_pro = re.compile(r'CLIPRO')
-
    # Then read it
-   tmp = open('/tmp/customer-%d.csv' % cmp_id, 'U')
+   tmp = open(tmpfn, 'U')
    lines = 0
    for l in tmp:
       lines += 1
-      data = l.split(';')
       if lines==1: continue
+      data = line2data(l)
       log.debug(data)
       c = Customer()
       c.cmp_id = cmp_id
-      c.code = data[2].strip()
-      c.gender = data[3].strip()
-      c.lastname = data[4].strip()
-      c.firstname = data[5].strip()
+      c.active = True
+      c.code = data[2]
+      c.gender = data[3]
+      c.lastname = data[4]
+      c.firstname = data[5]
       if re_pri.search(data[6]):
          c.type = 0
       elif re_com.search(data[6]):
          c.type = 1
       elif re_pro.search(data[6]):
          c.type = 2
-      c.phone1 = data[7].strip()
-      c.phone2 = data[8].strip()
-      c.phone3 = data[9].strip()
-      c.phone4 = data[10].strip()
-      c.phone5 = data[11].strip()
-      c.email = data[12].strip()
-      c.manager = data[13].strip()
-      c.branch = data[14].strip()
+      c.phone1 = data[7]
+      c.phone2 = data[8]
+      c.phone3 = data[9]
+      c.phone4 = data[10]
+      c.phone5 = data[11]
+      c.email = data[12]
+      c.manager = data[13]
+      c.branch = data[14]
       c.filename = filename
       DBSession.add(c)
    tmp.close()
@@ -209,7 +264,7 @@ class CC_Campaign_ctrl(RestController):
       msg=u'Veuiller vous connecter pour accéder à cette page')
 
    @sidebar(u"-- Groupes d'appels || Gestion campagnes", sortorder=14,
-         icon = '/images/phonebook-small.jpg')
+         icon = '/images/megaphone-prefs.png')
    @expose(template='astportal2.templates.grid')
    def get_all(self):
       ''' Display the list of existing campaigns
@@ -326,7 +381,7 @@ class CC_Campaign_ctrl(RestController):
       c.end = end
       DBSession.add(c)
       DBSession.flush()
-      log.debug(u'nouvelle campagne %s créée' % c.cmp_id)
+      log.debug(u'nouvelle campagne %s modifiée' % c.cmp_id)
 
       if file is not None:
          process_file(file, c.cmp_id)
@@ -346,3 +401,195 @@ class CC_Campaign_ctrl(RestController):
       flash(u'Campagne supprimée')
       redirect('/cc_campaign/')
 
+
+   @expose(template='astportal2.templates.grid_cc_campaign_stats')
+   def stats(self, cmp_id):
+
+      p = DBSession.query(Campaign).get(cmp_id)
+
+      # User must be admin or queue supervisor
+      sv = ['admin']
+      for q in Globals.asterisk.queues:
+         sv.append('SV ' + q)
+      if not in_any_group(*sv):
+         tmpl_context.grid = None
+         flash(u'Accès interdit !', 'error')
+      else:
+         tmpl_context.grid = MyJqGrid(
+            id='grid', url='stats_fetch', caption=u'Statitiques',
+            colNames = [
+               u'Agent', 
+               u'RDV', 
+               u'\u00C0 rappeler', 
+               u'Contact direct. son CC / réflechit',
+               u'Pas intéressé coupe court',
+               u'Appels aboutis', 
+               u'Absent',
+               u'Décédé',
+               u'Faux numéro/ Aucun numéro',
+               u'Injoi- gnable',
+               u'Appels non aboutis', 
+               u'Hors cible',
+               u'Réclam.',
+               u'Total fiches clients traitées'],
+            colModel = [
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+               { 'width': 40, 'sortable': False, 'search': False },
+            ],
+            #   sortname = 'name',
+            postData = {'cmp_id': cmp_id},
+            navbuttons_options = {'view': False, 'edit': False, 'add': False,
+               'del': False, 'search': False, 'refresh': True, 
+            }
+         )
+
+      first = datetime(2222, 12, 31)
+      last = datetime(2000, 1, 1)
+      for c in p.customers: # For all customers in this campaign
+         for o in c.outcalls: # For all calls to these customers
+            if first > o.created: first = o.created
+            if last < o.created: last = o.created
+      tmpl_context.form = None
+
+      return dict(title=u"Statistiques campagne %s" % p.name, 
+         debug='', 
+         csv_href = {'href': 'csv?cmp_id=%s' % cmp_id},
+         first_last=Markup(u'Premier appel %s, dernier appel %s.' % (
+            first.strftime('%A %d %B &agrave; %Hh%Mm%Ss'), 
+            last.strftime('%A %d %B &agrave; %Hh%Mm%Ss'))))
+
+
+   @expose('json')
+   def stats_fetch(self, cmp_id, page, rows, sidx, sord, **kw):
+
+      # User must be admin or queue supervisor
+      sv = ['admin']
+      for q in Globals.asterisk.queues:
+         sv.append('SV ' + q)
+      if not in_any_group(*sv):
+         tmpl_context.grid = None
+         flash(u'Accès interdit !', 'error')
+         return ''
+
+      members, total = stats_compute(cmp_id)
+      rows = []
+
+      # Create a row for each member
+      for k,v in members.iteritems():
+         rows.append({ 'id'  : k, 'cell': [
+            k, 
+            u'%d (%s)' % (v['r0'], 
+               percent(v['r0'], total['r0'])), # RDV
+            u'%d (%s)' % ( v['r1'] + v['r2'] + v['r3'],
+               percent(v['r1'] + v['r2'] + v['r3'],
+               total['r1']+total['r2']+total['r3'])), # A rappeler
+            u'%d (%s)' % (v['r4'], 
+               percent(v['r4'], total['r4'])),  # Contact direct CC
+            u'%d (%s)' % (v['r5'], 
+               percent(v['r5'], total['r5'])), # Pas intéressé
+            u'%d (%s)' % (v['answ'], 
+               percent(v['answ'], total['answ'])), # Total appels aboutis
+            u'%d (%s)' % (v['r6'], 
+               percent(v['r6'], total['r6'])), # Absent
+            u'%d (%s)' % (v['r7'], 
+               percent(v['r7'], total['r7'])), # Décédé
+            u'%d (%s)' % (v['r8'], 
+               percent(v['r8'], total['r8'])), # Faux numéro / Aucun numéro
+            u'%d (%s)' % (v['r9'], 
+               percent(v['r9'], total['r9'])), # Injoignable
+            u'%d (%s)' % (v['no_answ'], 
+               percent(v['no_answ'], total['no_answ'])), # Total appels non aboutis
+            u'%d (%s)' % (v['r10'], 
+               percent(v['r10'], total['r10'])), # Hors cible
+            u'%d (%s)' % (v['r11'], 
+               percent(v['r11'], total['r11'])), # Réclamation
+            u'%d (%s)' % (v['tot'], 
+               percent(v['tot'], total['tot'])), # Total Fiches clients traitées
+         ]})
+
+      # Add global
+      rows.append({ 'id'  : 'total', 'cell': [
+         Markup(u'<em>Total</em>'), 
+         Markup(u'<em>%d</em>' % total['r0']), # RDV
+         Markup(u'<em>%d</em>' % (
+            total['r1'] + total['r2'] + total['r3'])), # A rappeler
+         Markup(u'<em>%d</em>' % total['r4']),  # Contact direct CC
+         Markup(u'<em>%d</em>' % total['r5']), # Pas intéressé
+         Markup(u'<em>%d</em>' % total['answ']), # Total appels aboutis
+         Markup(u'<em>%d</em>' % total['r6']), # Absent
+         Markup(u'<em>%d</em>' % total['r7']), # Décédé
+         Markup(u'<em>%d</em>' % total['r8']), # Faux numéro / Aucun numéro
+         Markup(u'<em>%d</em>' % total['r9']), # Injoignable
+         Markup(u'<em>%d</em>' % total['no_answ']), # Total appels non aboutis
+         Markup(u'<em>%d</em>' % total['r10']), # Hors cible
+         Markup(u'<em>%d</em>' % total['r11']), # Réclamation
+         Markup(u'<em>%d</em>' % total['tot']), # Total Fiches clients traitées
+      ]})
+      return dict(page=page, total=1, rows=rows)
+
+
+   @expose()
+   def csv(self, cmp_id):
+
+      # User must be admin or queue supervisor
+      sv = ['admin']
+      for q in Globals.asterisk.queues:
+         sv.append('SV ' + q)
+      if not in_any_group(*sv):
+         tmpl_context.grid = None
+         flash(u'Accès interdit !', 'error')
+         return ''
+
+      csvdata = StringIO.StringIO()
+      writer = csv.writer(csvdata)
+
+      p = DBSession.query(Campaign).get(cmp_id)
+
+      # File name + write header
+      today = datetime.today()
+      name = p.name
+      filename = 'statistiques-campagne-%s-%s.csv' % (name.replace(' ', '_'),
+         today.strftime('%Y%m%d-%H%M%S'))
+      writer.writerow(('Campagne', name.encode('utf-8')))
+      writer.writerow(('Statistiques au', today.strftime('%d/%m/%Y-%Hh%Mh%Ss')))
+      writer.writerow(())
+      colnames = ((-1, u'Agent'),
+         (0, u'RDV Call Center'),
+         (1, u'\u00C0 rappeler'),
+         (2, u'\u00C0 rappeler une deuxième fois'),
+         (3, u'Dernier rappel'),
+         (4, u'Contacte directement son cc/réfléchi'),
+         (5, u'Pas intéressé / coupe court'),
+         (6, u'Absent pendant la campagne'),
+         (7, u'Décédé'),
+         (8, u'Faux numéro / Aucun numéro'),
+         (9, u'Injoignable'),
+         (10, u'Hors cible'),
+         (11, u'Réclamation'))
+      writer.writerow([c[1].encode('utf-8') for c in colnames])
+
+      members, total = stats_compute(cmp_id)
+      # Write CSV data
+      for k,v in members.iteritems():
+         writer.writerow([k, v['r0'], v['r1'], v['r2'], v['r3'], v['r4'], 
+            v['r5'], v['r6'], v['r7'], v['r8'], v['r9'], v['r10'], v['r11']])
+
+      rh = response.headers
+      rh['Content-Type'] = 'text/csv; charset=utf-8'
+      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Pragma'] = 'public' # for IE
+      rh['Cache-control'] = 'max-age=0' #for IE
+
+      return csvdata.getvalue()

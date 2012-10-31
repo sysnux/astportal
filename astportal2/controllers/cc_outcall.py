@@ -31,9 +31,9 @@ default_cid = config.get('default_cid')
 
 from sqlalchemy import func, desc
 from re import sub
-from string import capwords
 from datetime import datetime, timedelta
 from random import randint
+from string import capwords
 import logging
 log = logging.getLogger(__name__)
 
@@ -139,8 +139,8 @@ def customer_row(c):
    row = []
    row.append(Markup(
       u'''<a href="#" onclick="postdata('crm', {cust_id:%d})">%s</a>''' % (
-      c.cust_id,  
-      capwords(u'%s %s %s' % (c.gender, c.firstname, c.lastname)))))
+      c.cust_id, 
+      capwords(c.display_name))))
    row.append(('CLIPRI', 'CLICOM', 'CLIPRO')[c.type])
    row.append(c.branch)
    phones = []
@@ -271,7 +271,8 @@ NB : Ce mail est envoyé à titre d'information et ne nécessite pas de retour.
 Merci et bonne réception
 %s
 ''' % (cmp_name, cust_id, cust_name, 
-      begin.strftime('%d/%m/%y a %Hh%M'), duration, cust_phone, message, member_name)
+      begin.strftime('%d/%m/%y a %Hh%M'), duration, cust_phone, 
+      message, member_name)
    part = MIMEText(text, _subtype='plain', _charset='utf-8')
    msg.attach(part)
 
@@ -315,7 +316,8 @@ Le %s, durée %d minutes.<br/>
 %s</p>
 </body></html>
 ''' % (cmp_name, cust_id, cust_name, 
-      begin.strftime('%d/%m/%y a %Hh%M'), duration, cust_phone, message, member_name)
+      begin.strftime('%d/%m/%y a %Hh%M'), duration, cust_phone, 
+      message, member_name)
    part = MIMEText(text, _subtype='html', _charset='utf-8')
    msg.attach(part)
 
@@ -343,8 +345,7 @@ NB : Cet événement est envoyé à titre d'information et ne nécessite pas de 
 
 Merci et bonne réception
 %s
-''' % (cmp_name, cust_id, cust_name, 
-      cust_phone, message, member_name)
+''' % (cmp_name, cust_id, cust_name, cust_phone, message, member_name)
    vcal.vevent.add('dtstart').value = begin
    vcal.vevent.add('dtend').value = begin + timedelta(0, duration*60)
    vcal.vevent.add('class').value = u'PUBLIC'
@@ -447,7 +448,7 @@ class CC_Outcall_ctrl(BaseController):
 #      msg=u'Veuiller vous connecter pour accéder à cette page')
 
    @sidebar(u"-- Groupes d'appels || Campagnes", sortorder=14,
-         icon = '/images/phonebook-small.jpg')
+         icon = '/images/megaphone.png')
    @expose(template='astportal2.templates.grid_cc_outcall')
    def index(self):
       ''' Display the list of existing campaigns
@@ -641,6 +642,12 @@ class CC_Outcall_ctrl(BaseController):
       cust_id = int(cust_id)
       c = DBSession.query(Customer).get(cust_id)
 
+      if not c.active:
+         # Return to list of customers
+         redirect('/cc_outcall/list', params={
+            'cmp_id': c.campaign.cmp_id,
+            'cmp_name': c.campaign.name})
+
       if next:
          cc = DBSession.query(Customer). \
             filter(Customer.cmp_id==c.cmp_id). \
@@ -663,7 +670,6 @@ class CC_Outcall_ctrl(BaseController):
             c = cc
             cust_id = cc.cust_id
 
-      name = capwords(u'%s %s %s' % (c.gender, c.firstname, c.lastname))
       type = ('CLIPRI', 'CLICOM', 'CLIPRO')[c.type]
       phone1 = c.phone1
       phone2 = c.phone2
@@ -685,7 +691,7 @@ class CC_Outcall_ctrl(BaseController):
          'onclick': 'postdata("crm",{cust_id:%d,next:true})' % cust_id}
       prev_cust = {
          'onclick': 'postdata("crm",{cust_id:%d,prev:true})' % cust_id}
-      title = u'%s : %s' % (c.campaign.name, name)
+      title = u'%s : %s' % (c.campaign.name, capwords(c.display_name))
 
       tmpl_context.grid = MyJqGrid( 
          id='grid', url='outcall_fetch', caption=u'Appels',
@@ -710,11 +716,12 @@ class CC_Outcall_ctrl(BaseController):
          'comment': comment}
 
       return dict(title=title, campaign=c.campaign.name, code=c.code, 
-         branch=c.branch, name=name, phone1=phone1, phone2=phone2, phone3=phone3, 
-         phone4=phone4, phone5=phone5, type=type, email=c.email, manager=c.manager, 
-         ph1_click=ph1_click, ph2_click=ph2_click, ph3_click=ph3_click, 
+         branch=c.branch, name=capwords(c.display_name),
+         phone1=phone1, phone2=phone2, phone3=phone3, phone4=phone4, phone5=phone5,
+         type=type, email=c.email, manager=c.manager,
+         ph1_click=ph1_click, ph2_click=ph2_click, ph3_click=ph3_click,
          ph4_click=ph4_click, ph5_click=ph5_click, email_href=email_href,
-         grc_click=grc, cal_click=cal, back_list=back_list, 
+         grc_click=grc, cal_click=cal, back_list=back_list,
          next_cust=next_cust, prev_cust=prev_cust, values=values)
 
 
@@ -777,9 +784,9 @@ class CC_Outcall_ctrl(BaseController):
          o.customer.active = False
          email_appointment(request.identity['user'].email_address, 
             'jd.girard@sysnux.pf', # XXX o.manager.email,
-            message,
+            message if message is not None else '',
             o.customer.cust_id,
-            u'%s %s' % (o.customer.lastname, o.customer.firstname),
+            capwords(o.customer.display_name),
             phone, o.customer.campaign.name, begin, duration, 
             request.identity['user'].display_name)
 
@@ -793,8 +800,8 @@ class CC_Outcall_ctrl(BaseController):
                else u'je te transmets le message ci dessous'
          email_other(request.identity['user'].email_address,
             ('jdg@sysnux.pf', 'x@sysnux.pf', 'y@sysnux.pf'), # XXX (o.manager.email, responsable AG, Julien Buluc
-            message, o.customer.cust_id, 
-            u'%s %s' % (o.customer.lastname, o.customer.firstname),
+            message if message is not None else '', o.customer.cust_id, 
+            capwords(o.customer.display_name),
             phone, request.identity['user'].display_name, intro)
 
       # Move to next customer

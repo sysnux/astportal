@@ -7,7 +7,7 @@ from datetime import datetime
 
 from sqlalchemy import Table, Column, ForeignKey, Sequence
 from sqlalchemy import Unicode, Unicode, Integer, DateTime, Boolean
-from sqlalchemy.orm import mapper, relation, backref
+from sqlalchemy.orm import mapper, relation, backref, column_property
 
 #from astportal2.model import metadata
 from astportal2.model import DeclarativeBase, metadata, DBSession
@@ -371,7 +371,7 @@ class Customer(DeclarativeBase):
    __tablename__ = 'customer'
    cust_id = Column(Integer, Sequence('customer_seq'), primary_key=True)
    cmp_id = Column(Integer, ForeignKey('campaign.cmp_id'))
-   campaign = relation('Campaign', backref=backref('campaign'))
+   campaign = relation('Campaign', backref=backref('customers'))
    code = Column(Unicode(7))
    gender = Column(Unicode(80))
    firstname = Column(Unicode(80))
@@ -389,6 +389,7 @@ class Customer(DeclarativeBase):
    active = Column(Boolean, default=True) # Faux quand il ne faut plus 
                                           # appeler le client
    filename = Column(Unicode(80))
+   display_name = column_property(gender + ' ' + firstname + ' ' + lastname)
 
 class Outcall(DeclarativeBase):
    ''' Outgoing campaign call
@@ -396,8 +397,9 @@ class Outcall(DeclarativeBase):
    __tablename__ = 'outcall'
    out_id = Column(Integer, Sequence('outcall_seq'), primary_key=True)
    cust_id = Column(Integer, ForeignKey('customer.cust_id'))
-   customer = relation('Customer', backref=backref('customer'))
+   customer = relation('Customer', backref=backref('outcalls'))
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
+   user = relation('User', backref=backref('outcalls'))
    uniqueid = Column(Unicode(32))
    phone = Column(Unicode(32))
    cookie = Column(Integer)
