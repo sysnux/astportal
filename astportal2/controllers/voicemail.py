@@ -59,7 +59,8 @@ def row(vm, folder):
    listen += u'''&nbsp;&nbsp;&nbsp;<a href="#" onclick="listen('%s',%d,'listen')"><img src="/images/sound_section.png" title="&Eacute;couter"></a>''' % \
       (vm['mb'], vm['id'])
    return [Markup(action), vm['mb'], 1+vm['id'], vm['callerid'], 
-      vm['origdate'].strftime("%A %d %B, %Hh%Mm%Ss"), Markup(listen) ]
+      vm['origdate'].strftime("%A %d %B, %Hh%Mm%Ss").decode('utf-8'),
+      Markup(listen) ]
 
 
 class Voicemail_ctrl(BaseController):

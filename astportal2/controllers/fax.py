@@ -89,7 +89,7 @@ def row(f):
    type = u'Envoyé' if f.type==0 else u'Reçu'
 
    return [Markup(action), type, f.dest, f.src, f.filename, f.comment , 
-      f.created.strftime('%A %d %B, %Hh%M'), Markup(download) ]
+      f.created.strftime('%A %d %B, %Hh%M').decode('utf-8'), Markup(download) ]
 
 
 class Fax_ctrl(RestController):

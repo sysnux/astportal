@@ -141,7 +141,7 @@ def process_file(csv, cmp_id):
    filedata = csv.file
    log.debug('process_file: <%s> <%s> <%s>' % (filename, filetype, filedata))
 
-   if filetype not in ('text/csv/', 'application/csv'):
+   if filetype not in ('text/csv', 'application/csv'):
       log.warning('process_file: not CSV : <%s> <%s> <%s>' % (
          filename, filetype, filedata))
       return u'Le fichier doit être de type CSV !'
@@ -466,9 +466,9 @@ class CC_Campaign_ctrl(RestController):
       return dict(title=u"Statistiques campagne %s" % p.name, 
          debug='', 
          csv_href = {'href': 'csv?cmp_id=%s' % cmp_id},
-         first_last=Markup(u'Premier appel %s, dernier appel %s.' % (
-            first.strftime('%A %d %B &agrave; %Hh%Mm%Ss'), 
-            last.strftime('%A %d %B &agrave; %Hh%Mm%Ss'))))
+         first_last=u'Premier appel %s, dernier appel %s.' % (
+            first.strftime('%A %d %B à %Hh%Mm%Ss').decode('utf-8'), 
+            last.strftime('%A %d %B à %Hh%Mm%Ss').decode('utf-8')))
 
 
    @expose('json')

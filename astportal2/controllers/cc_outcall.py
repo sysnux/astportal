@@ -355,9 +355,12 @@ Merci et bonne réception
 
    # Send email
    s = smtplib.SMTP()
-   s.connect('localhost')
-   s.sendmail(sender, to, msg.as_string())
-   s.close()
+   try:
+      s.connect('localhost')
+      s.sendmail(sender, to, msg.as_string())
+      s.close()
+   except:
+      flash(u'Une erreur est survenue, l\'email n\'a pu être envoyé', 'error')
 
 
 def email_other(sender, to, message, cust_id, cust_name, cust_phone, 
@@ -437,9 +440,12 @@ Client n°%s / %s.<br/>
 
    # Send email
    s = smtplib.SMTP()
-   s.connect('localhost')
-   s.sendmail(sender, to, msg.as_string())
-   s.close()
+   try:
+      s.connect('localhost')
+      s.sendmail(sender, to, msg.as_string())
+      s.close()
+   except:
+      flash(u'Une erreur est survenue, l\'email n\'a pu être envoyé', 'error')
 
 
 class CC_Outcall_ctrl(BaseController):

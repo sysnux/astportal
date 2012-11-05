@@ -46,7 +46,8 @@ def row(r, users):
 
    return [#Markup(action), 
          r.Queue.name, users[r.Record.member_id], user, 
-         r.Record.created.strftime("%d %B, %Hh%Mm%Ss"), Markup(listen)]
+         r.Record.created.strftime("%d %B, %Hh%Mm%Ss").decode('utf-8'),
+         Markup(listen)]
 
 
 def check_access(queues):
