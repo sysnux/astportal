@@ -21,12 +21,12 @@ from genshi import Markup
 
 from astportal2.model import DBSession, Application, User, Group, Action, \
    Scenario, Sound, User, Queue, Queue_event
+from astportal2.lib.asterisk import asterisk_string
 
 from datetime import datetime
 import re
 from os import rename, system
 from tempfile import mkdtemp
-from unicodedata import normalize
 
 import logging
 log = logging.getLogger(__name__)
@@ -512,7 +512,7 @@ class Application_ctrl(RestController):
       rh['Cache-control'] = 'max-age=0' # for IE
       rh['Content-Type'] = 'application/pdf'
       rh['Content-disposition'] = u'attachment; filename="%s.pdf"; size=%d;' % (
-         normalize('NFKD', app.name).encode('ascii','ignore'), st.st_size)
+         asterisk_string(app.name), st.st_size)
       rh['Content-Transfer-Encoding'] = 'binary'
       return f.read()
 
@@ -929,6 +929,8 @@ def generate_dialplan():
 
             if q.monitor:
                svi_out.write(u"exten => s,%d,Set(MONITOR=1)\n" % prio) 
+               prio += 1
+               svi_out.write(u"exten => s,%d,Set(__DYNAMIC_FEATURES=stop_monitor)\n" % prio) 
                prio += 1
             else:
                svi_out.write(u"exten => s,%d,Set(MONITOR=0)\n" % prio) 

@@ -22,8 +22,10 @@ except ImportError:
 from sqlalchemy import Table, ForeignKey, Column, Sequence
 from sqlalchemy.types import Unicode, Integer, DateTime
 from sqlalchemy.orm import relation, synonym, column_property
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from astportal2.model import DeclarativeBase, metadata, DBSession
+from unicodedata import normalize
 
 __all__ = ['User', 'Group', 'Permission']
 
@@ -109,6 +111,11 @@ class User(DeclarativeBase):
 
     # Needed by repoze.who / what
     display_name = column_property(lastname + ' ' + firstname)
+
+    @hybrid_property
+    def asterisk_name(self):
+      return normalize('NFKD', 
+         self.lastname + ' ' + self.firstname).encode('ascii','ignore')
  
     #{ Special methods
 

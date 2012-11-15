@@ -330,7 +330,8 @@ class Status(object):
          self._handle_Leave(event.headers)
       elif e == 'CEL':
          self._handle_CEL(event.headers)
-      elif e in ('ExtensionStatus', 'Dial', 'MessageWaiting', 'Shutdown', 'Reload'):
+      elif e in ('ExtensionStatus', 'Dial', 'MessageWaiting', 'Shutdown', 'Reload', 
+            'JabberEvent', 'JabberStatus'):
          log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
       elif e == 'UserEvent':
          self._handle_UserEvent(event.headers)

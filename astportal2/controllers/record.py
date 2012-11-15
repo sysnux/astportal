@@ -292,7 +292,7 @@ class Record_ctrl(BaseController):
          user_queues = []
          for q in DBSession.query(Queue):
             if in_group('SV ' + q.name):
-               user_queues.append(q.queueid)
+               user_queues.append(q.queue_id)
          log.debug('User queues: %s' % user_queues)
          records = records.filter(Record.queue_id.in_(user_queues))
 

@@ -17,6 +17,7 @@ from genshi import Markup
 from astportal2.model import DBSession, User, Phone, Group, Department
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
+from astportal2.lib.asterisk import asterisk_string
 
 import unicodedata
 from shutil import rmtree
@@ -366,8 +367,7 @@ class User_ctrl(RestController):
       u.display_name = u.lastname + ' ' + u.firstname
 
       # Update voicemail
-      cidname = unicodedata.normalize('NFKD', u.display_name). \
-            encode('ascii','ignore')
+      cidname = asterisk_string(u.display_name)
       if u.email_address:
          for p in u.phone:
             vm = u'>%s,%s,%s' \
@@ -406,8 +406,7 @@ class User_ctrl(RestController):
       u = DBSession.query(User).get(kw['_id'])
 
       # Delete voicemail
-      cidname = unicodedata.normalize('NFKD', u.display_name). \
-            encode('ascii','ignore')
+      cidname = astersk_string(u.display_name)
       if u.email_address:
          for p in u.phone:
             res = Globals.manager.update_config(

@@ -43,9 +43,10 @@ $(document).ready(function() {
    $(window).bind('resize', function() {
       $('#grid').setGridWidth($('#data').width()-10, true);
    });
-//   $('select').change(change);
    $('#form0_begin\\.container').hide();
    $('#form0_duration\\.container').hide();
+   $('#form0_alarm_type\\.container').hide();
+   $('#form0_alarm_dest\\.container').hide();
 });
 
 function load_complete(data) {
@@ -91,26 +92,47 @@ function originate(num, cust, id) {
 
 function cal(manager) {
    wincal = window.open(
-      'http://tiare.sysnux.pf/cgi-bin/dump.py?manager=' + manager,
+      'http://bdp-ms001/exchange/' + manager + '/Calendrier/?Cmd=contents',
       'Calendrier', 'location=no,width=600,height=400');
 }
 
 function grc(customer) {
    wincal = window.open(
-      'http://tiare.sysnux.pf/cgi-bin/dump.py?customer=' + customer,
+      'http://10.152.50.12:7002/WebCRM/syntheseClient.do?dispatch=syntheseClient&codeClient=' + customer + '&devise=953&unite=devise.U&typeCritere=nom_client',
       'GRC', 'location=no,width=600,height=400');
 }
 
-function change() { 
+function result_change() { 
    // Called on "select result" change
-// alert('Change: ' + $("#result:selected").index() + ' ' + $("#result").val() + ' ' +  $("#result >option:selected").text());
    var sel = $("#form0_result").val();
    if (sel==0) {
       $('#form0_begin\\.container').show();
       $('#form0_duration\\.container').show();
+      $('#form0_alarm_type\\.container').show();
    } else {
       $('#form0_begin\\.container').hide();
       $('#form0_duration\\.container').hide();
+      $('#form0_alarm_type\\.container').hide();
+      $('#form0_alarm_dest\\.container').hide();
+   }
+}
+
+function alarm_change() { 
+   // Called on "select alarm" change
+   switch (parseInt($("#form0_alarm_type").val())) {
+      case -1:
+      case 0:
+         $('#form0_alarm_dest\\.container').hide();
+         break;
+      case 1:
+         $('#form0_alarm_dest\\.container').show();
+         $('#form0_alarm_dest\\.container').val($('#email').text());
+         break;
+      case 2:
+         $('#form0_alarm_dest\\.container').show();
+         $('#form0_alarm_dest\\.container').val(
+            $('#gsm1').text() || $('#gsm2').text());
+         break;
    }
 }
 
@@ -120,9 +142,21 @@ function my_submit() {
       alert('Veuillez sélectionner un résultat');
       return;
    }
-   if (sel==0 && ($("#form0_begin").val()=='' || $("#form0_duration").val()==-1)) {
-      alert('Pour un RDV, vous devez définir son heure de début et sa durée');
-      return;
+   if (sel==0) { // Prise RDV
+      if ($("#form0_begin").val()=='' || $("#form0_duration").val()==-1) {
+         alert('Pour un RDV, vous devez définir son heure de début et sa durée');
+         return;
+      }
+      if ($("#form0_alarm_type").val()==-1) { // Choix type rappel
+         alert('Pour un RDV, vous devez choisir un type de rappel');
+         return;
+      } else if ($("#form0_alarm_type").val()==1 && $("#form0_alarm_dest").val()=='') {
+         alert('Vous devez définir l\'adresse pour le rappel par email.');
+         return;
+      } else if ($("#form0_alarm_type").val()==2 && $("#form0_alarm_dest").val()=='') {
+         alert('Vous devez définir le numéro GSM pour le rappel par SMS.');
+         return;
+      }
    }
    unload_warning = false;
    $('#form0').submit();
@@ -153,7 +187,7 @@ function my_submit() {
          <td><a href="#" title="Afficher le calendrier" 
                py:attrs="cal_click" py:content="manager">Calendrier</a>
             </td>
-         <td><a title="Envoyer un courrier électronique"
+         <td><a id="email" title="Envoyer un courrier électronique"
             py:attrs="email_href" py:content="email">email</a>
             </td>
       </tr>
@@ -163,8 +197,8 @@ function my_submit() {
          <th style="padding: 3px 10px">Domicile</th>
          <th style="padding: 3px 10px">Bureau 1</th>
          <th style="padding: 3px 10px">Bureau 2</th>
-         <th style="padding: 3px 10px">Vini perso.</th>
-         <th style="padding: 3px 10px">Vini pro.</th>
+         <th style="padding: 3px 10px" id="gsm1">Vini perso.</th>
+         <th style="padding: 3px 10px" id="gsm2">Vini pro.</th>
       </tr>
       <tr>
          <td id="phone1"><a href="#" title="Appeler au domicile"

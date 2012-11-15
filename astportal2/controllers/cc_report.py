@@ -12,8 +12,9 @@ from tw.forms import TableForm, TextField, SingleSelectField, \
    TextArea, HiddenField, Button
 from tw.forms.validators import NotEmpty, Int, Schema, Invalid
 
-from astportal2.model import DBSession, Phonebook, Report
+from astportal2.model import DBSession, Phonebook, Report, User, Queue
 from astportal2.lib.base import BaseController
+#from astportal2.lib.asterisk import asterisk_string
 
 import logging
 log = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ subjects = [
       (21, u'Création / modification d\'un virement permanent'),
       (22, u'Opposition sur Carte'),
       (23, u'Refabrication de la carte'),
-      (24, u'Commande de chéquier, chèque de banue, de service aux particuliers et de devises') ]),
+      (24, u'Commande de chéquier, chèque de banque, de service aux particuliers et de devises') ]),
    ('Epargne et placement',[
       (30, u'Versement sur PEL'),
       (31, u'Modification de contrat PEL'),
@@ -61,6 +62,7 @@ def managers():
    '''
    m = [('null', u' - - - ')]
    for pb in DBSession.query(Phonebook). \
+      filter(Phonebook.account_manager==True). \
       filter(Phonebook.code!=None). \
       filter(Phonebook.email!=None). \
       order_by(Phonebook.lastname). \
@@ -71,19 +73,21 @@ def managers():
    return m
 
 
-def email(sender, to, customer, manager, message, subject):
+def email(sender, to, customer, manager, message, subject, cc):
    ''' Create and send email
    '''
 
    # Create email 
    msg = MIMEMultipart('alternative')
    msg['Subject'] = u'Appel au Call Center Multimédia'
-   msg['To'] = to
    msg['From'] = sender
+   msg['To'] = to
+   msg['Cc'] = cc
    msg.preamble = 'Please use a MIME-aware mail reader to read this email.\n'
 
    # Text part
    text = u'''\
+Objet : %s
 Nom / Prénom Client : %s
 Nom du gestionnaire : %s
 
@@ -93,12 +97,11 @@ il souhaite :
 -------------------
 %s
 -------------------
-(%s)
 
 
 Merci et bonne réception
 '''
-   part = MIMEText(text % (customer, manager, message, subject), \
+   part = MIMEText(text % (subject, customer, manager, message), \
       _subtype='plain', _charset='utf-8')
    msg.attach(part)
 
@@ -125,6 +128,7 @@ Merci et bonne réception
 }
 </style>
 </head><body>
+Objet : <em>%s</em><br/>
 Nom / Prénom Client : <em>%s</em><br/>
 Nom du gestionnaire : <em>%s</em><br/>
 
@@ -139,15 +143,18 @@ il souhaite :
 <p>Merci et bonne réception</p>
 </body></html>
 '''
-   part = MIMEText(text % (customer, manager, message, subject), \
+   part = MIMEText(text % (subject, customer, manager, message), \
       _subtype='html', _charset='utf-8')
    msg.attach(part)
 
    # Send email
    s = smtplib.SMTP()
-   s.connect('localhost')
-   s.sendmail(sender, to, msg.as_string())
-   s.close()
+   try:
+      s.connect('localhost')
+      s.sendmail(sender, to, msg.as_string())
+      s.close()
+   except:
+      flash(u'Une erreur est survenue, l\'email n\'a pu être envoyé', 'error')
 
 
 class Send_validate(Schema):
@@ -167,6 +174,9 @@ class CC_Report_form(TableForm):
             'tooLow': u'Veuillez choisir un objet'}),
          options = subjects,
          label_text=u'Objet', help_text=u'Choisissez l\'objet du rapport'),
+      TextField('cc',
+         label_text = u'Copie à', 
+         help_text = u'Entrez les adresses des destinataires en copie'),
       TextField('customer', validator=NotEmpty,
          label_text = u'Nom / Prénom du client', 
          help_text = u'Entrez les nom et prénom du client'),
@@ -215,7 +225,9 @@ class CC_Report_ctrl(BaseController):
          'queue': kw['queue'],
          'custom1': kw['custom1'],
          'custom2': kw['custom2'],
-         'send_or_save': '?'
+         'send_or_save': '?',
+         'customer': kw['custom2'],
+         'cc': request.identity['user'].email_address
       }
       tmpl_context.form = cc_report_form
       return dict(title = u'Compte rendu d\'appel', close=None, values=v)
@@ -224,7 +236,7 @@ class CC_Report_ctrl(BaseController):
    @expose(template='astportal2.templates.form_cc_report_close')
    @validate(cc_report_form, error_handler=index)
    def save(self, uid, member, queue, custom1, custom2, send_or_save,
-         subject, customer, manager, message):
+         subject, customer, manager, message, cc):
 
       if manager!='null':
          m = DBSession.query(Phonebook).filter(Phonebook.code==manager).one()
@@ -238,7 +250,7 @@ class CC_Report_ctrl(BaseController):
 
       if send_or_save=='send' and to is not None:
          sender = request.identity['user'].email_address
-         email(sender, to, customer, name, message, subjects_dict[subject])
+         email(sender, to, customer, name, message, subjects_dict[subject], cc)
          html = u'Message envoyé'
 
       else:
@@ -247,8 +259,22 @@ class CC_Report_ctrl(BaseController):
       r = Report()
       r.user_id = request.identity['user'].user_id
       r.uniqueid = uid
-      r.member_id = member
-      r.queue_id = queue
+#      try:
+#         u = DBSession.query(User).filter(User.asterisk_name==member).first()
+#         r.member_id = u.user_id
+#      except:
+#         log.error('user "%s" not found' % member)
+      for u in DBSession.query(User).all():
+         if u.asterisk_name==member:
+            r.member_id = u.user_id
+            break
+      else:
+         log.error('user "%s" not found' % member)
+      try:
+         r.queue_id = DBSession.query(Queue).filter(
+            Queue.name==queue).one().queue_id
+      except:
+         log.error('queue "%s" not found' % queue)
       r.custom1 = custom1
       r.custom2 = custom2
       r.subject = subject
@@ -256,6 +282,7 @@ class CC_Report_ctrl(BaseController):
       r.manager = manager
       r.message = message
       r.email = to
+      r.cc = cc
       DBSession.add(r)
 
       return dict(title=html)

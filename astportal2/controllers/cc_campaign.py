@@ -141,10 +141,10 @@ def process_file(csv, cmp_id):
    filedata = csv.file
    log.debug('process_file: <%s> <%s> <%s>' % (filename, filetype, filedata))
 
-   if filetype not in ('text/csv', 'application/csv'):
+   if filetype not in ('text/csv', 'application/csv', 'application/vnd.ms-excel'):
       log.warning('process_file: not CSV : <%s> <%s> <%s>' % (
          filename, filetype, filedata))
-      return u'Le fichier doit être de type CSV !'
+      return 0, 0, u'Le fichier doit être de type CSV !'
 
    # Temporarily save uploaded file
    tmpfn = '/tmp/customer-%d-%d.csv' % (cmp_id, int(time()))
@@ -154,12 +154,15 @@ def process_file(csv, cmp_id):
 
    # Then read it
    tmp = open(tmpfn, 'U')
-   lines = 0
+   lines = errors = 0
    for l in tmp:
       lines += 1
       if lines==1: continue
       data = line2data(l)
-      log.debug(data)
+      if len(data)!=15:
+         log.warning('process_file: invalid data %s' % data)
+         errors += 1
+         continue
       c = Customer()
       c.cmp_id = cmp_id
       c.active = True
@@ -187,6 +190,7 @@ def process_file(csv, cmp_id):
 
    # remove uploaded file
 #   unlink(tmp)
+   return lines, errors, ''
 
 
 class Campaign_validate(Schema):
@@ -346,10 +350,17 @@ class CC_Campaign_ctrl(RestController):
       DBSession.flush()
       log.debug(u'nouvelle campagne %s créée' % c.cmp_id)
 
+      msg = u'Campagne "%s" créée' % name
       if file is not None:
-         process_file(file, c.cmp_id)
+         l, e, m = process_file(file, c.cmp_id)
+         if l==0:
+            msg += m
+         else:
+            msg += u', %d lignes intégrées' % lignes
+            if e!=0:
+               msg += u', %d erreurs' % lignes
 
-      flash(u'Campagne "%s" créée' % name)
+      flash(msg)
       redirect('/cc_campaign/')
 
 
@@ -467,8 +478,8 @@ class CC_Campaign_ctrl(RestController):
          debug='', 
          csv_href = {'href': 'csv?cmp_id=%s' % cmp_id},
          first_last=u'Premier appel %s, dernier appel %s.' % (
-            first.strftime('%A %d %B à %Hh%Mm%Ss').decode('utf-8'), 
-            last.strftime('%A %d %B à %Hh%Mm%Ss').decode('utf-8')))
+            first.strftime('%A %d %B %Y à %Hh%Mm%Ss').decode('utf-8'), 
+            last.strftime('%A %d %B %Y à %Hh%Mm%Ss').decode('utf-8')))
 
 
    @expose('json')

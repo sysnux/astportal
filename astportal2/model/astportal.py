@@ -104,19 +104,19 @@ class Phonebook(DeclarativeBase):
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    user = relation('User', backref=backref('phonebook'))
    code = Column(Unicode(4))
+   account_manager = Column(Boolean())
 
 class View_phonebook(DeclarativeBase):
    '''
    View used to include users in phonebook.
 
-   Built like:
-CREATE VIEW view_pb AS
-   SELECT -phone_id as pb_id, lastname, firstname, '__COMPANY__' AS company, 
-   exten AS phone1, dnis AS phone2, '' AS phone3, 0 AS private, -1 as user_id
+   Must be manually created in the database:
+CREATE VIEW view_pb AS 
+   SELECT -phone_id as pb_id, lastname, firstname, '__COMPANY__' AS company, email_address AS email, '' AS code, exten AS phone1, dnis AS phone2, '' AS phone3, 'f' AS private, -1 as user_id, 'f' as account_manager 
    FROM phone LEFT OUTER JOIN tg_user ON phone.user_id=tg_user.user_id 
-   WHERE exten is not null
-UNION
-   SELECT pb_id, lastname, firstname, company, phone1, phone2, phone3, private, user_id
+   WHERE exten is not null 
+UNION 
+   SELECT pb_id, lastname, firstname, company, email, code, phone1, phone2, phone3, private, user_id, account_manager 
    FROM phonebook;
    '''
    __tablename__ = 'view_pb'
@@ -128,6 +128,8 @@ UNION
    phone2 = Column(Unicode())
    phone3 = Column(Unicode())
    email = Column(Unicode())
+   code = Column(Unicode())
+   account_manager = Column(Boolean())
    private = Column(Boolean())
    user_id = Column(Integer)
 
@@ -345,6 +347,7 @@ class Report(DeclarativeBase):
    manager = Column(Unicode(3))
    message = Column(Unicode(255))
    email = Column(Unicode(80))
+   cc = Column(Unicode(255))
    created = Column(DateTime, nullable=False, default=datetime.now)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    user = relation('User', backref=backref('report'))
@@ -408,5 +411,7 @@ class Outcall(DeclarativeBase):
    comment = Column(Unicode(255))
    begin = Column(DateTime)
    duration = Column(Integer)
+   alarm_type = Column(Integer)
+   alarm_dest = Column(Unicode(255))
    created = Column(DateTime, nullable=False, default=datetime.now)
 

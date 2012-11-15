@@ -45,6 +45,11 @@ class New_contact_form(TableForm):
             label_text=u'Téléphone 3', help_text=u'Troisième numéro de téléphone'),
          TextField('email', not_empty = False,
             label_text=u'@ email', help_text=u'Adresse email'),
+         TextField('code', not_empty = False,
+            label_text=u'Code', help_text=u'Code BDP'),
+         CheckBox('account_manager', not_empty = False, default = False,
+            label_text=u'Gestionnaire de comptes', 
+            help_text=u'Cochez si gestionnaire de comptes'),
          CheckBox('private', not_empty = False, default = True,
             label_text=u'Contact privé', help_text=u'Cochez si privé'),
          ]
@@ -72,6 +77,11 @@ class Edit_contact_form(TableForm):
             label_text=u'Téléphone 3', help_text=u'Troisième numéro de téléphone'),
          TextField('email', not_empty = False,
             label_text=u'@ email', help_text=u'Adresse email'),
+         TextField('code', not_empty = False,
+            label_text=u'Code', help_text=u'Code BDP'),
+         CheckBox('account_manager', not_empty = False, default = False,
+            label_text=u'Gestionnaire de comptes', 
+            help_text=u'Cochez si gestionnaire de comptes'),
          CheckBox('private', default = True, validator=Bool,
             label_text=u'Contact privé', help_text=u'Cochez si privé'),
          HiddenField('_method', validator=None), # Needed by RestController
@@ -257,7 +267,7 @@ class Phonebook_ctrl(RestController):
    @validate(new_contact_form, error_handler=new)
    @expose()
    def create(self, firstname, lastname, company, phone1, phone2, 
-         phone3, email, private=None):
+         phone3, email, code, account_manager, private=None):
       ''' Add new phonebook entry to DB
       '''
       d = Phonebook()
@@ -268,6 +278,8 @@ class Phonebook_ctrl(RestController):
       d.phone2 = phone2
       d.phone3 = phone3
       d.email = email
+      d.code = code
+      d.account_manager = account_manager
       d.private = private
       d.user_id = request.identity['user'].user_id
       DBSession.add(d)
@@ -285,6 +297,7 @@ class Phonebook_ctrl(RestController):
             'lastname': pb.lastname, 'phone1': pb.phone1,
             'phone2': pb.phone2, 'phone3': pb.phone3,
             'company': pb.company, 'private': pb.private,
+            'code': pb.code, 'account_manager': pb.account_manager,
             'email': pb.email, '_method': 'PUT'}
       tmpl_context.form = edit_contact_form
       return dict(title = u'Modification contact ', debug='', values=v)
@@ -293,7 +306,7 @@ class Phonebook_ctrl(RestController):
    @validate(edit_contact_form, error_handler=edit)
    @expose()
    def put(self, pb_id, firstname, lastname, company, phone1, phone2,
-         phone3, email, private=False):
+         phone3, email, code, account_manager=False, private=False):
       ''' Update contact in DB
       '''
       log.info('update %d' % pb_id)
@@ -305,6 +318,8 @@ class Phonebook_ctrl(RestController):
       pb.phone2 = phone2
       pb.phone3 = phone3
       pb.email = email
+      pb.code = code
+      pb.account_manager = account_manager
       pb.private = private
       flash(u'Contact modifié')
       redirect('/phonebook/%d/edit' % pb_id)

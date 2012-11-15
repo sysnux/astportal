@@ -28,6 +28,7 @@ from repoze.what.predicates import in_group, in_any_group
 
 from astportal2.model import DBSession, Phone, Record, Queue, User, Group
 from astportal2.lib.app_globals import Globals
+#from astportal2.lib.asterisk import asterisk_string
 
 from time import sleep
 import copy
@@ -105,13 +106,14 @@ class CC_Monitor_ctrl(TGController):
          log.error('%s:%s not registered, not adding member ?' % (p.sip_id, p.exten))
          return dict(res='ko')
 
-      user = p.user.display_name if p.user else p.exten
+      user = p.user.asterisk_name if p.user else p.exten
       iface = 'SIP/%s' % iface
 
       Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': queue, 
          'Interface': iface, 'Penalty': penality,
          'MemberName':
-         unicodedata.normalize('NFKD', user).encode('ascii', 'ignore')})
+         user})
+#         asterisk_string(user)})
       return dict(res='ok')
 
 
@@ -162,10 +164,11 @@ class CC_Monitor_ctrl(TGController):
             elif in_group('AG ' + q):
                queues[q] = Globals.asterisk.queues[q]
 
-      log.debug('Q AFTER %s' % Globals.asterisk.queues)
-      log.debug('M AFTER %s' % Globals.asterisk.members)
+#      log.debug('Q AFTER %s' % Globals.asterisk.queues)
+#      log.debug('M AFTER %s' % Globals.asterisk.members)
 
-      me = unicodedata.normalize('NFKD', request.identity['user'].display_name).encode('ascii', 'ignore')
+#      me = asterisk_string(request.identity['user'].display_name)
+      me = request.identity['user'].asterisk_name
 
       qq = [{'name': k,
          'params': Globals.asterisk.queues[k]
@@ -249,6 +252,8 @@ data: SIP/Xx83G1ZQ
       Called from Asterisk dialplan / func_curl
       '''
 
+      log.debug('auto_record: name %s, channel %s, queue %s, uid %s, custom1 %s, custom2 %s' % (
+         name, channel, queue, uid, custom1, custom2))
       # Check channel exists, else abort
       for cha in Globals.asterisk.channels.keys():
          if cha.startswith(channel):
@@ -268,11 +273,24 @@ data: SIP/Xx83G1ZQ
 
       # Insert record info into database
       r = Record()
+      r.user_id = -2 # Auto_record pseudo-user!
       r.uniqueid = unique_id
       r.queue_id = DBSession.query(Queue).filter(
             Queue.name==queue).one().queue_id
-      r.member_id = DBSession.query(User).filter(
-         User.display_name==name).one().user_id
+#      try:
+#         u = DBSession.query(User).filter(User.asterisk_name==name).first()
+#         log.debug(u' * * * %s' % u)
+#         r.member_id = u.user_id
+#      except:
+#         r.member_id = 1
+#         log.error('user "%s" not found' % name)
+      for u in DBSession.query(User).all():
+         if u.asterisk_name==name:
+            r.member_id = u.user_id
+            break
+      else:
+         r.member_id = 1
+         log.error('user "%s" not found' % name)
       r.custom1 = custom1
       r.custom2 = custom2
       DBSession.add(r)

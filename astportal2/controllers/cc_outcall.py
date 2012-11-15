@@ -7,7 +7,7 @@ Some functionnality depends on Asterisk configuration:
  . . .
 exten => _X.,n,GotoIf(${OUTCALL}?:no_outcall)
 exten => _X.,n,Set(out=${CURL(http://192.168.0.200:8080/cc_outcall/uniqueid,outcall=${OUTCALL}&uniqueid=${UNIQUEID}&cookie=${COOKIE})})
-exten => _X.,ni(no_outcall),Set(__DYNAMIC_FEATURES=stop_monitor)
+exten => _X.,n(no_outcall),Set(__DYNAMIC_FEATURES=stop_monitor)
  . . .
 '''
 
@@ -21,7 +21,7 @@ from tw.forms.validators import NotEmpty, Int, DateTimeConverter, \
 from tw.api import js_callback
 from genshi import Markup
 
-from astportal2.model import DBSession, Campaign, Customer, User, Outcall, CDR
+from astportal2.model import DBSession, Campaign, Customer, User, Outcall, CDR, Phonebook
 from astportal2.lib.base import BaseController
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
@@ -40,8 +40,10 @@ log = logging.getLogger(__name__)
 from email.message import Message
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.encoders import encode_7or8bit
 import smtplib
 import vobject
+from uuid import uuid4
 
 
 campaign_grid = MyJqGrid( 
@@ -64,7 +66,7 @@ result_options = (
    (-1, u' - - - '),
    (0, u'RDV Call Center'),
    (1, u'\u00C0 rappeler'),
-   (2, u'\u00C0 rappeler une deuxième fois'),
+#   (2, u'\u00C0 rappeler une deuxième fois'),
    (3, u'Dernier rappel'),
    (4, u'Contacte directement son cc/réfléchi'),
    (5, u'Pas intéressé / coupe court'),
@@ -132,7 +134,7 @@ def campaign_row(c):
    return row
 
 
-def customer_row(c):
+def customer_row(c, managers):
    ''' Returns a formatted row for the list of cutomers
    Parameter: customer object
    '''
@@ -143,6 +145,7 @@ def customer_row(c):
       capwords(c.display_name))))
    row.append(('CLIPRI', 'CLICOM', 'CLIPRO')[c.type])
    row.append(c.branch)
+   row.append(managers[c.manager])
    phones = []
    if c.phone1:
       phones.append(c.phone1)
@@ -200,7 +203,7 @@ crm_form = TableForm(
          validator=Int(min=0, messages= {
             'tooLow': u'Veuillez choisir un résultat'}),
          options = result_options,
-         attrs = {'onchange': 'change()'}
+         attrs = {'onchange': 'result_change()'}
          ),
       CalendarDateTimePicker('begin',
          label_text=u'Début', help_text=u'Date de début',
@@ -224,6 +227,20 @@ crm_form = TableForm(
             (120, u'2 heure'),
             ),
          ),
+      SingleSelectField('alarm_type',
+         validator=Int(),
+         label_text = u'Rappel',
+         help_text = u'Type de rappel RDV ',
+         options = ((-1, u' - - - '),
+            (0, u'Pas de rappel'),
+            (1, u'Rappel par email'),
+            (2, u'Rappel par SMS'),
+            ),
+         attrs = {'onchange': 'alarm_change()'}
+         ),
+      TextField('alarm_dest',
+         label_text = u'Destinaire rappel',
+         help_text = u'Numéro GSM ou adresse email'),
       TextArea('message',
          attrs = {'rows': 4, 'cols': 40},
          help_text=u'Message à destination du gestionnaire et du responsable d\'agence',
@@ -248,97 +265,28 @@ def email_appointment(sender, to, message, cust_id, cust_name, cust_phone,
    '''
 
    # Create email 
-   msg = MIMEMultipart('alternative')
-   msg['Subject'] = u'Appel au Call Center Multimédia'
+   msg = Message()
+   msg['Subject'] = u'RDV Call center Multimédia %s' % cust_name
    msg['To'] = to
    msg['From'] = sender
-   msg.preamble = 'Please use a MIME-aware mail reader to read this email.\n'
+   msg['Content-class'] = 'urn:content-classes:calendarmessage'
+   msg['Content-type'] = 'text/calendar; method=REQUEST; charset=UTF-8'
+   msg['Content-transfer-encoding'] = '8BIT'
 
-   # Text part
-   text = u'''\
-Bonjour,
-
-Je viens de fixer un rendez-vous dans ton agenda pour la campagne %s.
-
-Client n°%s / %s
-Le %s, durée %d minutes
-N° de téléphone : %s
-Message :
-%s
-
-Observations particulières :
-NB : Ce mail est envoyé à titre d'information et ne nécessite pas de retour.
-Merci et bonne réception
-%s
-''' % (cmp_name, cust_id, cust_name, 
-      begin.strftime('%d/%m/%y a %Hh%M'), duration, cust_phone, 
-      message, member_name)
-   part = MIMEText(text, _subtype='plain', _charset='utf-8')
-   msg.attach(part)
-
-   # HTML part
-   text = u'''\
-<html><head>
-<meta http-equiv="Content-Type" content="text/html; charset="UTF-8">
-<style>
-.shadow {
-   margin: 10px 40px;
-   padding: 5px;
-   border: 1px solid #aaa;
-	-moz-box-shadow: 3px 3px 4px #000;
-	-webkit-box-shadow: 3px 3px 4px #000;
-	box-shadow: 3px 3px 4px #000;
-   -moz-border-radius: 10px;
-   -webkit-border-radius: 10px;
-   border-radius: 10px; /* future proofing */
-   -khtml-border-radius: 10px;
-	/* For IE 8 */
-	-ms-filter: "progid:DXImageTransform.Microsoft.Shadow(Strength=4, Direction=135, Color='#000000')";
-	/* For IE 5.5 - 7 */
-	filter: progid:DXImageTransform.Microsoft.Shadow(Strength=4, Direction=135, Color='#000000');
-}
-</style>
-</head><body>
-<p>Bonjour,</p>
-
-<p>Je viens de fixer un rendez-vous dans ton agenda pour la campagne %s.</p>
-
-Client n°%s / %s<br/>
-Le %s, durée %d minutes.<br/>
-<u>N° de téléphone :</u> %s
-<h4>Message :</h4>
-<pre class="shadow">
-%s
-</pre>
-<h4>Observations particulières :</h4>
-<u>NB :</u> Ce mail est envoyé à titre d'information et ne nécessite pas de retour.<br/>
-<p>Merci et bonne réception<br/>
-%s</p>
-</body></html>
-''' % (cmp_name, cust_id, cust_name, 
-      begin.strftime('%d/%m/%y a %Hh%M'), duration, cust_phone, 
-      message, member_name)
-   part = MIMEText(text, _subtype='html', _charset='utf-8')
-   msg.attach(part)
-
-   # vCal
-   valarm = vobject.newFromBehavior('VALARM')
-   valarm.add('trigger').value = timedelta(-1)
-   valarm.add('action').value = 'email'
-   valarm.add('attendee').value = to
-   valarm.add('summary').value = 'Rappel RDV %s' % cust_name
-   valarm.add('description').value = 'RDV dans 24 heures avec client %s' % cust_id
+   # vCal (vobject automatically adds missing fields, eg. UUID)
    vcal = vobject.newFromBehavior('vcalendar')
+   vcal.add('method').value = u'REQUEST'
    vcal.add('vevent')
-   vcal.vevent.add(valarm)
-   vcal.vevent.add('method').value = u'REQUEST' # / PUBLISH Needed by Outlook
-   vcal.vevent.add('summary').value = u'RDV %s' % cust_name
+   vcal.add('prodid').value = '-//SysNux.pf/NONSGML AstPortal V1.0//EN'
+   vcal.add('version').value = '2.0'
    vcal.vevent.add('description').value = u'''Rendez-vous fixé par le Call Center Multimédia pour la campagne "%s"
 
 Client n°%s / %s
 N° de téléphone : %s
 Message :
+-----
 %s
+-----
 
 Observations particulières :
 NB : Cet événement est envoyé à titre d'information et ne nécessite pas de retour.
@@ -349,11 +297,33 @@ Merci et bonne réception
    vcal.vevent.add('dtstart').value = begin
    vcal.vevent.add('dtend').value = begin + timedelta(0, duration*60)
    vcal.vevent.add('class').value = u'PUBLIC'
+   vcal.vevent.add('dtstamp').value = datetime.now()
+   vcal.vevent.add('created').value = datetime.now()
+   vcal.vevent.add('last-modified').value = datetime.now()
+   vcal.vevent.add('organizer').value = u'mailto:%s' % sender
+   vcal.vevent.add('attendee').value = u'mailto:%s' % to
+   vcal.vevent.add('transp').value = 'OPAQUE'
+   vcal.vevent.add('summary').value = u'RDV %s' % cust_name
+   vcal.add('vtimezone')
+   vcal.vtimezone.add('tzid').value = 'Pacific/Tahiti'
+   vcal.vtimezone.add('x-lic-location').value = 'Pacific/Tahiti'
+   vcal.vtimezone.add('standard')
+   vcal.vtimezone.standard.add('TZOFFSETFROM').value = '-1000'
+   vcal.vtimezone.standard.add('TZOFFSETTO').value = '-1000'
+   vcal.vtimezone.standard.add('TZNAME').value = 'TAHT'
+   vcal.vtimezone.standard.add('DTSTART').value = datetime(1970,1,1)
+#   valarm = vobject.newFromBehavior('VALARM')
+#   valarm.add('trigger').value = timedelta(-1)
+#   valarm.add('action').value = 'email'
+#   valarm.add('attendee').value = to
+#   valarm.add('summary').value = 'Rappel RDV %s' % cust_name
+#   valarm.add('description').value = 'RDV dans 24 heures avec client %s' % cust_id
+#   vcal.vevent.add(valarm)
    log.debug(vcal.prettyPrint())
-   part = MIMEText(vcal.serialize(), _subtype='calendar', _charset='utf-8')
-   msg.attach(part)
+   msg.set_payload(vcal.serialize())
 
    # Send email
+   log.debug(msg.as_string())
    s = smtplib.SMTP()
    try:
       s.connect('localhost')
@@ -525,11 +495,12 @@ class CC_Outcall_ctrl(BaseController):
       else:
          tmpl_context.grid = MyJqGrid( 
             id='grid', url='customer_fetch', caption=u'Clients',
-            colNames = [u'Nom', u'Type', u'agence', u'Téléphone(s)'],
+            colNames = [u'Nom', u'Type', u'agence', u'Gestionnaire', u'Téléphone(s)'],
             colModel = [ 
-               { 'name': 'name', 'width': 200 },
+               { 'name': 'name', 'width': 160 },
                { 'name': 'type', 'width': 40 },
                { 'name': 'branch', 'width': 40,  },
+               { 'name': 'code', 'width': 60,  },
                { 'name': 'phone', 'width': 160, 'sortable': False, 'search': False },
             ],
             postData = {'cmp_id': cmp_id},
@@ -575,7 +546,11 @@ class CC_Outcall_ctrl(BaseController):
       total = data.count()
       column = getattr(Customer, sidx if sidx!='name' else 'lastname')
       data = data.order_by(getattr(column,sord)()).offset(offset).limit(rows)
-      rows = [ { 'id'  : a.cust_id, 'cell': customer_row(a) } for a in data ]
+      managers = dict([ (pb.code, u'%s %s' % (pb.firstname, pb.lastname)) \
+         for pb in DBSession.query(Phonebook).\
+            filter(Phonebook.account_manager==True).\
+            filter(Phonebook.code!=None) ])
+      rows = [ { 'id'  : a.cust_id, 'cell': customer_row(a, managers) } for a in data ]
 
       return dict(page=page, total=total, rows=rows)
 
@@ -601,7 +576,7 @@ class CC_Outcall_ctrl(BaseController):
          o.out_id, chan, exten))
       res = Globals.manager.originate(
             'SIP/' + chan.encode('iso-8859-1'), # Channel
-            104, # exten.encode('iso-8859-1'), # Extension
+            exten.encode('iso-8859-1'), # Extension
             context=chan.encode('iso-8859-1'),
             priority='1',
             caller_id=default_cid,
@@ -641,18 +616,13 @@ class CC_Outcall_ctrl(BaseController):
 
    @expose(template='astportal2.templates.cc_outcall_crm')
    def crm(self, cust_id, out_id=None, result=None, message=None,
-         begin=None, duration=None, comment=None, next=None, prev=None):
+         begin=None, duration=None, alarm_type=None, alarm_dest=None,
+         comment=None, next=None, prev=None):
       ''' CRM page
       '''
 
       cust_id = int(cust_id)
       c = DBSession.query(Customer).get(cust_id)
-
-      if not c.active:
-         # Return to list of customers
-         redirect('/cc_outcall/list', params={
-            'cmp_id': c.campaign.cmp_id,
-            'cmp_name': c.campaign.name})
 
       if next:
          cc = DBSession.query(Customer). \
@@ -676,6 +646,12 @@ class CC_Outcall_ctrl(BaseController):
             c = cc
             cust_id = cc.cust_id
 
+      if not c.active:
+         # Return to list of customers
+         redirect('/cc_outcall/list', params={
+            'cmp_id': c.campaign.cmp_id,
+            'cmp_name': c.campaign.name})
+
       type = ('CLIPRI', 'CLICOM', 'CLIPRO')[c.type]
       phone1 = c.phone1
       phone2 = c.phone2
@@ -689,7 +665,10 @@ class CC_Outcall_ctrl(BaseController):
       ph5_click = {'onclick': 'originate("%s",%d)' % (c.phone5, cust_id)}
       email_href = {'href': 'mailto:%s' % c.email}
       grc = {'onclick': 'grc("%s")' % c.code}
-      cal = {'onclick': 'cal("%s")' % c.manager}
+      try:
+         cal = {'onclick': 'cal("%s")' % DBSession.query(Phonebook.email).filter(Phonebook.code==c.manager).one()}
+      except:
+         cal = {'onclick': u'alert("email gestionnaire %s pas trouvé")' % c.manager}
       back_list = {
          'onclick': 'postdata("list",{cmp_id:%d,cmp_name:"%s"})' % (
          c.campaign.cmp_id, c.campaign.name)}
@@ -721,10 +700,17 @@ class CC_Outcall_ctrl(BaseController):
          'begin': begin, 'duration': duration, 'message': message,
          'comment': comment}
 
+      try:
+         pb = DBSession.query(Phonebook).\
+               filter(Phonebook.code==c.manager).one()
+         manager = u'%s %s' % (pb.firstname, pb.lastname)
+      except:
+         manager = c.manager
+
       return dict(title=title, campaign=c.campaign.name, code=c.code, 
          branch=c.branch, name=capwords(c.display_name),
          phone1=phone1, phone2=phone2, phone3=phone3, phone4=phone4, phone5=phone5,
-         type=type, email=c.email, manager=c.manager,
+         type=type, email=c.email, manager=manager,
          ph1_click=ph1_click, ph2_click=ph2_click, ph3_click=ph3_click,
          ph4_click=ph4_click, ph5_click=ph5_click, email_href=email_href,
          grc_click=grc, cal_click=cal, back_list=back_list,
@@ -771,11 +757,13 @@ class CC_Outcall_ctrl(BaseController):
 
    @expose()
    @validate(crm_form, error_handler=crm)
-   def result(self, cust_id, out_id, result, message, comment, begin, duration, phone):
+   def result(self, cust_id, out_id, result, message, comment, begin, duration, 
+         alarm_type, alarm_dest, phone):
       ''' Called on form validation by agent
       '''
-      log.info(u'result: cust_id=%d, out_id=%d, result=%d, comment=%s, begin=%s, duration=%d, phone=%s.' % (
-         cust_id, out_id, result, comment, begin, duration, phone))
+      log.info(u'result: cust_id=%d, out_id=%d, result=%d, comment=%s, begin=%s, duration=%d, alarm_type=%s, alarm_dest=%s, phone=%s.' % (
+         cust_id, out_id, result, comment, begin, duration, 
+         alarm_type, alarm_dest, phone))
    
       # Update outcall data   
       o = DBSession.query(Outcall).get(out_id)
@@ -789,12 +777,16 @@ class CC_Outcall_ctrl(BaseController):
          o.duration = duration
          o.customer.active = False
          email_appointment(request.identity['user'].email_address, 
-            'jd.girard@sysnux.pf', # XXX o.manager.email,
+            'gilles.chanteau@sg-bdp.pf', #'jean.christophe.blanchet@sg-bdp.pf', # 'cedric.kimchou@sg-bdp.pf', #'gilles.chanteau@sg-bdp.pf'), # XXX o.manager.email,
             message if message is not None else '',
             o.customer.cust_id,
             capwords(o.customer.display_name),
             phone, o.customer.campaign.name, begin, duration, 
             request.identity['user'].display_name)
+
+         o.alarm_type = alarm_type
+         if alarm_type>0: # Destination needed
+            o.alarm_dest = alarm_dest
 
 #      elif result in (1, 2, 3): # Call again
 #         pass
@@ -805,7 +797,7 @@ class CC_Outcall_ctrl(BaseController):
          intro = u'je t\'informe d\'une réclamation' if result==11 \
                else u'je te transmets le message ci dessous'
          email_other(request.identity['user'].email_address,
-            ('jdg@sysnux.pf', 'x@sysnux.pf', 'y@sysnux.pf'), # XXX (o.manager.email, responsable AG, Julien Buluc
+            ('gilles.chanteau@sg-bdp.pf', 'cedric.kimchou@sg-bdp.pf'), # XXX (o.manager.email, responsable AG, Julien Buluc
             message if message is not None else '', o.customer.cust_id, 
             capwords(o.customer.display_name),
             phone, request.identity['user'].display_name, intro)
