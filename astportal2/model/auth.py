@@ -25,7 +25,6 @@ from sqlalchemy.orm import relation, synonym, column_property
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from astportal2.model import DeclarativeBase, metadata, DBSession
-from unicodedata import normalize
 
 __all__ = ['User', 'Group', 'Permission']
 
@@ -103,20 +102,14 @@ class User(DeclarativeBase):
     user_name = Column(Unicode(16), unique=True, nullable=False)
     email_address = Column(Unicode(255), unique=True,
                            info={'rum': {'field':'Email'}})
-    firstname = Column(Unicode(255))
-    lastname = Column(Unicode(255))
+    firstname = Column(Unicode(80))
+    lastname = Column(Unicode(80))
     _password = Column('password', Unicode(80),
                        info={'rum': {'field':'Password'}})
     created = Column(DateTime, default=datetime.now)
+    display_name = Column(Unicode(161)) # 'firstname lastname', needed by repoze.who / what
+    ascii_name = Column(Unicode(161)) # ASCII representation of 'firstname lastname', needed by Asterisk
 
-    # Needed by repoze.who / what
-    display_name = column_property(lastname + ' ' + firstname)
-
-    @hybrid_property
-    def asterisk_name(self):
-      return normalize('NFKD', 
-         self.lastname + ' ' + self.firstname).encode('ascii','ignore')
- 
     #{ Special methods
 
     def __repr__(self):

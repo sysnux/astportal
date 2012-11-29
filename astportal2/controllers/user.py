@@ -284,6 +284,9 @@ class User_ctrl(RestController):
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
       u.password = pwd1
+      u.display_name = u.lastname + ' ' + u.firstname
+      u.ascii_name = asterisk_string(u.display_name)
+
       #u.phone = [DBSession.query(Phone).get(kw['phone_id'])]
       if 'groups' in kw.keys():
          u.groups = DBSession.query(Group).\
@@ -365,13 +368,13 @@ class User_ctrl(RestController):
       u.email_address = kw['email_address']
       u.password = kw['pwd1'] 
       u.display_name = u.lastname + ' ' + u.firstname
+      u.ascii_name = asterisk_string(u.display_name)
 
       # Update voicemail
-      cidname = asterisk_string(u.display_name)
       if u.email_address:
          for p in u.phone:
             vm = u'>%s,%s,%s' \
-               % (u.password, cidname, u.email_address)
+               % (u.password, u.ascii_name, u.email_address)
             actions = [
                ('Append', 'astportal', p.exten, vm),
             ]
@@ -406,7 +409,6 @@ class User_ctrl(RestController):
       u = DBSession.query(User).get(kw['_id'])
 
       # Delete voicemail
-      cidname = astersk_string(u.display_name)
       if u.email_address:
          for p in u.phone:
             res = Globals.manager.update_config(

@@ -28,7 +28,6 @@ from repoze.what.predicates import in_group, in_any_group
 
 from astportal2.model import DBSession, Phone, Record, Queue, User, Group
 from astportal2.lib.app_globals import Globals
-#from astportal2.lib.asterisk import asterisk_string
 
 from time import sleep
 import copy
@@ -106,14 +105,13 @@ class CC_Monitor_ctrl(TGController):
          log.error('%s:%s not registered, not adding member ?' % (p.sip_id, p.exten))
          return dict(res='ko')
 
-      user = p.user.asterisk_name if p.user else p.exten
+      user = p.user.ascii_name if p.user else p.exten
       iface = 'SIP/%s' % iface
 
       Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': queue, 
          'Interface': iface, 'Penalty': penality,
          'MemberName':
          user})
-#         asterisk_string(user)})
       return dict(res='ok')
 
 
@@ -167,8 +165,7 @@ class CC_Monitor_ctrl(TGController):
 #      log.debug('Q AFTER %s' % Globals.asterisk.queues)
 #      log.debug('M AFTER %s' % Globals.asterisk.members)
 
-#      me = asterisk_string(request.identity['user'].display_name)
-      me = request.identity['user'].asterisk_name
+      me = request.identity['user'].ascii_name
 
       qq = [{'name': k,
          'params': Globals.asterisk.queues[k]
@@ -277,18 +274,11 @@ data: SIP/Xx83G1ZQ
       r.uniqueid = unique_id
       r.queue_id = DBSession.query(Queue).filter(
             Queue.name==queue).one().queue_id
-#      try:
-#         u = DBSession.query(User).filter(User.asterisk_name==name).first()
-#         log.debug(u' * * * %s' % u)
-#         r.member_id = u.user_id
-#      except:
-#         r.member_id = 1
-#         log.error('user "%s" not found' % name)
-      for u in DBSession.query(User).all():
-         if u.asterisk_name==name:
-            r.member_id = u.user_id
-            break
-      else:
+      try:
+         u = DBSession.query(User).filter(User.ascii_name==name).first()
+         log.debug(u' * * * %s' % u)
+         r.member_id = u.user_id
+      except:
          r.member_id = 1
          log.error('user "%s" not found' % name)
       r.custom1 = custom1

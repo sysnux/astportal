@@ -14,7 +14,6 @@ from tw.forms.validators import NotEmpty, Int, Schema, Invalid
 
 from astportal2.model import DBSession, Phonebook, Report, User, Queue
 from astportal2.lib.base import BaseController
-#from astportal2.lib.asterisk import asterisk_string
 
 import logging
 log = logging.getLogger(__name__)
@@ -23,6 +22,8 @@ from email.message import Message
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
+import re
+re_email_sep = re.compile('[^\w\.@-]+') # email addresses separator
 
 
 # List of subjects grouped by categories
@@ -73,7 +74,7 @@ def managers():
    return m
 
 
-def email(sender, to, customer, manager, message, subject, cc):
+def email(sender, to, customer, number, manager, message, subject, cc):
    ''' Create and send email
    '''
 
@@ -130,6 +131,7 @@ Merci et bonne réception
 </head><body>
 Objet : <em>%s</em><br/>
 Nom / Prénom Client : <em>%s</em><br/>
+Numéro Client : <em>%s</em><br/>
 Nom du gestionnaire : <em>%s</em><br/>
 
 <p>Bonjour,</p>
@@ -138,17 +140,18 @@ il souhaite :
 <pre class="shadow">
 %s
 </pre>
-(%s)<br/>
 
 <p>Merci et bonne réception</p>
 </body></html>
 '''
-   part = MIMEText(text % (subject, customer, manager, message), \
+   part = MIMEText(text % (subject, customer, number, manager, message), \
       _subtype='html', _charset='utf-8')
    msg.attach(part)
 
    # Send email
    s = smtplib.SMTP()
+   to = re_email_sep.split(to)
+   to += re_email_sep.split(cc)
    try:
       s.connect('localhost')
       s.sendmail(sender, to, msg.as_string())
@@ -176,10 +179,15 @@ class CC_Report_form(TableForm):
          label_text=u'Objet', help_text=u'Choisissez l\'objet du rapport'),
       TextField('cc',
          label_text = u'Copie à', 
-         help_text = u'Entrez les adresses des destinataires en copie'),
+         help_text = u'Entrez les adresses des destinataires en copie',
+         attrs={'size': 60}),
       TextField('customer', validator=NotEmpty,
          label_text = u'Nom / Prénom du client', 
-         help_text = u'Entrez les nom et prénom du client'),
+         help_text = u'Entrez les nom et prénom du client',
+         attrs={'size': 60}),
+      TextField('number', validator=NotEmpty,
+         label_text = u'Numéro client', 
+         help_text = u'Entrez le numéro du client'),
       SingleSelectField('manager',
          options = managers,
          label_text = u'Nom du gestionnaire', 
@@ -227,6 +235,7 @@ class CC_Report_ctrl(BaseController):
          'custom2': kw['custom2'],
          'send_or_save': '?',
          'customer': kw['custom2'],
+         'number': kw['custom1'],
          'cc': request.identity['user'].email_address
       }
       tmpl_context.form = cc_report_form
@@ -236,7 +245,7 @@ class CC_Report_ctrl(BaseController):
    @expose(template='astportal2.templates.form_cc_report_close')
    @validate(cc_report_form, error_handler=index)
    def save(self, uid, member, queue, custom1, custom2, send_or_save,
-         subject, customer, manager, message, cc):
+         subject, customer, number, manager, message, cc):
 
       if manager!='null':
          m = DBSession.query(Phonebook).filter(Phonebook.code==manager).one()
@@ -250,7 +259,7 @@ class CC_Report_ctrl(BaseController):
 
       if send_or_save=='send' and to is not None:
          sender = request.identity['user'].email_address
-         email(sender, to, customer, name, message, subjects_dict[subject], cc)
+         email(sender, to, customer, number, name, message, subjects_dict[subject], cc)
          html = u'Message envoyé'
 
       else:
@@ -259,16 +268,10 @@ class CC_Report_ctrl(BaseController):
       r = Report()
       r.user_id = request.identity['user'].user_id
       r.uniqueid = uid
-#      try:
-#         u = DBSession.query(User).filter(User.asterisk_name==member).first()
-#         r.member_id = u.user_id
-#      except:
-#         log.error('user "%s" not found' % member)
-      for u in DBSession.query(User).all():
-         if u.asterisk_name==member:
-            r.member_id = u.user_id
-            break
-      else:
+      try:
+         u = DBSession.query(User).filter(User.ascii_name==member).first()
+         r.member_id = u.user_id
+      except:
          log.error('user "%s" not found' % member)
       try:
          r.queue_id = DBSession.query(Queue).filter(
@@ -283,6 +286,7 @@ class CC_Report_ctrl(BaseController):
       r.message = message
       r.email = to
       r.cc = cc
+      r.number = number
       DBSession.add(r)
 
       return dict(title=html)

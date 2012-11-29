@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 #! /opt/Python-2.7.3/bin/python
 # -*- coding: utf-8 -*-
 #
@@ -12,9 +13,11 @@ import datetime
 import unicodedata
 
 # Open database connection
-sys.path.append('/opt/astportal21')
+#sys.path.append('/opt/astportal21')
+sys.path.append('/home/SysNux/Projets/astportal21')
 from paste.deploy import appconfig
-conf = appconfig('config:/opt/astportal21/sgbdp.ini')
+#conf = appconfig('config:/opt/astportal21/sgbdp.ini')
+conf = appconfig('config:/home/SysNux/Projets/astportal21/tiare.ini')
 
 from astportal2.config.environment import load_environment
 load_environment(conf.global_conf, conf.local_conf)
