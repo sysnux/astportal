@@ -126,10 +126,21 @@ def row(c):
 
 
 def line2data(l):
+
+   # Guess encoding
+   for enc in ('windows-1252', 'iso-8859-15', 'utf-8'):
+      try:
+         l = l.decode(enc)
+         break
+      except:
+         pass
+
    data = []
+   # Split and cleanup line -> data
    for d in l.split(';'):
       d = d.strip()
       data.append(d if d!='' else None)
+
    return data
 
 
@@ -307,14 +318,14 @@ class CC_Campaign_ctrl(RestController):
       try:
          page = int(page)
          rows = int(rows)
-         offset = (page-1) * int(rp)
+         offset = (page-1) * int(rows)
       except:
          offset = 0
          page = 1
          rows = 25
 
       apps = DBSession.query(Campaign).filter(Campaign.deleted==None)
-      total = apps.count()
+      total = 1 + apps.count() / rows
       column = getattr(Campaign, sidx)
       apps = apps.order_by(getattr(column,sord)()).offset(offset).limit(rows)
       rows = [ { 'id'  : a.cmp_id, 'cell': row(a) } for a in apps ]
@@ -356,9 +367,9 @@ class CC_Campaign_ctrl(RestController):
          if l==0:
             msg += m
          else:
-            msg += u', %d lignes intégrées' % lignes
+            msg += u', %d lignes intégrées' % l
             if e!=0:
-               msg += u', %d erreurs' % lignes
+               msg += u', %d erreurs' % e
 
       flash(msg)
       redirect('/cc_campaign/')

@@ -413,5 +413,8 @@ class Outcall(DeclarativeBase):
    duration = Column(Integer)
    alarm_type = Column(Integer)
    alarm_dest = Column(Unicode(255))
+   alarm_sent = Column(DateTime)
+   alarm_result_code = Column(Integer)
+   alarm_result_msg = Column(Unicode(255))
    created = Column(DateTime, nullable=False, default=datetime.now)
 

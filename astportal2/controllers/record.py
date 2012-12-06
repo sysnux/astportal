@@ -42,7 +42,10 @@ def row(r, users):
    listen += u'''&nbsp;&nbsp;&nbsp;<a href="/records/listen?id=%s"><img src="/images/sound_section.png" title="&Eacute;couter l'enregitrement"></a>''' % \
          r.Record.record_id
 
-   user = users[r.Record.user_id] if r.Record.user_id is not None else ''
+   try:
+      user = users[r.Record.user_id]
+   except:
+      user = ''
 
    return [#Markup(action), 
          r.Queue.name, users[r.Record.member_id], user, 

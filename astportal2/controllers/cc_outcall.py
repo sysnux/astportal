@@ -145,7 +145,13 @@ def customer_row(c, managers):
       capwords(c.display_name))))
    row.append(('CLIPRI', 'CLICOM', 'CLIPRO')[c.type])
    row.append(c.branch)
-   row.append(managers[c.manager])
+   
+   try:
+      row.append(managers[c.manager])
+   except:
+      log.error(u'customer_row: manager "%s" not found!' % c.manager)
+      row.append(c.manager)
+
    phones = []
    if c.phone1:
       phones.append(c.phone1)
@@ -464,14 +470,14 @@ class CC_Outcall_ctrl(BaseController):
       try:
          page = int(page)
          rows = int(rows)
-         offset = (page-1) * int(rp)
+         offset = (page-1) * int(rows)
       except:
          offset = 0
          page = 1
          rows = 25
 
       data = DBSession.query(Campaign).filter(Campaign.deleted==None)
-      total = data.count()
+      total = 1 + data.count() / rows
       column = getattr(Campaign, sidx)
       data = data.order_by(getattr(column,sord)()).offset(offset).limit(rows)
       rows = [ { 'id'  : a.cmp_id, 'cell': campaign_row(a) } for a in data ]
@@ -534,7 +540,7 @@ class CC_Outcall_ctrl(BaseController):
       try:
          page = int(page)
          rows = int(rows)
-         offset = (page-1) * int(rp)
+         offset = (page-1) * int(rows)
       except:
          offset = 0
          page = 1
@@ -543,7 +549,7 @@ class CC_Outcall_ctrl(BaseController):
       data = DBSession.query(Customer). \
          filter(Customer.cmp_id==cmp_id). \
          filter(Customer.active==True)
-      total = data.count()
+      total = 1 + data.count() / rows
       column = getattr(Customer, sidx if sidx!='name' else 'lastname')
       data = data.order_by(getattr(column,sord)()).offset(offset).limit(rows)
       managers = dict([ (pb.code, u'%s %s' % (pb.firstname, pb.lastname)) \
@@ -746,7 +752,7 @@ class CC_Outcall_ctrl(BaseController):
          .outerjoin(CDR, Outcall.uniqueid==CDR.uniqueid) \
          .filter(Outcall.cust_id==cust_id)
 
-      total = data.count()
+      total = 1 + data.count() / rows
       column = getattr(Outcall, sidx)
       data = data.order_by(getattr(column,sord)()).offset(offset).limit(rows)
       rows = [ 
@@ -777,7 +783,7 @@ class CC_Outcall_ctrl(BaseController):
          o.duration = duration
          o.customer.active = False
          email_appointment(request.identity['user'].email_address, 
-            'gilles.chanteau@sg-bdp.pf', #'jean.christophe.blanchet@sg-bdp.pf', # 'cedric.kimchou@sg-bdp.pf', #'gilles.chanteau@sg-bdp.pf'), # XXX o.manager.email,
+            o.manager.email,
             message if message is not None else '',
             o.customer.cust_id,
             capwords(o.customer.display_name),
@@ -797,7 +803,7 @@ class CC_Outcall_ctrl(BaseController):
          intro = u'je t\'informe d\'une réclamation' if result==11 \
                else u'je te transmets le message ci dessous'
          email_other(request.identity['user'].email_address,
-            ('gilles.chanteau@sg-bdp.pf', 'cedric.kimchou@sg-bdp.pf'), # XXX (o.manager.email, responsable AG, Julien Buluc
+            (o.manager.email, 'g_recherches@sg-bdp.pf'), # responsable AG, Julien Buluc
             message if message is not None else '', o.customer.cust_id, 
             capwords(o.customer.display_name),
             phone, request.identity['user'].display_name, intro)

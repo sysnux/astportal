@@ -1,6 +1,6 @@
-#! /opt/Python-2.5.5/bin/python
-#
+#! /bin/env python
 # -*- coding: utf-8 -*-
+#! /opt/Python-2.7.3/bin/python
 #
 # Calcul du coût des communications à partir des logs d'asterisk
 #
