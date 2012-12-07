@@ -143,7 +143,7 @@ def customer_row(c, managers):
       u'''<a href="#" onclick="postdata('crm', {cust_id:%d})">%s</a>''' % (
       c.cust_id, 
       capwords(c.display_name))))
-   row.append(('CLIPRI', 'CLICOM', 'CLIPRO')[c.type])
+   row.append(('CLIPRI', 'CLICOM', 'CLIPRO VD', 'CLIPRO VP', 'CASDEN')[c.type])
    row.append(c.branch)
    
    try:
@@ -658,7 +658,7 @@ class CC_Outcall_ctrl(BaseController):
             'cmp_id': c.campaign.cmp_id,
             'cmp_name': c.campaign.name})
 
-      type = ('CLIPRI', 'CLICOM', 'CLIPRO')[c.type]
+      type = ('CLIPRI', 'CLICOM', 'CLIPRO VD', 'CLIPRO VP', 'CASDEN')[c.type]
       phone1 = c.phone1
       phone2 = c.phone2
       phone3 = c.phone3

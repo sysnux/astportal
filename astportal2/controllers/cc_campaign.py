@@ -31,7 +31,9 @@ import csv
 import re
 re_pri = re.compile(r'CLIPRI')
 re_com = re.compile(r'CLICOM')
-re_pro = re.compile(r'CLIPRO')
+re_provd = re.compile(r'CLIPRO VD')
+re_provp = re.compile(r'CLIPRO VP')
+re_csd = re.compile(r'CASDEN')
 
 grid = MyJqGrid( 
    id='grid', url='fetch', caption=u'Campagnes',
@@ -185,8 +187,12 @@ def process_file(csv, cmp_id):
          c.type = 0
       elif re_com.search(data[6]):
          c.type = 1
-      elif re_pro.search(data[6]):
+      elif re_provd.search(data[6]):
          c.type = 2
+      elif re_provp.search(data[6]):
+         c.type = 3
+      elif re_csd.search(data[6]):
+         c.type = 4
       c.phone1 = data[7]
       c.phone2 = data[8]
       c.phone3 = data[9]
