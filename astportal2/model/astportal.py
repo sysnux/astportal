@@ -103,8 +103,6 @@ class Phonebook(DeclarativeBase):
    created = Column(DateTime, nullable=False, default=datetime.now)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    user = relation('User', backref=backref('phonebook'))
-   code = Column(Unicode(4))
-   account_manager = Column(Boolean())
 
 class View_phonebook(DeclarativeBase):
    '''
@@ -112,11 +110,11 @@ class View_phonebook(DeclarativeBase):
 
    Must be manually created in the database:
 CREATE VIEW view_pb AS 
-   SELECT -phone_id as pb_id, lastname, firstname, '__COMPANY__' AS company, email_address AS email, '' AS code, exten AS phone1, dnis AS phone2, '' AS phone3, 'f' AS private, -1 as user_id, 'f' as account_manager 
+   SELECT -phone_id as pb_id, lastname, firstname, '__COMPANY__' AS company, email_address AS email, exten AS phone1, dnis AS phone2, '' AS phone3, 'f' AS private, -1 as user_id
    FROM phone LEFT OUTER JOIN tg_user ON phone.user_id=tg_user.user_id 
    WHERE exten is not null 
 UNION 
-   SELECT pb_id, lastname, firstname, company, email, code, phone1, phone2, phone3, private, user_id, account_manager 
+   SELECT pb_id, lastname, firstname, company, email, phone1, phone2, phone3, private, user_id,
    FROM phonebook;
    '''
    __tablename__ = 'view_pb'
@@ -128,8 +126,6 @@ UNION
    phone2 = Column(Unicode())
    phone3 = Column(Unicode())
    email = Column(Unicode())
-   code = Column(Unicode())
-   account_manager = Column(Boolean())
    private = Column(Boolean())
    user_id = Column(Integer)
 
@@ -379,15 +375,12 @@ class Customer(DeclarativeBase):
    gender = Column(Unicode(80))
    firstname = Column(Unicode(80))
    lastname = Column(Unicode(80))
-   type = Column(Integer) # 0=CLIPRI, 1=CLICOM, 2=CLIPRO
    phone1 = Column(Unicode(20)) # Domicile
    phone2 = Column(Unicode(20)) # Bureau
    phone3 = Column(Unicode(20)) # Bureau 2
    phone4 = Column(Unicode(20)) # Vini perso
    phone5 = Column(Unicode(20)) # Vini pro
    email = Column(Unicode(80))
-   manager = Column(Unicode(3)) # Gestionnaire
-   branch = Column(Unicode(5)) # Agence
    created = Column(DateTime, nullable=False, default=datetime.now)
    active = Column(Boolean, default=True) # Faux quand il ne faut plus 
                                           # appeler le client

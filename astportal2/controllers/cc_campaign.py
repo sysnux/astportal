@@ -170,31 +170,23 @@ def process_file(csv, cmp_id):
       lines += 1
       if lines==1: continue
       data = line2data(l)
-      if len(data)!=15:
+      if len(data)!=10:
          log.warning('process_file: invalid data %s' % data)
          errors += 1
          continue
       c = Customer()
       c.cmp_id = cmp_id
       c.active = True
-      c.code = data[2]
-      c.gender = data[3]
-      c.lastname = data[4]
-      c.firstname = data[5]
-      if re_pri.search(data[6]):
-         c.type = 0
-      elif re_com.search(data[6]):
-         c.type = 1
-      elif re_pro.search(data[6]):
-         c.type = 2
-      c.phone1 = data[7]
-      c.phone2 = data[8]
-      c.phone3 = data[9]
-      c.phone4 = data[10]
-      c.phone5 = data[11]
-      c.email = data[12]
-      c.manager = data[13]
-      c.branch = data[14]
+      c.code = data[0]
+      c.gender = data[1]
+      c.lastname = data[2]
+      c.firstname = data[3]
+      c.phone1 = data[4]
+      c.phone2 = data[5]
+      c.phone3 = data[6]
+      c.phone4 = data[7]
+      c.phone5 = data[8]
+      c.email = data[9]
       c.filename = filename
       DBSession.add(c)
    tmp.close()

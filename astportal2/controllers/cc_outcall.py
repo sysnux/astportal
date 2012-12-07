@@ -134,24 +134,16 @@ def campaign_row(c):
    return row
 
 
-def customer_row(c, managers):
+def customer_row(c):
    ''' Returns a formatted row for the list of cutomers
    Parameter: customer object
    '''
-   row = []
-   row.append(Markup(
-      u'''<a href="#" onclick="postdata('crm', {cust_id:%d})">%s</a>''' % (
-      c.cust_id, 
-      capwords(c.display_name))))
-   row.append(('CLIPRI', 'CLICOM', 'CLIPRO')[c.type])
-   row.append(c.branch)
+   row = [
+      Markup(
+         u'''<a href="#" onclick="postdata('crm', {cust_id:%d})">%s</a>''' % (
+         c.cust_id, capwords(c.display_name))),
+      c.code]
    
-   try:
-      row.append(managers[c.manager])
-   except:
-      log.error(u'customer_row: manager "%s" not found!' % c.manager)
-      row.append(c.manager)
-
    phones = []
    if c.phone1:
       phones.append(c.phone1)
@@ -501,11 +493,9 @@ class CC_Outcall_ctrl(BaseController):
       else:
          tmpl_context.grid = MyJqGrid( 
             id='grid', url='customer_fetch', caption=u'Clients',
-            colNames = [u'Nom', u'Type', u'agence', u'Gestionnaire', u'Téléphone(s)'],
+            colNames = [u'Nom', u'Code', u'Téléphone(s)'],
             colModel = [ 
                { 'name': 'name', 'width': 160 },
-               { 'name': 'type', 'width': 40 },
-               { 'name': 'branch', 'width': 40,  },
                { 'name': 'code', 'width': 60,  },
                { 'name': 'phone', 'width': 160, 'sortable': False, 'search': False },
             ],
@@ -552,11 +542,7 @@ class CC_Outcall_ctrl(BaseController):
       total = 1 + data.count() / rows
       column = getattr(Customer, sidx if sidx!='name' else 'lastname')
       data = data.order_by(getattr(column,sord)()).offset(offset).limit(rows)
-      managers = dict([ (pb.code, u'%s %s' % (pb.firstname, pb.lastname)) \
-         for pb in DBSession.query(Phonebook).\
-            filter(Phonebook.account_manager==True).\
-            filter(Phonebook.code!=None) ])
-      rows = [ { 'id'  : a.cust_id, 'cell': customer_row(a, managers) } for a in data ]
+      rows = [ { 'id'  : a.cust_id, 'cell': customer_row(a) } for a in data ]
 
       return dict(page=page, total=total, rows=rows)
 
@@ -658,7 +644,6 @@ class CC_Outcall_ctrl(BaseController):
             'cmp_id': c.campaign.cmp_id,
             'cmp_name': c.campaign.name})
 
-      type = ('CLIPRI', 'CLICOM', 'CLIPRO')[c.type]
       phone1 = c.phone1
       phone2 = c.phone2
       phone3 = c.phone3
@@ -670,11 +655,12 @@ class CC_Outcall_ctrl(BaseController):
       ph4_click = {'onclick': 'originate("%s",%d)' % (c.phone4, cust_id)}
       ph5_click = {'onclick': 'originate("%s",%d)' % (c.phone5, cust_id)}
       email_href = {'href': 'mailto:%s' % c.email}
-      grc = {'onclick': 'grc("%s")' % c.code}
-      try:
-         cal = {'onclick': 'cal("%s")' % DBSession.query(Phonebook.email).filter(Phonebook.code==c.manager).one()}
-      except:
-         cal = {'onclick': u'alert("email gestionnaire %s pas trouvé")' % c.manager}
+      if config.get('crm_url') != '':
+         crm_url = config.get('crm_url') % c.code
+         crm_click = {'onclick': 'crm("%s")' % crm_url}
+      else:
+         crm_click = {'onclick': 'alert("CRM URL not configured!")'}
+      cal = {}
       back_list = {
          'onclick': 'postdata("list",{cmp_id:%d,cmp_name:"%s"})' % (
          c.campaign.cmp_id, c.campaign.name)}
@@ -706,20 +692,13 @@ class CC_Outcall_ctrl(BaseController):
          'begin': begin, 'duration': duration, 'message': message,
          'comment': comment}
 
-      try:
-         pb = DBSession.query(Phonebook).\
-               filter(Phonebook.code==c.manager).one()
-         manager = u'%s %s' % (pb.firstname, pb.lastname)
-      except:
-         manager = c.manager
-
       return dict(title=title, campaign=c.campaign.name, code=c.code, 
-         branch=c.branch, name=capwords(c.display_name),
+         name=capwords(c.display_name),
          phone1=phone1, phone2=phone2, phone3=phone3, phone4=phone4, phone5=phone5,
-         type=type, email=c.email, manager=manager,
+         email=c.email,
          ph1_click=ph1_click, ph2_click=ph2_click, ph3_click=ph3_click,
          ph4_click=ph4_click, ph5_click=ph5_click, email_href=email_href,
-         grc_click=grc, cal_click=cal, back_list=back_list,
+         crm_click=crm_click, cal_click=cal, back_list=back_list,
          next_cust=next_cust, prev_cust=prev_cust, values=values)
 
 
@@ -782,13 +761,13 @@ class CC_Outcall_ctrl(BaseController):
          o.begin = begin
          o.duration = duration
          o.customer.active = False
-         email_appointment(request.identity['user'].email_address, 
-            o.manager.email,
-            message if message is not None else '',
-            o.customer.cust_id,
-            capwords(o.customer.display_name),
-            phone, o.customer.campaign.name, begin, duration, 
-            request.identity['user'].display_name)
+#         email_appointment(request.identity['user'].email_address, 
+#            o.manager.email,
+#            message if message is not None else '',
+#            o.customer.cust_id,
+#            capwords(o.customer.display_name),
+#            phone, o.customer.campaign.name, begin, duration, 
+#            request.identity['user'].display_name)
 
          o.alarm_type = alarm_type
          if alarm_type>0: # Destination needed
@@ -802,18 +781,12 @@ class CC_Outcall_ctrl(BaseController):
          o.customer.active = False
          intro = u'je t\'informe d\'une réclamation' if result==11 \
                else u'je te transmets le message ci dessous'
-         email_other(request.identity['user'].email_address,
-            (o.manager.email, 'g_recherches@sg-bdp.pf'), # responsable AG, Julien Buluc
-            message if message is not None else '', o.customer.cust_id, 
-            capwords(o.customer.display_name),
-            phone, request.identity['user'].display_name, intro)
+#         email_other(request.identity['user'].email_address,
+#            ('jdg@sysnux.pf'),
+#            message if message is not None else '', o.customer.cust_id, 
+#            capwords(o.customer.display_name),
+#            phone, request.identity['user'].display_name, intro)
 
       # Move to next customer
       redirect('crm', params={
          'cust_id': cust_id, 'next': 'true'})
-
-      # Return to list of customers
-#      redirect('/cc_outcall/list', params={
-#         'cmp_id': o.customer.campaign.cmp_id, 
-#         'cmp_name': o.customer.campaign.name})
-

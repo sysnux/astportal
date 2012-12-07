@@ -90,16 +90,8 @@ function originate(num, cust, id) {
    // $(document).ajaxError(data_fetch_failed);
 }
 
-function cal(manager) {
-   wincal = window.open(
-      'http://bdp-ms001/exchange/' + manager + '/Calendrier/?Cmd=contents',
-      'Calendrier', 'location=no,width=600,height=400');
-}
-
-function grc(customer) {
-   wincal = window.open(
-      'http://10.152.50.12:7002/WebCRM/syntheseClient.do?dispatch=syntheseClient&codeClient=' + customer + '&devise=953&unite=devise.U&typeCritere=nom_client',
-      'GRC', 'location=no,width=600,height=400');
+function crm(url) {
+   wincrm = window.open(url, 'CRM', 'location=no,width=600,height=400');
 }
 
 function result_change() { 
@@ -172,20 +164,12 @@ function my_submit() {
       
    <table>
       <tr>
-         <th style="padding: 3px 10px;">Type</th>
-         <th style="padding: 3px 10px;">Agence</th>
-         <th style="padding: 3px 10px;">Code</th>
-         <th style="padding: 3px 10px;">Gestionnaire</th>
+         <th style="padding: 3px 10px;">Code client</th>
          <th style="padding: 3px 10px;">Email</th>
       </tr>
       <tr>
-         <td py:content="type">type</td>
-         <td py:content="branch">branch</td>
-         <td><a href="#" title="Afficher la fiche GRC" 
-            py:attrs="grc_click" py:content="code">GRC</a>
-            </td>
-         <td><a href="#" title="Afficher le calendrier" 
-               py:attrs="cal_click" py:content="manager">Calendrier</a>
+         <td><a href="#" title="Afficher la fiche client" 
+            py:attrs="crm_click" py:content="code">CRM</a>
             </td>
          <td><a id="email" title="Envoyer un courrier électronique"
             py:attrs="email_href" py:content="email">email</a>
