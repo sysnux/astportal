@@ -657,17 +657,17 @@ class CC_Outcall_ctrl(BaseController):
       email_href = {'href': 'mailto:%s' % c.email}
       if config.get('crm_url') != '':
          crm_url = config.get('crm_url') % c.code
-         crm_click = {'onclick': 'crm("%s")' % crm_url}
+         crm_click = {'onclick': '''crm('%s')''' % crm_url}
       else:
-         crm_click = {'onclick': 'alert("CRM URL not configured!")'}
+         crm_click = {'onclick': '''alert('CRM URL not configured!')'''}
       cal = {}
       back_list = {
-         'onclick': 'postdata("list",{cmp_id:%d,cmp_name:"%s"})' % (
+         'onclick': '''postdata('list',{cmp_id:%d,cmp_name:'%s'})''' % (
          c.campaign.cmp_id, c.campaign.name)}
       next_cust = {
-         'onclick': 'postdata("crm",{cust_id:%d,next:true})' % cust_id}
+         'onclick': '''postdata('crm',{cust_id:%d,next:true})''' % cust_id}
       prev_cust = {
-         'onclick': 'postdata("crm",{cust_id:%d,prev:true})' % cust_id}
+         'onclick': '''postdata('crm',{cust_id:%d,prev:true})''' % cust_id}
       title = u'%s : %s' % (c.campaign.name, capwords(c.display_name))
 
       tmpl_context.grid = MyJqGrid( 
