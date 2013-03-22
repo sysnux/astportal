@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /opt/tg22env/bin/python
 # -*- coding: utf-8 -*-
 
 # Script de réception des télécopies
@@ -23,9 +23,9 @@ chmod 666 astportal/$pdf
 ls -l astportal/$pdf >> $log 2>&1
 
 echo "Appel script Python" >> $log 2>&1
-eval $(python astportal/faxdispatch.py $CALLID4 $CALLID1 $pdf)
+eval $(astportal/faxdispatch.py)
 if [ "x$SENDTO" = 'x' ]; then 
-echo SENDTO=FaxMaster@lolita.pf;
+   SENDTO=FaxMaster@sysnux.pf
 fi
 echo "SENDTO=$SENDTO" >> $log
 
@@ -38,31 +38,62 @@ echo "" >> $log
 import transaction
 import os, sys
 import ConfigParser
-from sqlalchemy import create_engine
 
-sys.path.append('/home/SysNux/Projets/astportal21')
-os.environ['PYTHON_EGG_CACHE'] = '/home/SysNux/Projets/astportal21'
-from astportal2.model import init_model, DBSession, Phone
+# Connexion base de données AstPortal via SqlAlchemy
+sys.path.append('/opt/astportal21')
+from paste.deploy import appconfig
+conf = appconfig('config:/opt/astportal21/upf.ini')
 
-config = ConfigParser.ConfigParser({'here': os.getcwd()})
-config.read(os.path.join(os.getcwd(), '/home/SysNux/Projets/astportal21/x220.ini'))
-sqlalchemy_url = config.get('app:main', 'sqlalchemy.url')
-engine = create_engine(sqlalchemy_url)
-init_model(engine)
+from astportal2.config.environment import load_environment
+load_environment(conf.global_conf, conf.local_conf)
+from astportal2.model import DBSession, Phone, Fax
 
-log = open('/tmp/faxdispatch.log', 'a')
-log.write('\n' + '-' * 40 + '\n')
+log = open('/var/spool/hylafax/log/faxdispatch.log', 'a')
+log.write('\n' + '>' * 40 + '\n')
 for k in os.environ.keys(): 
    log.write('%s => %s\n' % (k, os.environ[k]))
 log.write('\n')
 
-#try:
-#   p = DBSession.query(Phone).filter(Phone.exten==mailbox).one()
-#except:
-#   sys.stderr.write('Error: extension <%s> not found\n' % mailbox)
-#   sys.exit(1)
-#
-#p.user.password = passwd
-#DBSession.flush()
-#transaction.commit() 
+dst = os.environ.get('CALLID4')
+src = os.environ.get('CALLID1')
+hyla_id = os.environ.get('COMMID')
+try:
+   pdf = sys.argv[1]
+except:
+   pdf = ''
+
+log.write('src=%s -> dst=%s, hyla_id=%s, pdf=%s\n' % (src, dst, hyla_id, pdf))
+
+try:
+   p = DBSession.query(Phone).filter(Phone.exten==dst).one()
+except:
+   log.write('Error: extension <%s> not found\n' % dst)
+   p = None
+log.write('%s\n' % (p))
+
+if p is not None and p.user is not None:
+   email = p.user.email_address
+   uid = p.user.user_id
+else:
+   email = uid = None
+log.write('uid=%s, email=%s\n' % (uid, email))
+
+f = Fax()
+f.type = 1 #  => received fax
+f.hyla_id = hyla_id
+f.user_id = uid
+f.src = src
+f.dest = dst
+f.filename = pdf
+DBSession.add(f)
+
+DBSession.flush()
+transaction.commit() 
+log.write('New fax added to database\n')
+
+if email is not None:
+   log.write('SENDTO=%s\n' % email)
+   print 'SENDTO=%s' % email
+
+log.write('\n' + '<' * 40 + '\n')
 
