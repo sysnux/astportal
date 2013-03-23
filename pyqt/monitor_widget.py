@@ -11,29 +11,35 @@ from PyQt4 import QtCore, QtGui
 
 class Ui_ast_queue_mon(object):
 
-   def setupUi(self, ast_queue_mon, max_queues):
+   def setupUi(self, ast_queue_mon, max_queues, base=10):
       ast_queue_mon.setObjectName("ast_queue_mon")
-      ast_queue_mon.resize(467, 114)
+      ast_queue_mon.resize(base*47, base*11) # (467, 114)
 
       self.q = []
+      font = QtGui.QFont()
+      font.setPointSize(base)
       for i in range(max_queues):
          self.q.append({'name': QtGui.QLabel(ast_queue_mon),
             'members': QtGui.QLabel(ast_queue_mon),
             'times': QtGui.QLabel(ast_queue_mon),
             'wait': QtGui.QLabel(ast_queue_mon) })
-         self.q[i]['members'].setGeometry(QtCore.QRect(100, 8+20*i, 101, 21))
+         self.q[i]['members'].setGeometry(QtCore.QRect(10*base, 8+2*base*i, 100, 2*base))
          self.q[i]['members'].setObjectName('q%d_members' % i)
-         self.q[i]['name'].setGeometry(QtCore.QRect(117, 8+20*i, 101, 21))
+         self.q[i]['members'].setFont(font)
+         self.q[i]['name'].setGeometry(QtCore.QRect(12*base, 8+2*base*i, 10*base, 2*base))
          self.q[i]['name'].setObjectName('q%d_name' % i)
-         self.q[i]['times'].setGeometry(QtCore.QRect(260, 8+20*i, 201, 21))
+         self.q[i]['name'].setFont(font)
+         self.q[i]['times'].setGeometry(QtCore.QRect(26*base, 8+2*base*i, 20*base, 2*base))
          self.q[i]['times'].setObjectName('q%d_times' % i)
-         self.q[i]['wait'].setGeometry(QtCore.QRect(210, 8+20*i, 41, 21))
+         self.q[i]['times'].setFont(font)
+         self.q[i]['wait'].setGeometry(QtCore.QRect(21*base, 8+2*base*i, 40, 2*base))
          self.q[i]['wait'].setObjectName('q%d_wait' % i)
+         self.q[i]['wait'].setFont(font)
 
       self.lcd = QtGui.QLCDNumber(ast_queue_mon)
-      self.lcd.setGeometry(QtCore.QRect(0, 10, 91, 101))
+      self.lcd.setGeometry(QtCore.QRect(5, 5, 9*base, 10*base))
       font = QtGui.QFont()
-      font.setPointSize(14)
+      font.setPointSize(base*1.4)
       self.lcd.setFont(font)
       self.lcd.setNumDigits(2)
       self.lcd.setProperty("intValue", 22)

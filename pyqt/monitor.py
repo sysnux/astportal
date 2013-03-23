@@ -11,7 +11,6 @@ from time import time, sleep
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtNetwork import *
-from PyQt4.QtCore import *
 from monitor_widget import Ui_ast_queue_mon
 import ConfigParser
 
@@ -36,13 +35,17 @@ class Monitor(QWidget):
       self.color_normal = 'green'
       self.color_warning = 'yellow'
       self.color_alert = 'red'
+      self.size = 10
       self.print_debug = False
+      self.max_queues = 5 # Display only N queues
 
       # Read config file
       conf = ConfigParser.ConfigParser()
       conf.read('monitor.cfg')
       try:
          url = conf.get('general', 'url')
+         self.size = conf.getint('general', 'size')
+         self.max_queues = conf.getint('general', 'max_queues')
          self.print_debug = conf.getboolean('general', 'debug')
          self.members_warning = conf.getint('members', 'warning')
          self.members_alert = conf.getint('members', 'alert')
@@ -60,16 +63,9 @@ class Monitor(QWidget):
          sys.exit(1)
       self.debug('URL=%s' % url)
 
-      # Center panel, make it semi-transparent
-      screen = QDesktopWidget().screenGeometry()
-      size = self.geometry()
-      self.move((screen.width()-size.width())/2, 0)
-      self.setWindowOpacity(.7)
-
       # Init panel
-      self.max_queues = 5 # Display only N queues
       self.ui = Ui_ast_queue_mon()
-      self.ui.setupUi(self, 5)
+      self.ui.setupUi(self, self.max_queues, self.size)
       self.ui.lcd.setProperty('value', 0)
       self.ui.lcd.setStyleSheet("QWidget { background-color: transparent; }")
       for i in range(self.max_queues):
@@ -78,7 +74,13 @@ class Monitor(QWidget):
          self.ui.q[i]['wait'].setText('0')
          self.ui.q[i]['times'].setText('-')
          self.ui.q[i]['time'] = 0
-         
+
+      # Center panel at top of screen, make it semi-transparent
+      screen = QDesktopWidget().screenGeometry()
+      my_size = self.geometry()
+      self.move((screen.width()-my_size.width())/2, 0)
+      self.setWindowOpacity(.7)
+
       # Init screen update timer
       self.update_timer = QTimer()
       QObject.connect(self.update_timer, SIGNAL("timeout()"), self.update_screen)
