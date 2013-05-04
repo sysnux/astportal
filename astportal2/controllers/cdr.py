@@ -4,7 +4,7 @@ from tg import expose, flash, redirect, tmpl_context, validate, request, respons
 from tg.controllers import WSGIAppController
 from tgext.menu import sidebar
 import paste.fileapp
-from tg.decorators import allow_only
+#from tg.decorators import allow_only
 from repoze.what.predicates import not_anonymous, in_group, in_any_group
 
 from astportal2.model import DBSession, CDR, Phone

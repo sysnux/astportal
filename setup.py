@@ -23,7 +23,7 @@ testpkgs=['WebTest >= 1.2.3',
                'repoze.who-testutil >= 1.0.1',
                ]
 install_requires=[
-    "TurboGears2 >= 2.1.4",
+    "TurboGears2 >= 2.2.0",
     "Genshi",
     "zope.sqlalchemy >= 0.4",
     "repoze.tm2 >= 1.0a5",
@@ -58,8 +58,6 @@ setup(
     author='Jean-Denis Girard',
     author_email='jd.girard@sysnux.pf',
     #url='',
-    setup_requires=["PasteScript >= 1.7"],
-    paster_plugins=['PasteScript', 'Pylons', 'TurboGears2', 'tg.devtools'],
     packages=find_packages(exclude=['ez_setup']),
     install_requires=install_requires,
     include_package_data=True,
@@ -74,16 +72,16 @@ setup(
             ('templates/**.html', 'genshi', None),
             ('public/**', 'ignore', None)]},
 
-    entry_points="""
-    [paste.app_factory]
-    main = astportal2.config.middleware:make_app
-
-    [paste.app_install]
-    main = pylons.util:PylonsInstaller
-
-    """,
+    entry_points={
+        'paste.app_factory': [
+            'main = astportal2.config.middleware:make_app'
+        ],
+        'gearbox.plugins': [
+            'turbogears-devtools = tg.devtools'
+        ]
+    },
     dependency_links=[
-        "http://www.turbogears.org/2.1/downloads/current/"
+        "http://tg.gy/230"
         ],
     zip_safe=False
 )
