@@ -1,0 +1,28 @@
+log=log/faxdispatch.log
+echo "NEW FaxDispatch $(date)" >> $log
+echo "Running as $(id), from $(pwd)" >> $log
+
+FROMADDR=fax@asterisk.upf.pf
+NOTIFY_FAXMASTER=never # errors
+FILETYPE=pdf
+LANG=fr
+
+echo "CID1=$CALLID1, CID2=$CALLID2, CID3=$CALLID3, CID4=$CALLID4, CID5=$CALLID5, CID6=$CALLID6," >> $log
+echo "TIFF2PDF=$TIFF2PDF, FILE=$FILE" >> $log
+
+pdf=$(basename $FILE .tif).pdf
+$TIFF2PDF -o astportal/$pdf $FILE >> $log 2>&1
+chmod 666 astportal/$pdf
+ls -l astportal/$pdf >> $log 2>&1
+
+echo "Appel script Python:" >> $log 2>&1
+echo "/opt/astportal21/astportal2/utils/faxdispatch.py $pdf" >> $log 2>&1
+eval $(/opt/astportal21/astportal2/utils/faxdispatch.py $pdf)
+if [ "x$SENDTO" = 'x' ]; then 
+   SENDTO=svp@upf.pf
+fi
+echo "SENDTO=$SENDTO" >> $log
+
+echo "END FaxDispatch $(date)" >> $log
+echo "" >> $log
+

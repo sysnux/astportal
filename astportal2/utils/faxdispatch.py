@@ -65,7 +65,7 @@ except:
 log.write('src=%s -> dst=%s, hyla_id=%s, pdf=%s\n' % (src, dst, hyla_id, pdf))
 
 try:
-   p = DBSession.query(Phone).filter(Phone.exten==dst).one()
+   p = DBSession.query(Phone).filter(Phone.exten==dst[-3:]).one()
 except:
    log.write('Error: extension <%s> not found\n' % dst)
    p = None
