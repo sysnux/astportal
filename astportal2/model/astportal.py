@@ -6,7 +6,7 @@ AstPortal model
 from datetime import datetime
 
 from sqlalchemy import Table, Column, ForeignKey, Sequence
-from sqlalchemy import Unicode, Unicode, Integer, DateTime, Boolean
+from sqlalchemy import Unicode, Integer, DateTime, Boolean
 from sqlalchemy.orm import mapper, relation, backref, column_property
 
 #from astportal2.model import metadata
@@ -114,7 +114,7 @@ CREATE VIEW view_pb AS
    FROM phone LEFT OUTER JOIN tg_user ON phone.user_id=tg_user.user_id 
    WHERE exten is not null 
 UNION 
-   SELECT pb_id, lastname, firstname, company, email, phone1, phone2, phone3, private, user_id,
+   SELECT pb_id, lastname, firstname, company, email, phone1, phone2, phone3, private, user_id
    FROM phonebook;
    '''
    __tablename__ = 'view_pb'
