@@ -66,7 +66,7 @@ common_fields = [
          label_text = u'Type de renvoi : ',
          help_text = u'Cochez le type de renvoi'),
       DST_select('to_intern'),
-      HiddenField('_method',validator=None), # Needed by RestController
+#      HiddenField('_method',validator=None), # Needed by RestController
    ]
 
 external_fields = []

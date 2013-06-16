@@ -154,7 +154,9 @@ class Fax_ctrl(RestController):
          rows = 25
 
       u = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one()
-      fax = DBSession.query(Fax).filter(Fax.user_id==u.user_id)
+      fax = DBSession.query(Fax)
+      if not in_group('admin'):
+         fax = fax.filter(Fax.user_id==u.user_id)
 
       total = fax.count()/rows + 1
       column = getattr(Fax, sidx)
@@ -183,7 +185,10 @@ class Fax_ctrl(RestController):
       f.filename = kw['file'].filename
       u = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one()
       f.user_id = u.user_id
-      f.src = u.phone[0].exten
+      try:
+         f.src = u.phone[0].exten
+      except:
+         f.src = None
 
       # Try to insert file in DB: might fail if name already exists
       try:

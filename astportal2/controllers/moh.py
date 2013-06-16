@@ -88,19 +88,24 @@ def process_file(wav, id, type, name, lang):
          return u'Le fichier doit être de type son !'
 
       orig = '%s/%d_%s' % (dir_tmp, id, filename)
-      dir_dst = (dir_moh if type==0 else dir_sounds) % lang
-      final = '%s/%s.wav' % (dir_dst, re.sub(r'\W', '_', name))
+      dir_dst = (dir_moh if type==0 else dir_sounds) + '/' + lang
+      final8 = '%s/%s.sln' % (dir_dst, re.sub(r'\W', '_', name))
+      final16 = '%s/%s.sln16' % (dir_dst, re.sub(r'\W', '_', name))
       out = open(orig, 'w')
       out.write(filedata.read())
       out.close()
 
-      # Convert to wav 16 bits, 8000 Hz, mono
-      cmd = config.get('command.sox') % (orig, final)
-      log.debug('sox command: <%s>' % cmd)
-      ret = system(cmd)
+      # Convert to signed linear 16 bits, 8 / 16 kHz, mono
+      sox8 = config.get('command.sox8') % (orig, final8)
+      sox16 = config.get('command.sox16') % (orig, final16)
+      log.debug('sox8 command: <%s>' % sox8)
+      ret8 = system(sox8)
+      log.debug('sox16 command: <%s>' % sox16)
+      ret16 = system(sox16)
 
-      if ret:
-         log.error('executing <%s> returns <%d>' % (cmd,ret))
+      if ret8 or ret16:
+         log.error('executing <%s> returns <%d>' % (sox8, ret8))
+         log.error('executing <%s> returns <%d>' % (sox16, ret16))
          return u"Erreur lors de la conversion WAV, le son n'a pas été ajouté !"
 
       else:

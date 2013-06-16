@@ -4,7 +4,7 @@ import logging
 log = logging.getLogger(__name__)
 from time import time, sleep
 from os import system, popen #, rename
-import cookielib, urllib, urllib2
+import cookielib, urllib, urllib2, json
 from BeautifulSoup import BeautifulSoup
 from struct import pack, unpack
 
@@ -87,16 +87,24 @@ P30 = '',
       self.mac = mac
       self.pwd = pwd
       self.type = 0
+      self.sid = None
       self.url = 'http://%s/' % host
 
-   def get(self, action, params=None):
+   def get(self, action, params=''):
       if params:
          params = urllib.urlencode(params)
+      if self.type in (1, 2):
          params += '&gnkey=0b82' # Seems it *must* be last parameter, or update fails
+      elif self.sid is not None:
+         params += '&sid=' + self.sid
       req = urllib2.Request(self.url + action, params)
       try:
          resp = self.opener.open(req)
+         log.debug('Request %s, params %s returns %s (%s)' % (\
+               self.url + action, params, resp.msg, resp.code))
       except:
+         log.warning('Request %s, params %s failed' % (\
+               self.url + action, params))
          return None
       return resp
 
@@ -107,13 +115,24 @@ P30 = '',
       logged_in = False
       if self.get('dologin.htm', {'P2': self.pwd}) == None:
          log.debug('Login error, GXP-2xxx?')
-         if self.get('/cgi-bin/dologin', {'P2': self.pwd}) != None:
+         if self.get('cgi-bin/dologin', {'P2': self.pwd}) != None:
             # GXP-2100
             for c in self.cj:
                log.debug('Cookie: %s = %s' % (c.name, c.value))
                if c.name=='session_id':
+                  log.debug('Logged in GXP2xxx, old firmware')
                   logged_in = True
                   self.type = 2
+            if not logged_in:
+               resp = self.get('cgi-bin/dologin', {'password': self.pwd})
+               if resp != None:
+                  log.debug('GXP new firmware')
+                  data = json.loads(resp.readline())
+                  if data['response'] == 'success':
+                     self.sid = data['body']['sid']
+                     logged_in = True
+                     self.type = 3
+                     log.debug('Logged in GXP2xxx, new firmware')
          else:
             log.warning('GXP-2xxx login failed!')
       else:
@@ -129,7 +148,7 @@ P30 = '',
 
    def infos(self):
 
-      if self.type==1: # Old GXP
+      if self.type == 1: # Old GXP
          resp = self.get('index.htm')
          buffer = ''
          for l in resp.readlines():
@@ -142,18 +161,33 @@ P30 = '',
          except:
             return None
 
-      elif self.type==2: # GXP-14XX 21XX
-         resp = self.get('/cgi-bin/index')
+      elif self.type == 2: # GXP-14XX 21XX
+         resp = self.get('cgi-bin/index')
          buffer = ''
          for l in resp.readlines():
             buffer += unicode(l,'UTF-8')
          html = BeautifulSoup(buffer)
+         content = model = soft
          try:
             content = html('table')[2]
             model = (content('tr')[3])('td')[1].text.strip()
             soft = (content('tr')[9])('td')[1].text.strip()
          except:
-            return None
+            pass
+         if model == '' or soft == '':
+            try:
+               # Since 1.0.4.23 at least
+               content = html('table')[2]
+               model = (content('tr')[5])('td')[1].text.strip()
+               soft = (content('tr')[11])('td')[1].text.strip()
+            except:
+               return None
+
+      elif self.type == 3: # GXP-14XX 21XX new firmware
+         resp = self.get('/cgi-bin/api.values.get', {'request': 'phone_model:68'})
+         data = json.loads(resp.readlines()[-1])
+         model = data['body']['phone_model']
+         soft = data['body']['68']
 
       log.debug(u'Model <%s>'% model)
       log.debug(u'Version <%s>'% soft)
@@ -162,11 +196,13 @@ P30 = '',
 
    def update(self, params):
       log.debug('Update (type %d)...' % self.type)
-      if self.type==1:
-         resp = self.get('update.htm',params)
-      elif self.type==2:
-         resp = self.get('/cgi-bin/update',params)
-      log.debug('Update -> %s', resp.msg)
+      if self.type == 1:
+         resp = self.get('update.htm', params)
+      elif self.type == 2:
+         resp = self.get('/cgi-bin/update', params)
+      elif self.type == 3:
+         resp = self.get('/cgi-bin/api.values.post', params)
+      log.debug('Update returns -> %s', resp.msg)
       return resp.msg
 
    def reboot(self):
@@ -174,24 +210,26 @@ P30 = '',
       log.debug('Reboot (type %d)...' % self.type)
       t1 = time()
 
-      if self.type==1:
+      if self.type == 1:
          resp = self.get('rs.htm')
-      elif self.type==2:
-         resp = self.get('/cgi-bin/rs')
-
-      # While rebooting, phone is reachable, then unreachable, then reachable again
-      reachable = True
-      for wait in xrange(60):
-         try:
-            resp = urllib2.urlopen(self.url, timeout=1)
-            if not reachable: break
-         except:
-            return 'ok'
-            reachable = False
-         sleep(1)
-      t2 = time()
-      log.debug('Reboot done in %.1f seconds !' % (t2-t1))
-      return resp.msg
+      elif self.type == 2:
+         resp = self.get('cgi-bin/rs')
+      elif self.type == 3:
+         resp = self.get('cgi-bin/api-sys_operation', {'request': 'REBOOT'})
+      return 'OK'
+#      # While rebooting, phone is reachable, then unreachable, then reachable again
+#      reachable = True
+#      for wait in xrange(60):
+#         try:
+#            resp = urllib2.urlopen(self.url, timeout=1)
+#            if not reachable: break
+#         except:
+#            return 'ok'
+#            reachable = False
+#         sleep(1)
+#      t2 = time()
+#      log.debug('Reboot done in %.1f seconds !' % (t2-t1))
+#      return resp.msg
 
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
@@ -253,7 +291,7 @@ P30 = '',
       self.params['P1347'] = '**'
       self.params['P57'] = 8
 
-      if self.type==2: # Newer GXP
+      if self.type == 2: # Newer GXP
          self.params['P102'] = 2 # dd-mm-yyyy
          self.params['P122'] = 1 # 24 hours
          self.params['P64'] = 'HAW10' # GMT-10
@@ -261,6 +299,9 @@ P30 = '',
          self.params['P1379'] = 'c' # celsius degrees
          self.params['P1362'] = 'fr' # language
          self.params['update'] = 'Mise a jour'
+
+      elif self.type == 3:
+         self.params['P64'] = 'HAW10' # GMT-10
 
       else: # Old GXP
          # Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
@@ -291,7 +332,7 @@ P30 = '',
 
       # Update and reboot phone
       self.update(self.params)
-      sleep(1)
+      sleep(10)
       self.reboot()
 
    def encode(self):

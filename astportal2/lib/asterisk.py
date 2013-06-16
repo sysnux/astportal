@@ -64,6 +64,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'type', 'friend'),
             ('Append', p.sip_id, 'host', 'dynamic'),
             ('Append', p.sip_id, 'context', p.sip_id),
+            ('Append', p.sip_id, 'allow', 'g722'),
             ('Append', p.sip_id, 'allow', 'alaw'),
             ]
    if p.callgroups:

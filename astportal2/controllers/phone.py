@@ -291,7 +291,7 @@ class Phone_ctrl(RestController):
             m = re.search('(\d{4})',ua)
             if m:
                model = m.groups()[0]
-               gxp_type = 1 if model in ('1200', '2000', '2010', '2020') else 2
+               gxp_type = 1 if model in ('1200', '2000', '2010', '2020') else 3 # XXX
                ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, gxp_type, ip))
             else:
                ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))

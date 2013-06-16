@@ -42,7 +42,7 @@ import ConfigParser
 # Connexion base de données AstPortal via SqlAlchemy
 sys.path.append('/opt/astportal21')
 from paste.deploy import appconfig
-conf = appconfig('config:/opt/astportal21/upf.ini')
+conf = appconfig('config:/opt/astportal21/x220.ini')
 
 from astportal2.config.environment import load_environment
 load_environment(conf.global_conf, conf.local_conf)
@@ -59,6 +59,9 @@ src = os.environ.get('CALLID1')
 hyla_id = os.environ.get('COMMID')
 try:
    pdf = sys.argv[1]
+   dst = sys.argv[2]
+   src = sys.argv[3]
+   hyla_id = sys.argv[4]
 except:
    pdf = ''
 
