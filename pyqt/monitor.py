@@ -61,7 +61,22 @@ class Monitor(QWidget):
          sys.stderr.write(
             "ERREUR: pas d'URL, verifier fichier de configuration, sortie.\n")
          sys.exit(1)
-      self.debug('URL=%s' % url)
+
+      self.debug(u'''Parameters : 
+      URL = %s,
+      max_queues = %d,
+      members_warning = %d,
+      members_alert = %d,
+      queues_warning = %d,
+      queues_alert = %d,
+      color_normal = %s,
+      color_warning = %s,
+      color_alert = %s,
+      size = %d,
+      print_debug = %s.''' % (
+         url, self.max_queues, self.members_warning, self.members_alert,
+         self.queues_warning, self.queues_alert, self.color_normal,
+         self.color_warning, self.color_alert, self.size, self.print_debug))
 
       # Init panel
       self.ui = Ui_ast_queue_mon()
@@ -124,7 +139,7 @@ class Monitor(QWidget):
 
    def response_finished(self):
       s = str(self.rsp.readAll())
-      self.debug('Response %d finished:' % self.requests)
+      self.debug('Response %d finished' % (self.requests))
       if s:
          js = json.loads(s)
          self.last = js['last']
@@ -153,9 +168,9 @@ class Monitor(QWidget):
       self.debug('Screen update !')
       tot = 0
       for i, q in enumerate(self.queues):
-         if i> self.max_queues: break
-         self.debug('%s %s %s' % (
-            q['name'], q['params']['Weight'], q['params']['Members']))
+         if i>=self.max_queues: break
+         self.debug('Queue %d, name = %s, weight = %s, members = %s' % (
+            i, q['name'], q['params']['Weight'], q['params']['Members']))
          self.ui.q[i]['name'].setText(q['name'])
          self.ui.q[i]['members'].setText('%d' % len(q['params']['Members']))
 

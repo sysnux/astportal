@@ -13,7 +13,8 @@ class Ui_ast_queue_mon(object):
 
    def setupUi(self, ast_queue_mon, max_queues, base=10):
       ast_queue_mon.setObjectName("ast_queue_mon")
-      ast_queue_mon.resize(base*47, base*11) # (467, 114)
+      height = 2 * max_queues
+      ast_queue_mon.resize(base*47, base*(height+1))
 
       self.q = []
       font = QtGui.QFont()
@@ -37,9 +38,9 @@ class Ui_ast_queue_mon(object):
          self.q[i]['wait'].setFont(font)
 
       self.lcd = QtGui.QLCDNumber(ast_queue_mon)
-      self.lcd.setGeometry(QtCore.QRect(5, 5, 9*base, 10*base))
+      self.lcd.setGeometry(QtCore.QRect(5, 5, 9*base, base*height))
       font = QtGui.QFont()
-      font.setPointSize(base*1.4)
+      font.setPointSize(base*1.6)
       self.lcd.setFont(font)
       self.lcd.setNumDigits(2)
       self.lcd.setProperty("intValue", 22)
@@ -56,5 +57,5 @@ class Ui_ast_queue_mon(object):
 "</style></head><body style=\" font-family:\'Sans Serif\'; font-size:9pt; font-weight:400; font-style:normal;\">\n"
 "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-weight:600;\">Déplacez le panneau</span> en cliquant sur le bonton <span style=\" font-style:italic;\">droit</span> de la souris,</p>\n"
 "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">puis en déplacant la souris <span style=\" font-style:italic;\">sans relacher le bouton</span>.</p>\n"
-"<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-weight:600;\">Accédez au menu</span> en en cliquant sur le bonton <span style=\" font-style:italic;\">gauche</span> de la souris.</p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
+"<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-weight:600;\">Accédez au menu</span> en cliquant sur le bonton <span style=\" font-style:italic;\">gauche</span> de la souris.</p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
 
