@@ -173,6 +173,7 @@ class Voicemail_ctrl(BaseController):
          wd = '%s/%s/%s' % (dir_vm, mb, folder)
          log.debug(u'Voicemail dir: %s' % wd)
          # File: /var/spool/asterisk/voicemail/default/1/Old/msg0000.txt
+         files = listdir(wd)
          try:
             files = listdir(wd)
          except:

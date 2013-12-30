@@ -198,6 +198,7 @@ def asterisk_update_queue(q):
    position = 'yes' if q.announce_position==1 else 'no'
    actions = [
             ('NewCat', moh_class),
+            ('Append', moh_class, 'timeout', 60),
             ('Append', moh_class, 'strategy', q.strategy),
             ('Append', moh_class, 'wrapuptime', q.wrapuptime),
             ('Append', moh_class, 'announce-frequency', q.announce_frequency),
@@ -281,23 +282,35 @@ class Status(object):
       return member
 
    def handle_event(self, event, manager):
+
       if 'Event' not in event.headers:
-         log.debug('Event without Event ? %s')
+         log.warning('Event without Event ? %s', event.headers)
          return False
 
+      previous_update = self.last_update
       e = event.headers['Event']
-#      log.debug('Received event type "%s"' % e)
-#      log.debug(event.message)
-#      log.debug(event.data)
+
+      if e not in ('CEL', 'WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
+            'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
+            'DTMF', 'RTCPReceived', 'RTCPSent', 'VarSet'):
+         log.debug('Received event %s: %s' % (
+            e, event.headers))
+
       if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
             'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
-            'DTMF', 'RTCPReceived', 'RTCPSent'):
+            'DTMF', 'RTCPReceived', 'RTCPSent', 'ExtensionStatus', 'Dial', 
+            'MessageWaiting', 'Shutdown', 'Reload', 'JabberEvent', 'JabberStatus', 
+            'Registry', 'NewAccountCode', 'NewCallerid', 'Transfer', 
+            'OriginateResponse', 'Status', 'Masquerade'):
+#         log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
          return
-      if e=='VarSet':
+      if e=='Newexten':
+         self._Newexten(event.headers)
+      elif e=='VarSet':
          self._handle_VarSet(event.headers)
       elif e=='Newchannel':
          self._handle_Newchannel(event.headers)
-      elif e in ('Newcallerid', 'Newexten', 'Newstate', 'MeetmeJoin', 'MeetmeLeave'):
+      elif e in ('Newcallerid', 'Newstate', 'MeetmeJoin', 'MeetmeLeave'):
          self._updateChannels(event.headers)
       elif e=='Hangup':
          self._handle_Hangup(event.headers)
@@ -331,20 +344,21 @@ class Status(object):
          self._handle_Leave(event.headers)
       elif e == 'CEL':
          self._handle_CEL(event.headers)
-      elif e in ('ExtensionStatus', 'Dial', 'MessageWaiting', 'Shutdown', 'Reload', 
-            'JabberEvent', 'JabberStatus'):
-         log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
       elif e == 'UserEvent':
          self._handle_UserEvent(event.headers)
       else:
          log.warning('Event not handled "%s"' % e)
 
-#      log.debug('--- CHANNELS --------------')
-#      for c in self.channels:
-#         log.debug('%s: %s' % (c, str(self.channels[c])))
-#      log.debug('--- PEERS -----------------')
-#      for p in self.peers:
-#         log.debug('%s: %s' % (p, str(self.peers[p])))
+      if previous_update != self.last_update:
+         # State has changed
+         log.debug('--- BEGIN STATE DUMP --------------')
+         for c in self.channels:
+            log.debug('CHANNEL %s: %s' % (c, str(self.channels[c])))
+#        for p in self.peers:
+#           log.debug('PEER %s: %s' % (p, self.peers[p]))
+         log.debug('--- END STATE DUMP --------------')
+         log.debug('')
+         log.debug('')
       
       return True
 
@@ -371,16 +385,16 @@ CallerIDrdnis:
 Event: CEL
 Channel: SIP/100-0000001f
    '''
-#      log.debug('CEL:')
+#      log.debug('CEL: %s' % event)
 #      for k in event.keys():
 #         log.debug('\t%s: %s', k, event[k])
       cel_type = event['EventName']
-      log.debug('CEL, type: %s' % cel_type)
+#      log.debug('CEL, type: %s' % cel_type)
 #      if cel_type == 'CHAN_START':
 #         self.channels[event['Channel']] = event
 #      elif cel_type == 'CHAN_END':
 #         del self.channels[event['Channel']]
-#      last_update = time()
+#      self.last_update = time()
 
 
    def _handle_PeerStatus(self,dict):
@@ -496,8 +510,7 @@ Channel: SIP/100-0000001f
       self.members[m]['MemberName'] = dict['MemberName']
       self.members[m]['Holdtime'] = dict['Holdtime']
       self.members[m]['Uniqueid'] = dict['Uniqueid']
-      self.members[m]['LastUpdate'] = time()
-      self.last_queue_update = time()
+      self.members[m]['LastUpdate'] = self.last_queue_update = time()
 
    def _handle_QueueMemberStatus(self, dict):
       m = self.normalize_member(dict['MemberName'])
@@ -576,7 +589,6 @@ Channel: SIP/100-0000001f
       self.last_queue_update = time()
 
    def _handle_Leave(self, dict):
-      log.debug('Leave %s' % dict)
       self.queues[dict['Queue']]['Calls'] = int(dict['Count'])
       pos = -999
       try:
@@ -589,13 +601,37 @@ Channel: SIP/100-0000001f
       self.last_queue_update = time()
 #-----------------------------------------------------
 
+   def normalize_channel(self, c):
+      '''atxfer creates Local/103@ngqckJos-00000017;1 and 
+      Local/103@ngqckJos-00000017;2, remove ';x' ?
+      '''
+      return c if c[-2]!=';' else c[:-2]
+
+   def _Newexten(self, dict):
+      # There are tons of Newexten events, this should be fast!
+      c = self.normalize_channel(dict['Channel'])
+      if c not in self.channels: return
+      self.channels[c]['AppData'] = dict['AppData']
+      self.channels[c]['Context'] = dict['Context']
+      self.channels[c]['Extension'] = dict['Extension']
+      self.channels[c]['Priority'] = dict['Priority']
+      self.channels[c]['Application'] = dict['Application']
+      self.channels[c]['LastUpdate'] = self.last_update = time()
+
+
    def _updateChannels(self, dict):
-      c = dict['Channel']
+      c = self.normalize_channel(dict['Channel'])
       if c not in self.channels: return
       self.channels[c]['LastUpdate'] = time()
-      for k, v in dict.iteritems():
-         if k in ('State', 'ChannelStateDesc', 'Channel', 'Uniqueid', 'Privilege'): continue
-         self.channels[c][k] = v
+      # Keys eventually received from event:
+      # CallerIDName, CallerIDNum, ChannelState, ConnectedLineName, ConnectedLineNum, 
+      # Context, Event, Extension, Priority, Application, AppData,
+      # LastUpdate, State, Uniqueid, Begin
+      for k in ('Application', 'AppData', 'Begin', 'Uniqueid',
+         'CallerIDName', 'CallerIDNum',
+         'Context', 'Extension', 'Priority', 'LastUpdate'):
+         if k in dict:
+            self.channels[c][k] = dict[k]
 
       new_state = None
       if 'State' in dict:
@@ -605,21 +641,31 @@ Channel: SIP/100-0000001f
          # manager_version=='1.1':
          new_state = dict['ChannelStateDesc']
 
-      if new_state and 'State' in self.channels[c] and \
-            self.channels[c]['State'] != new_state:
+      if new_state and self.channels[c]['State'] != new_state:
          self.channels[c]['State'] = new_state
          if new_state=='Up':
             self.channels[c]['Begin'] = time()
+
+         new_state = dict.get('ChannelState')
+         if new_state == '4':
+            self.channels[c]['Outgoing'] = False
+         elif new_state == '5':
+            self.channels[c]['Outgoing'] = True
+
       self.last_update = time()
 
    def _handle_Newchannel(self,dict):
+      
       if 'State' in dict:
          state = dict['State']
       elif 'ChannelStateDesc' in dict:
          state = dict['ChannelStateDesc']
       else:
-         state = 'New'
-      self.channels[dict['Channel']] = {'CallerIDNum': dict['CallerIDNum'], 
+         state = 'Down'
+
+      c = self.normalize_channel(dict['Channel'])
+
+      self.channels[c] = {'CallerIDNum': dict['CallerIDNum'], 
             'CallerIDName': dict['CallerIDName'], 'Uniqueid': dict['Uniqueid'],
             'State': state, 'Begin': time()}
       # Check if channel belongs to a queue member
@@ -635,17 +681,22 @@ Channel: SIP/100-0000001f
 
 
    def _handle_Hangup(self, dict):
-      c = dict['Channel']
+      c = self.normalize_channel(dict['Channel'])
 
       if c not in self.channels:
-         log.warning('Hangup: channel "%s" does not exist...' % c)
-         for chan in self.channels.keys():
-            if chan in c:
-               log.warning('Hangup: "%s" -> destroy %s' % (c,chan))
-               c = chan
-               break
+         if c[-8:] == '<ZOMBIE>' and c[:-8] in self.channels:
+            # Redirected or transferred channel
+            c = c[:-8]
          else:
-            log.warning('Hangup: "%s" no channel to destroy' % c)
+            log.warning('Hangup: channel "%s" does not exist...' % c)
+            for chan in self.channels:
+               if chan in c:
+                  log.warning('Hangup: "%s" -> destroy %s' % (c, chan))
+                  c = chan
+                  break
+            else:
+               log.warning('Hangup: "%s" no channel to destroy' % c)
+               return
 
       # Check if channel belongs to a queue member
       loc = c[:c.find('-')] # SIP/100-000000a6 -> SIP/100
@@ -667,14 +718,10 @@ Channel: SIP/100-0000001f
             self.last_queue_update = time()
             break
 
-      try:
-         del self.channels[c]
-      except:
-         log.warning('Hangup: channel "%s" doesn\'t exist ?' % c)
-      try:
+      if c in self.astp_vars:
       	del self.astp_vars[c]
-      except:
-         pass
+
+      del self.channels[c]
       self.last_update = time()
 
 
@@ -695,13 +742,17 @@ Channel: SIP/100-0000001f
       #CallerID1: '501040'
       #CallerID2: 100
 
-      c1 = dict['Channel1']
-      c2 = dict['Channel2']
+      if dict['Bridgestate'] == 'Unlink':
+         self._handle_Unlink(dict)
+         return
+
+      c1 = self.normalize_channel(dict['Channel1'])
+      c2 = self.normalize_channel(dict['Channel2'])
       try:
          self.channels[c1]['Link'] = c2
-         self.channels[c1]['Outgoing'] = True
+         self.channels[c1]['Outgoing'] = False
          self.channels[c2]['Link'] = c1
-         self.channels[c2]['Outgoing'] = False
+         self.channels[c2]['Outgoing'] = True
          self.channels[c1]['LastUpdate'] = time()
          self.channels[c2]['LastUpdate'] = time()
       except:
@@ -728,8 +779,8 @@ Channel: SIP/100-0000001f
       # Uniqueid1: 1091803550.81
       # Uniqueid2: 1091803550.82
 
-      c1 = dict['Channel1']
-      c2 = dict['Channel2']
+      c1 = self.normalize_channel(dict['Channel1'])
+      c2 = self.normalize_channel(dict['Channel2'])
       try:
          del self.channels[dict['Channel1']]['Link']
          del self.channels[dict['Channel2']]['Link']
@@ -777,6 +828,10 @@ Channel: SIP/100-0000001f
 
    def _handle_UserEvent(self, dict):
       if dict['UserEvent']=='AgentWillConnect':
+         if dict['Agent'] not in self.members:
+            # Happens when agent logged off before receiving call
+            log.error('_handle_UserEvent: agent "%s" does not exist' % dict['Agent'])
+            return
          log.debug('Agent "%s" will connect to channel "%s" (%s)' % \
             (dict['Agent'], dict['PeerChannel'], dict['PeerUniqueid']))
          self.members[dict['Agent']]['PeerChannel'] = dict['PeerChannel']

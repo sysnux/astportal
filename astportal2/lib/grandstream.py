@@ -39,9 +39,9 @@ P232 = '',
 # Firmware File Postfix
 P233 = '',
 # Config File Prefix
-P234 = 'gs-',
+P234 = '',
 # Config File Postfix
-P235 = '.cfg',
+P235 = '',
 # Automatic Upgrade. 0 - No, 1 - Yes. Default is No.
 P194 = 1,
 # Check for new firmware every () minutes, unit is in minute, minimnu 60 minutes, default is 7 days.
@@ -68,8 +68,8 @@ P330 = 1,
 P331 = '',
 # Phonebook Download Interval
 # This is an integer variable in hours.  
-# Valid value range is 0-720 (default 0), and greater values will default to 720
-P332 = 1,
+# Valid value range is 5-720 (default 0), and greater values will default to 720
+P332 = 5,
 # Remove Manually-edited entries on Download
 # 0 - No, 1 - Yes, other values ignored
 P333 = 0,
@@ -126,8 +126,9 @@ P30 = '',
             if not logged_in:
                resp = self.get('cgi-bin/dologin', {'password': self.pwd})
                if resp != None:
-                  log.debug('GXP new firmware')
-                  data = json.loads(resp.readline())
+                  r = resp.readline()
+                  log.debug('GXP new firmware returns %s' % r)
+                  data = json.loads(r)
                   if data['response'] == 'success':
                      self.sid = data['body']['sid']
                      logged_in = True
@@ -184,7 +185,7 @@ P30 = '',
                return None
 
       elif self.type == 3: # GXP-14XX 21XX new firmware
-         resp = self.get('/cgi-bin/api.values.get', {'request': 'phone_model:68'})
+         resp = self.get('cgi-bin/api.values.get', {'request': 'phone_model:68'})
          data = json.loads(resp.readlines()[-1])
          model = data['body']['phone_model']
          soft = data['body']['68']
@@ -199,9 +200,9 @@ P30 = '',
       if self.type == 1:
          resp = self.get('update.htm', params)
       elif self.type == 2:
-         resp = self.get('/cgi-bin/update', params)
+         resp = self.get('cgi-bin/update', params)
       elif self.type == 3:
-         resp = self.get('/cgi-bin/api.values.post', params)
+         resp = self.get('cgi-bin/api.values.post', params)
       log.debug('Update returns -> %s', resp.msg)
       return resp.msg
 
@@ -255,7 +256,7 @@ P30 = '',
             self.params['P28']) = dns2.split('.')
 
       self.params['P270'] = default_company
-      self.params['P99'] = 1 if mwi_subscribe else 0
+      self.params['P99'] = 1 # XXX if mwi_subscribe else 0
       if sip_server:
          self.params['P47'] = sip_server
          self.params['P35'] = sip_user
@@ -288,10 +289,10 @@ P30 = '',
          0
       self.params['P33'] = '*79'
       self.params['P73'] = 1
-      self.params['P1347'] = '**'
+      self.params['P1347'] = '*' # BLF Call-pickup Prefix
       self.params['P57'] = 8
 
-      if self.type == 2: # Newer GXP
+      if self.type in (2, 3): # Newer GXP
          self.params['P102'] = 2 # dd-mm-yyyy
          self.params['P122'] = 1 # 24 hours
          self.params['P64'] = 'HAW10' # GMT-10
@@ -300,16 +301,13 @@ P30 = '',
          self.params['P1362'] = 'fr' # language
          self.params['update'] = 'Mise a jour'
 
-      elif self.type == 3:
-         self.params['P64'] = 'HAW10' # GMT-10
-
       else: # Old GXP
          # Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
          self.params['P342'] = 3,
          self.params['P399'] = 'french'
 
       # Generate conf files (text and binary)
-      name = tftp_dir + '/phones/config/gs-cfg%s' % self.mac.replace(':','')
+      name = tftp_dir + '/phones/config/cfg%s' % self.mac.replace(':','')
       try:
          txt = open(name + '.txt', 'w')
          for k in self.params.keys():
@@ -322,7 +320,7 @@ P30 = '',
       bin = self.encode()
 
       try:
-         cfg2 = open(name + '.cfg', 'w')
+         cfg2 = open(name, 'w')
          for x in bin:
             cfg2.write(chr(x))
          cfg2.close()

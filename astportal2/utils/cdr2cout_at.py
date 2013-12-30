@@ -1,4 +1,4 @@
-#! /bin/env python
+#! /home/SysNux/tg22_64/bin/python
 # -*- coding: utf-8 -*-
 ####! /opt/Python-2.7.3/bin/python
 #
@@ -25,23 +25,23 @@
 # SysNux (c) http://www.sysnux.pf/
 
 import sys
-import getopt
-from math import ceil
-from sqlalchemy import func
 
 # Connexion base de données AstPortal via SqlAlchemy
-sys.path.insert(0, '/home/SysNux/Projets/AirTahiti/Taxation/opt/astportal21')
+sys.path.insert(0, '/home/SysNux/Projets/astportal21')
 from paste.deploy import appconfig
-conf = appconfig('config:/home/SysNux/Projets/AirTahiti/Taxation/opt/astportal21/taxa.ini')
-
 from astportal2.config.environment import load_environment
-load_environment(conf.global_conf, conf.local_conf)
 from astportal2.model import DBSession, CDR, Phone, User, \
    Prix, Zone, OptimumTime #, Pays
 
-import decimal
-decimal.getcontext().prec = 6
-tva = decimal.Decimal(1.10)
+from sqlalchemy import func
+import getopt
+from math import ceil
+from decimal import Decimal, getcontext
+
+conf = appconfig('config:/home/SysNux/Projets/astportal21/tiare.ini')
+load_environment(conf.global_conf, conf.local_conf)
+getcontext().prec = 6
+tva = Decimal(1.10)
 
 # -----------------------------------------------------------------------------
 def usage():
@@ -117,13 +117,13 @@ class Optimum(object):
          for o in DBSession.query(OptimumTime). \
                filter(OptimumTime.offre=='OPTIMUM_%d' % typ):
             self.tarif[o.destination] = {
-               'dans_forfait': int(o.prix_df*tva),
-               'hors_forfait': int(o.prix_hf*tva)}
+               'dans_forfait': o.prix_df*tva,
+               'hors_forfait': o.prix_hf*tva}
       except:
          print u'OPTIMUM_%d pas trouvé (base) !!!' % typ
          sys.exit(1)
 
-      f = typ * 60 * self.tarif['local_intra']['dans_forfait']
+      f = typ * 60 * int(round(self.tarif['local_intra']['dans_forfait']))
       if self.forfait != f:
          print u'OPTIMUM_%d erreur forfait : %d <> %d!!!' % (
             typ, self.forfait, f)
@@ -194,7 +194,7 @@ class Optimum(object):
          # Hors forfait
          if cdr.billsec > 60:
             # Taxation à la seconde
-            ttc = int(ceil(cdr.billsec * tarif['hors_forfait'] / 60.0))
+            ttc = int(ceil(cdr.billsec * tarif['hors_forfait'] / Decimal(60.0)))
             forfait_min = 'HORS sec'
          else:
             # Première minute indivisible
@@ -204,7 +204,7 @@ class Optimum(object):
          # Forfait pas épuisé
          if cdr.billsec > 60:
             # Taxation à la seconde
-            ttc = int(ceil(cdr.billsec * tarif['dans_forfait'] / 60.0))
+            ttc = int(ceil(cdr.billsec * tarif['dans_forfait'] / Decimal(60.0)))
             forfait_min = 'FORFAIT sec'
          else:
             # Première minute indivisible
@@ -218,7 +218,7 @@ class Optimum(object):
             cdr.calldate, cdr.src, cdr.dst[2:], cdr.billsec, ttc, self.typ,
             tarif['dans_forfait'], tarif['hors_forfait'], forfait_min)
 
-      return  ttc, int(ttc / tva)
+      return  ttc, int(round(ttc / tva))
 
 
 class Classic(object):
@@ -235,7 +235,8 @@ class Classic(object):
       for p in DBSession.query(Prix):
          self.tarif[p.zone_destination] = {
             'ut_normal': p.step_hp, 'ut_reduit': p.step_hc,
-            'ttc_normal': int(p.prix_hp*tva), 'ttc_reduit': int(p.prix_hc*tva)}
+            'ttc_normal': int(round(p.prix_hp*tva)),
+            'ttc_reduit': int(round(p.prix_hc*tva))}
 
    def __call__(self, cdr):
       ''' Calcul du coût d'un appel classique
@@ -304,7 +305,7 @@ class Classic(object):
             cdr.dst[2:], z, zones_data[z]['zaa'], zones_data[z]['ile_ou_pays'],
             cdr.calldate.hour, cdr.billsec, ut, ttc)
 
-      return  ttc, int(ttc / tva)
+      return  ttc, int(round(ttc / tva))
 
 # MAIN ------------------------------------------------------------------------
 

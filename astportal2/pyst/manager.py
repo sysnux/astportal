@@ -77,7 +77,10 @@ class _Msg(object):
         return self.headers[hname]
 
     def __repr__(self):
-        return self.headers['Response']
+        if 'Response' in self.headers:
+            return self.headers['Response']
+        else:
+            return 'Msg without "Response"'
 
 
 class ManagerMsg(_Msg): 

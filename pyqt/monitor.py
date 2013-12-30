@@ -134,7 +134,7 @@ class Monitor(QWidget):
       req.setRawHeader('Content-Type', 
          'application/x-www-form-urlencoded; charset=utf-8');
       self.rsp = self.man.post(req,
-         QByteArray('last=%s' % self.last))
+         QByteArray('last=%f' % self.last))
       self.rsp.finished.connect(self.response_finished)
 
    def response_finished(self):

@@ -9,7 +9,7 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group, not_anonymous
 
 from tw.api import js_callback
-from tw.forms import TableForm, LabelHiddenField, SingleSelectField, TextField, CheckBoxList, PasswordField, HiddenField, TextArea, Label
+from tw.forms import TableForm, LabelHiddenField, TextField, CheckBoxList, PasswordField, HiddenField, TextArea, Label
 from tw.forms.validators import Schema, NotEmpty, Email, Int, Regex, FieldsMatch
 
 from genshi import Markup

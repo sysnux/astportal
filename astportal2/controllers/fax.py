@@ -217,10 +217,14 @@ class Fax_ctrl(RestController):
       log.info('delete ' + id)
       f = DBSession.query(Fax).get(id)
       # remove uploaded file
+      if f.type==0:
+         pdf = '%s/%d_%s' % (dir_fax, f.fax_id, re.sub(r'[^\w\.]', '_', f.filename))
+      else:
+         pdf = '%s/%s' % (dir_fax, f.filename)
       try:
-         unlink('%s/%d_%s' % (dir_fax, f.fax_id, re.sub(r'[^\w\.]', '_', f.filename)))
+         unlink(pdf)
       except:
-         log.error('unlink failed %s' % f.filename)
+         log.error('unlink failed %s' % pdf)
       DBSession.delete(f)
       flash(u'Fax supprimé', 'notice')
       redirect('/fax/')

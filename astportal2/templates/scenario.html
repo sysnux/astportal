@@ -392,6 +392,10 @@ function valid_action() {
          param = $("#22_file").val();
          break;
 
+      case 23: // Conference
+         param = $("#23_name").val();
+         break;
+
       case -1:
          alert('Veuillez choisir une action ! ');
          return;
@@ -627,6 +631,11 @@ function display(redraw) {
             break;
 
          case 22: // Open playback
+            act = actions_by_id[app];
+            par = scenario[r].parameters;
+            break;
+
+         case 23: // Conference
             act = actions_by_id[app];
             par = scenario[r].parameters;
             break;
@@ -1451,6 +1460,12 @@ function update_canvas() {
    <div id="action_params_22" style="display: none">
       Entrez le fichier à jouer:
       <input type="text" id="22_file"/>
+   </div>
+
+   <!-- Conference: 23 -->
+   <div id="action_params_23" style="display: none">
+      Entrez le nom de la salle de conférence:
+      <input type="text" id="23_name"/>
    </div>
 
    <div>

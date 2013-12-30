@@ -958,6 +958,10 @@ def generate_dialplan():
          app = u'Playback'
          param = u'astportal/%s' % (parameters)
 
+      elif action==23: # Conference
+         app = u'ConfBridge'
+         param = u'%s' % (parameters)
+
       else:
          m = u'Unknown action sce_id=%d, action=%d\n' % (sce_id, action)
          log.error(m)

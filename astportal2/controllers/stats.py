@@ -42,9 +42,6 @@ def cell(type,i,c):
       date = c[0].strftime('%d')
    else:
       date = Markup(u'<a href="#" onclick="daily(\'%s\');" title="Statistiques quotidiennes">%s</a>' % (c[0].strftime('%m/01/%Y'),  c[0].strftime('%m/%Y')))
-   h = c[2] / 3600
-   m = (c[2] - (3600 * h)) / 60
-   s = c[2] - (3600 * h) - (60 * m)
    return date, c[1], hms(c[2])
 
 
@@ -295,7 +292,7 @@ class Stats_ctrl(BaseController):
          redirect('/')
 
       today = datetime.datetime.today()
-      filename = 'statistiques-SVI-' + today.strftime('%Y%m%d') + '.csv'
+      filename = 'statistiques-' + today.strftime('%Y%m%d') + '.csv'
       import StringIO
       import csv
       csvdata = StringIO.StringIO()

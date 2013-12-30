@@ -491,15 +491,13 @@ class Phone_ctrl(RestController):
             break
 
       # Configure phone
-      sip_display_name = None
-      mwi_subscribe = 0
       need_voicemail_update = False
       sip_server = server_sip
-      sip_display_name = ''
+      sip_ascii_name = ''
       mwi_subscribe = 0
       if kw['user_id']!='-9999':
          u = DBSession.query(User).get(kw['user_id'])
-         sip_display_name = u.display_name
+         sip_ascii_name = u.ascii_name
          if u.email_address:
             mwi_subscribe = 1
             need_voicemail_update = True
@@ -532,7 +530,7 @@ class Phone_ctrl(RestController):
             server_firmware + '/phones/firmware', 
             server_config + '/phones/config', server_syslog,
             server_config + ':8080/phonebook/gs_phonebook_xml', '', '', '',
-            sip_server, sip_id, sip_display_name, mwi_subscribe)
+            sip_server, sip_id, sip_ascii_name, mwi_subscribe)
 
       flash(u'Nouveau téléphone "%s" créé' % (kw['exten']))
       return {'status': 'created'}

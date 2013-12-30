@@ -45,6 +45,7 @@ from astportal2.controllers.cc_stats import CC_Stats_ctrl
 from astportal2.controllers.cc_report import CC_Report_ctrl
 from astportal2.controllers.cc_campaign import CC_Campaign_ctrl
 from astportal2.controllers.cc_outcall import CC_Outcall_ctrl
+#from astportal2.controllers.calendar_test import Calendar_ctrl
 
 
 class RootController(BaseController):
@@ -87,6 +88,7 @@ class RootController(BaseController):
    cc_report = CC_Report_ctrl()
    cc_campaign = CC_Campaign_ctrl()
    cc_outcall = CC_Outcall_ctrl()
+#   calendar = Calendar_ctrl()
 
    db_schema = DB_schema()
 

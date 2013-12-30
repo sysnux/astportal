@@ -40,14 +40,14 @@
 
 
 # Open database connection
-#import psycopg2
-#conn = psycopg2.connect('dbname=astportal2 user=postgres')
-#curs = conn.cursor()
+import psycopg2
+conn = psycopg2.connect('dbname=astportal2 user=postgres')
+curs = conn.cursor()
 
-from paste.deploy import appconfig
-from astportal2.config.environment import load_environment
-from astportal2.model import DBSession, CDR
-from sqlalchemy import desc, text
+#from paste.deploy import appconfig
+#from astportal2.config.environment import load_environment
+#from astportal2.model import DBSession, CDR
+#from sqlalchemy import desc, text
 
 # One CDR row -> two events row (+1 call at the beginning, -1 at the end)
 sql = '''SELECT id, ts, step FROM (
@@ -61,11 +61,11 @@ UNION
 ) AS y 
 ORDER BY ts, step DESC
 '''
-#curs.execute(sql)
+curs.execute(sql)
 
 ccalls = max = 0
-#for id, ts, x in curs.fetchall():
-for id, ts, x in DBSession.query(CDR):
+for id, ts, x in curs.fetchall():
+#for id, ts, x in DBSession.query(CDR):
    ccalls += x
    if ccalls > max: max = ccalls
    warning = ' ******' if ccalls<0 else '' # Something wrong !

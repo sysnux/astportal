@@ -9,7 +9,8 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group, not_anonymous, in_any_group
 
 from tw.api import js_callback
-from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, FileField, RadioButtonList
+from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, \
+   FileField, RadioButtonList, CheckBox
 from tw.forms.validators import NotEmpty, Int, FieldStorageUploadConverter
 
 from genshi import Markup
@@ -45,8 +46,10 @@ edit_sound_fields = [
 new_sound_fields = [
    TextField('name', validator=NotEmpty,
       label_text=u'Nom', help_text=u'Nom du son'),
-   FileField('file', validator=FieldStorageUploadConverter(not_empty=True),
+   FileField('file', validator=FieldStorageUploadConverter(), # not_empty=True),
       label_text=u'Fichier sonore', help_text=u'Fichier au format WAV'),
+   CheckBox('record', # validator=None,
+      label_text=u'Enregistrer par téléphone', help_text=u'Enregistrer le son immédiatement via le téléphone'),
    TextField('comment',
       label_text=u'Commentaires', help_text=u'Description du son' ),
    RadioButtonList('type', validator=NotEmpty,
@@ -74,30 +77,22 @@ edit_sound_form = TableForm(
    hover_help = True
    )
 
-def process_file(wav, id, type, name, lang):
+def process_file(filename, filetype, id, type, name, lang):
       ''' Convert and move to asterisk dir, with name "name.wav'
       '''
 
-      # Temporarily save uploaded audio file
-      filename = wav.filename
-      filetype = wav.type
-      filedata = wav.file
-      log.debug('process_file: <%s> <%s> <%s>' % (filename, filetype, filedata))
+      log.debug('process_file: <%s> <%s>' % (filename, filetype))
 
       if filetype.split('/')[0]!='audio':
          return u'Le fichier doit être de type son !'
 
-      orig = '%s/%d_%s' % (dir_tmp, id, filename)
-      dir_dst = (dir_moh if type==0 else dir_sounds) + '/' + lang
+      dir_dst = (dir_moh if type==0 else dir_sounds) % lang
       final8 = '%s/%s.sln' % (dir_dst, re.sub(r'\W', '_', name))
       final16 = '%s/%s.sln16' % (dir_dst, re.sub(r'\W', '_', name))
-      out = open(orig, 'w')
-      out.write(filedata.read())
-      out.close()
 
       # Convert to signed linear 16 bits, 8 / 16 kHz, mono
-      sox8 = config.get('command.sox8') % (orig, final8)
-      sox16 = config.get('command.sox16') % (orig, final16)
+      sox8 = config.get('command.sox8') % (filename, final8)
+      sox16 = config.get('command.sox16') % (filename, final16)
       log.debug('sox8 command: <%s>' % sox8)
       ret8 = system(sox8)
       log.debug('sox16 command: <%s>' % sox16)
@@ -110,7 +105,7 @@ def process_file(wav, id, type, name, lang):
 
       else:
          # remove uploaded file
-         unlink(orig)
+         unlink(filename)
          try:
             Globals.manager.send_action({'Action': 'Command',
                'Command': 'moh reload'})
@@ -145,7 +140,7 @@ def row(s):
    listen += u'''&nbsp;&nbsp;&nbsp;<a href="/moh/listen?id=%s"><img src="/images/sound_section.png" title="&Eacute;couter"></a>''' % \
          s.sound_id
 
-   type = u'Sons' if s.type==1 else u'Musique'
+   type = u'Son' if s.type==1 else u'Musique d\'attente'
 
    return [Markup(action), type, s.language, s.name, s.comment , Markup(listen) ]
 
@@ -179,7 +174,7 @@ class MOH_ctrl(RestController):
             )
       tmpl_context.grid = grid
       tmpl_context.form = None
-      return dict( title=u"Liste des musiques d'attente", debug='')
+      return dict( title=u"Liste des sons & musiques d'attente", debug='')
 
 
    @expose('json')
@@ -218,12 +213,12 @@ class MOH_ctrl(RestController):
       return dict(page=page, total=total, rows=rows)
 
 
-   @expose(template="astportal2.templates.form_new")
+   @expose(template="astportal2.templates.form_new_sound")
    def new(self, **kw):
       ''' Display new sound form
       '''
       tmpl_context.form = new_sound_form
-      return dict(title = u"Nouvelle musique d'attente", debug='', values='')
+      return dict(title = u'Nouveau son', debug='', values='')
 
    class new_form_valid(object):
       def validate(self, params, state):
@@ -252,8 +247,26 @@ class MOH_ctrl(RestController):
       except:
          flash(u'Impossible de créer le son (vérifier son nom)', 'error')
          redirect('/moh/')
+      
+      if kw['record']:
+         uphones = DBSession.query(User).get(request.identity['user'].user_id).phone
+# XXX     if len(uphones)<1:
+#            return dict(status=2)
+         chan = uphones[0].sip_id.encode('iso-8859-1')
+         filename = '/tmp/record-%s.wav' % chan
+         filetype = 'audio/wav'
 
-      ret = process_file(kw['file'], s.sound_id, s.type, s.name, kw['lang'])
+      else:
+         wav = kw['file']
+         filetype = wav.type
+         filedata = wav.file
+         filename = '%s/%d_%s' % (dir_tmp, s.sound_id, wav.filename)
+         # Temporarily save uploaded audio file
+         out = open(filename, 'w')
+         out.write(filedata.read())
+         out.close()
+
+      ret = process_file(filename, filetype, s.sound_id, s.type, s.name, kw['lang'])
 
       if ret:
          flash(ret,'error')
@@ -331,12 +344,16 @@ class MOH_ctrl(RestController):
       '''
       s = DBSession.query(Sound).get(id)
       dir = (dir_moh if s.type==0 else dir_sounds) % s.language
-      fn = '%s/%s.wav' % (dir, re.sub(r'\W', '_', s.name))
+      fn = '%s/%s.' % (dir, re.sub(r'\W', '_', s.name))
       import os
-      try:
-         st = os.stat(fn)
-         f = open(fn)
-      except:
+      for form in ( 'sln16', 'wav', 'sln' ):
+         try:
+            st = os.stat(fn + form)
+            f = open(fn + form)
+            break
+         except:
+            pass
+      else:
          flash(u'Fichier sonore introuvable: %s' % fn, 'error')
          redirect('/moh/')
 
@@ -353,7 +370,7 @@ class MOH_ctrl(RestController):
             'SIP/' + sip, # Channel
             sip, # Extension
             application = 'Playback',
-            data = fn[:-4],
+            data = fn[:-1],
             )
       log.debug('Playback %s from user %s (%s) returns %s' % (
          fn[:-4], request.identity['user'], sip, res))
@@ -367,22 +384,49 @@ class MOH_ctrl(RestController):
       '''
       s = DBSession.query(Sound).get(id)
       dir = (dir_moh if s.type==0 else dir_sounds) % s.language
-      fn = '%s/%s.wav' % (dir, re.sub(r'\W', '_', s.name))
+      fn = '%s/%s.' % (dir, re.sub(r'\W', '_', s.name))
       import os
-      try:
-         st = os.stat(fn)
-         f = open(fn)
-      except:
+      for form in ( 'wav', 'sln16', 'sln' ):
+         try:
+            st = os.stat(fn + form)
+            f = open(fn + form)
+            fn += form
+            break
+         except:
+            log.debug(u'Sound file not found %s' % (fn+form))
+            pass
+      else:
          flash(u'Fichier sonore introuvable: %s' % fn, 'error')
          redirect('/moh/')
+
       rh = response.headers
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
       rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
       rh['Cache-control'] = 'max-age=0' #for IE
       rh['Content-Type'] = 'audio/wav'
-      rh['Content-disposition'] = u'attachment; filename="%s"; size=%d;' % (
-         s.name, st.st_size)
+      rh['Content-disposition'] = u'attachment; filename="%s.%s"; size=%d;' % (
+         s.name, form, st.st_size)
       rh['Content-Transfer-Encoding'] = 'binary'
       return f.read()
+
+   @expose('json')
+   def record_by_phone(self, **kw):
+      '''
+      '''
+#     uphones = request.identity['user'].phone)
+      uphones = DBSession.query(User).get(request.identity['user'].user_id).phone
+      if len(uphones)<1:
+         return dict(status=2)
+      chan = uphones[0].sip_id.encode('iso-8859-1')
+      log.debug('Record file from extension %s' % (chan))
+      res = Globals.manager.originate(
+            'SIP/' + chan, # Channel
+            's', # Extension
+            context = 'record',
+            priority='1',
+            )
+      log.debug(res)
+      status = 0 if res=='Success' else 1
+      return dict(status=status)
 

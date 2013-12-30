@@ -1,4 +1,4 @@
-#! /opt/tg22env/bin/python
+#! /home/SysNux/tg22/bin/python
 # -*- coding: utf-8 -*-
 
 # Script de réception des télécopies
@@ -39,20 +39,20 @@ import transaction
 import os, sys
 import ConfigParser
 
-# Connexion base de données AstPortal via SqlAlchemy
-sys.path.append('/opt/astportal21')
-from paste.deploy import appconfig
-conf = appconfig('config:/opt/astportal21/x220.ini')
-
-from astportal2.config.environment import load_environment
-load_environment(conf.global_conf, conf.local_conf)
-from astportal2.model import DBSession, Phone, Fax
-
 log = open('/var/spool/hylafax/log/faxdispatch.log', 'a')
 log.write('\n' + '>' * 40 + '\n')
 for k in os.environ.keys(): 
    log.write('%s => %s\n' % (k, os.environ[k]))
 log.write('\n')
+
+# Connexion base de données AstPortal via SqlAlchemy
+sys.path.append('/home/SysNux/Projets/astportal21/')
+from paste.deploy import appconfig
+conf = appconfig('config:/home/SysNux/Projets/astportal21/x220.ini')
+
+from astportal2.config.environment import load_environment
+load_environment(conf.global_conf, conf.local_conf)
+from astportal2.model import DBSession, Phone, Fax
 
 dst = os.environ.get('CALLID4')
 src = os.environ.get('CALLID1')

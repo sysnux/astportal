@@ -1,0 +1,89 @@
+Problème de canaux qui restent bloqués dans la page de surveillance : on en a 8 après ~2 mois de fonctionnement
+
+Liste des canaux (variable asterisk.channels tel que renvoyée par https://callcenter.sg-bdp.pf/monitor/update_channels?last=0) :
+{"channels": {
+   "SIP/OXOTARAVAO-00013a7c": 
+         {"LastUpdate": 1384368115.015565, "Begin": 1384368002.031237, "Extension": "s", "AppData": "Routage,tT,,,,,,agent_connect", "ConnectedLineNum": "", "ChannelState": "6", "Outgoing": true, "CallerIDNum": "+689570269", "Priority": "43", "Application": "Queue", "State": "Up", "ConnectedLineName": "", "Link": "SIP/R97M12ox-00013a80", "Uniqueid": "1384368001.81076", "CallerIDName": "Routage 06737 -", "Context": "App_1_Entrant", "Event": "Newexten"}, 
+   "SIP/OXE-00013a78": {
+         "LastUpdate": 1384368100.974716, "Begin": 1384367968.222876, "Extension": "6735", "AppData": "SIP/10.152.28.10/06735,,tT", "ConnectedLineNum": "", "ChannelState": "6", "Outgoing": true, "CallerIDNum": "564681", "Priority": "4", "Application": "Dial", "State": "Up", "ConnectedLineName": "", "Uniqueid": "1384367967.81072", "CallerIDName": "564681", "Context": "gkd8wQ4j", "Event": "Newexten"}, 
+   "SIP/OXOTARAVAO-00013a75": {"LastUpdate": 1384368002.097343, "Begin": 1384367842.107579, "Extension": "23712", "AppData": "SIP/23712@OXOTARAVAO,,tT", "ConnectedLineNum": "", "ChannelState": "6", "Outgoing": true, "CallerIDNum": "+689570269", "Priority": "4", "Application": "Dial", "State": "Up", "ConnectedLineName": "", "Link": "SIP/OXOTARAVAO-00013a79", "Uniqueid": "1384367841.81069", "CallerIDName": "", "Context": "gkd8wQ4j", "Event": "Newexten"}, 
+   "SIP/OXOTARAVAO-00013a79": {"LastUpdate": 1384368002.097347, "Begin": 1384368002.094991, "ConnectedLineNum": "+689570269", "ChannelState": "6", "Outgoing": false, "CallerIDNum": "23712", "State": "Up", "ConnectedLineName": "Routage 06737 - AGENCE TARAVAO", "Link": "SIP/OXOTARAVAO-00013a75", "Uniqueid": "1384367976.81073", "CallerIDName": "Firuu Poenoa", "Event": "Newstate"}, 
+   "SIP/R97M12ox-00013a80": {"LastUpdate": 1384368115.015569, "Begin": 1384368114.994666, "Extension": "s", "AppData": "", "ConnectedLineNum": "+689570269", "ChannelState": "6", "Outgoing": false, "CallerIDNum": "34106", "Priority": "1", "Application": "NoOp", "State": "Up", "ConnectedLineName": "Routage 06737 - AGENCE TARAVAO", "Link": "SIP/OXOTARAVAO-00013a7c", "Uniqueid": "1384368090.81080", "CallerIDName": "Bohl Lucia", "Context": "app_queue_gosub_virtual_context", "Event": "Newexten"}, 
+   "SIP/10.152.28.10-00013a81": {"LastUpdate": 1384368101.308607, "Begin": 1384368100.975589, "ConnectedLineNum": "564681", "ChannelState": "5", "CallerIDNum": "6735", "State": "Ringing", "ConnectedLineName": "Routage 06730 - AGENCE POMARE", "Uniqueid": "1384368100.81081", "CallerIDName": "Firuu Poenoa", "Event": "Newstate"}, 
+   "AsyncGoto/SIP/10.152.28.10-00005dea": {"Begin": 1380743972.044127, "State": "Up", "CallerIDNum": "", "Uniqueid": "1380743972.24230", "CallerIDName": ""}, 
+   "AsyncGoto/SIP/10.152.28.10-00004ece": {"Begin": 1380570082.367146, "State": "Up", "CallerIDNum": "", "Uniqueid": "1380570082.20353", "CallerIDName": ""}, 
+   "AsyncGoto/SIP/10.152.28.10-00009c8c": {"Begin": 1381802156.634176, "State": "Up", "CallerIDNum": "", "Uniqueid": "1381802156.40406", "CallerIDName": ""}, 
+   "AsyncGoto/SIP/10.152.28.10-000136dd": {"Begin": 1384292169.663337, "State": "Up", "CallerIDNum": "", "Uniqueid": "1384292169.80143", "CallerIDName": ""}, 
+   "AsyncGoto/SIP/10.152.28.10-000124bc": {"Begin": 1383787949.145955, "State": "Up", "CallerIDNum": "", "Uniqueid": "1383787949.75483", "CallerIDName": ""}
+   "AsyncGoto/SIP/OXOMOANANUI-00000416": {"Begin": 1379450818.598736, "State": "Up", "CallerIDNum": "", "Uniqueid": "1379450818.1061", "CallerIDName": ""}, 
+   "AsyncGoto/SIP/10.152.28.10-0000cc4a": {"Begin": 1382554125.751599, "State": "Up", "CallerIDNum": "", "Uniqueid": "1382554125.52752", "CallerIDName": ""}, 
+   "AsyncGoto/SIP/10.152.28.10-00009b5d": {"Begin": 1381793628.942723, "State": "Up", "CallerIDNum": "", "Uniqueid": "1381793628.40099", "CallerIDName": ""}, 
+   }, 
+   "last_update": 1384368115.01559}
+
+Les différents canaux AsyncGoto/xxx correspondent aux 8 canaux bloqués dans l'interface.
+
+Log astportal pour OXOMOANANUI-00000416 :
+2013-09-17 10:46:58,602 WARNI [astportal2.lib.asterisk] Hangup: channel "AsyncGoto/SIP/OXOMOANANUI-00000416<ZOMBIE>" does not exist...
+2013-09-17 10:46:58,603 WARNI [astportal2.lib.asterisk] Hangup: "AsyncGoto/SIP/OXOMOANANUI-00000416<ZOMBIE>" -> destroy SIP/OXOMOANANUI-00000416
+2013-09-17 10:47:08,105 INFO  [paste.httpserver.ThreadPool] kill_hung_threads status: 50 threads (6 working, 44 idle, 0 starting) ave time 0.44sec, max time 1.92sec, killed 0 workers
+2013-09-17 10:47:11,047 WARNI [astportal2.lib.asterisk] Link: channel "SIP/OXOMOANANUI-00000416" doesn't exist ?
+2013-09-17 10:47:30,434 WARNI [astportal2.lib.asterisk] Hangup: channel "SIP/OXOMOANANUI-00000416" does not exist...
+2013-09-17 10:47:30,434 WARNI [astportal2.lib.asterisk] Hangup: "SIP/OXOMOANANUI-00000416" no channel to destroy
+2013-09-17 10:47:30,434 WARNI [astportal2.lib.asterisk] Hangup: channel "SIP/OXOMOANANUI-00000416" doesn't exist ?
+
+Ces canaux AsyncGoto sont a priori créés par Asterisk lors des transferts ou des redirections via AMI (à vérifier).
+http://www.voip-info.org/wiki/view/Asterisk+manager+Example:+Redirect
+http://www.voip-info.org/wiki/view/Asterisk+manager+Example:+Transfer
+
+L'événement correspondant à leur création est bien vu par AstPortal -> nouvelle clé dans le dictionnaire channels.
+L'événement correspondant à leur destruction est bien vu par AstPortal, mais <ZOMBIE> ajouté à la fin du nom de canal ne permet pas de trouver la bonne clé dans le dictionnaire channels. Ensuite le code dans AstPortal recherche un canal qui est contenu dans le nom reçu ; dans ce cas, ça peut malheureusement conduire à la destruction du canal original (SIP/OXOMOANANUI-00000416), et le canal AsyncGoto/SIP/OXOMOANANUI-00000416 n'est jamais détruit. Ensuite le canal original n'est plus trouvé lors des autres évènements (Link et Hangup).
+
+Solution 1 : ignorer les évènements pour les canaux dont le nom commence par AsyncGoto
+Solution 2 : lors de la destruction rechercher si la clé n'est pas trouvée et si le nom se termine par <ZOMBIE>, rechercher la clé en retirant <ZOMBIE> du nom.
+
+diff --git a/astportal2/lib/asterisk.py b/astportal2/lib/asterisk.py
+index 8485948..f2cfca0 100644
+--- a/astportal2/lib/asterisk.py
++++ b/astportal2/lib/asterisk.py
+@@ -640,14 +640,18 @@ Channel: SIP/100-0000001f
+       c = dict['Channel']
+ 
+       if c not in self.channels:
+-         log.warning('Hangup: channel "%s" does not exist...' % c)
+-         for chan in self.channels.keys():
+-            if chan in c:
+-               log.warning('Hangup: "%s" -> destroy %s' % (c,chan))
+-               c = chan
+-               break
++         if c[-8:] == '<ZOMBIE>' and c[:-8] in self.channels:
++            # Redirected or transferred channel
++            c = c[:-8]
+          else:
+-            log.warning('Hangup: "%s" no channel to destroy' % c)
++            log.warning('Hangup: channel "%s" does not exist...' % c)
++            for chan in self.channels.keys():
++               if chan in c:
++                  log.warning('Hangup: "%s" -> destroy %s' % (c,chan))
++                  c = chan
++                  break
++            else:
++               log.warning('Hangup: "%s" no channel to destroy' % c)
+
+
+On peut aussi ne pas afficher dans la page HTML les canaux dont le nom commence par "AsyncGoto/".
+
+diff --git a/astportal2/templates/monitor.html b/astportal2/templates/monitor.html
+index 10d48a2..2c74f5d 100644
+--- a/astportal2/templates/monitor.html
++++ b/astportal2/templates/monitor.html
+@@ -43,6 +43,8 @@ function display() {
+    var table = '';
+        var now = new Date(), tot_chan=0, tot_calls=0;
+    for (p in channels) {
++      if (p.substr(0, 10)=='AsyncGoto/')
++         continue // Don't bother displaying channels during redirection
+       var c = channels[p];
+       tot_chan++;
+       if (c['Link']!=undefined && !c['Outgoing']) {
+

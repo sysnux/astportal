@@ -318,7 +318,10 @@ class Phonebook_ctrl(RestController):
    def gs_phonebook_xml(self, user=None):
       ''' Export phonebook to Grandstream XML phonebook format
       '''
-      log.debug(u'Grandstream phonebook <%s>', user)
+
+      log.debug(u'Grandstream phonebook from=<%s> by <%s>' % (\
+         request.environ['REMOTE_ADDR'], request.environ['HTTP_USER_AGENT']))
+      log.debug(u'Grandstream phonebook user=<%s>' % user)
 
       xml = '<?xml version="1.0" encoding="utf-8"?>\n<AddressBook>\n'
 
