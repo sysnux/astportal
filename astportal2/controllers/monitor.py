@@ -60,4 +60,21 @@ class Monitor_ctrl(TGController):
       status = 0 if res=='Success' else 1
       return dict(status=status)
 
+   @expose('json')
+   def redirect(self, channel, exten):
+      '''
+      '''
+      log.debug('Redirect %s to %s' % (channel, exten))
+      res = Globals.manager.redirect( 
+      #channel, exten, priority='1', extra_channel='', context=''):
+            channel.encode('iso-8859-1'), # Channel
+            exten, # Extension
+            context='stdexten',
+            priority='1',
+            )
+      log.debug(res)
+      status = 0 if res=='Success' else 1
+      return dict(status=status)
+
+
 

@@ -32,7 +32,7 @@ function del(xid,msg) {
    }
 }
 
-function phone_open(ip, pwd, phone_type) {
+function phone_open(ip, pwd, phone_type, mac) {
 console.log('phone_type='+phone_type);
    with (document.phone_login) {
       if (phone_type=='1') {
@@ -44,13 +44,22 @@ console.log('phone_type='+phone_type);
          action = 'http://' + ip + '/cgi-bin/dologin';
          submit();
       } else if (phone_type=='3') {
-         $.post('http://' + ip + '/cgi-bin/dologin', {password: pwd}, 
-            function (data) { 
+         $.ajax({
+            type: 'POST',
+            url: 'gxplogin',
+            data: {'ip': ip, 'mac': mac, 'pwd': pwd},
+            success: function (data, stat, xhr) { 
 console.log(data);
-               sid.value = data['body']['sid'];
-               action = 'http://' + ip + '/#page:status_account';
-            }
-         );
+console.log(stat);
+console.log(xhr);
+               if (data) {
+                  sid.value = data['sid'];
+                  action = 'http://' + ip + ''; // '/#page:status_account';
+                  submit();
+               }
+            },
+            error: function (xhr, stat) { alert('ERREUR: ' + status); },
+         });
       }
    }
 }

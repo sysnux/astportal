@@ -155,7 +155,7 @@ def row(u):
 
 class User_ctrl(RestController):
 
-   allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
+#   allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
    
    @sidebar(u'-- Administration || Utilisateurs', sortorder = 12,
       icon = '/images/preferences-desktop-user.png',
@@ -437,4 +437,16 @@ class User_ctrl(RestController):
          session.save()
 
       return dict(status='ok')
+
+   @expose('json')
+   def list(self):
+      
+      users = []
+      for u in DBSession.query(User).order_by(User.firstname, User.lastname).all():
+         extens = []
+         for p in u.phone:
+            extens.append(p.exten)
+         users.append((u.firstname, u.lastname, extens))
+      log.debug('users = %s' % users)
+      return dict(users=users)
 

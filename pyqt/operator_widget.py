@@ -24,33 +24,44 @@ except AttributeError:
     def _translate(context, text, disambig):
         return QtGui.QApplication.translate(context, text, disambig)
 
+
 class DragDropButton(RichTextPushButton):
 
-    def __init__(self, parent, channel, ext, name, x, y, w, h):
+    def __init__(self, parent, device, exten, name, img, x, y, w, h):
         super(DragDropButton, self).__init__(parent)
-        self.channel = channel
-        self.ext = ext
+        self.device = device
+        self.channel = None
+        self.exten = exten
         self.name = name
         self.state = 'Down'
         self.setAcceptDrops(True)
-#        self.setObjectName(_fromUtf8(object_name))
-#        self.setText(ext + '\n' + name)
         self.setHtml(u'''
 <table>
 <tr><td>
-<img src="/usr/share/icons/oxygen/32x32/actions/draw-brush.png" width="20" height="32"/>
+<img src="%s" width="20" height="20" style="margin-top: 10px;"/>
 </td>
 <td><font size="+1">%s</font><br/><b>%s</b></td></tr>
 </table>
-''' % (ext, name))
+''' % (img, exten, name))
         self.setStyleSheet("background-color: rgb(0, 192, 0); font-weight: bold;")
         self.setGeometry(QtCore.QRect(x, y, w, h))
         QtCore.QObject.connect(
             self, QtCore.SIGNAL('clicked()'), self.blf_clicked)
+        act_transfer = QtGui.QAction(u"&Transférer vers...", self,
+         triggered=self.transfer)
+        self.addAction(act_transfer)
+        self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
 
     def __repr__(self):
        return u'<DragDropButton: %s, %s, %s, %s>' %  (
-           self.channel, self.ext, self.name, self.state)
+           self.device, self.exten, self.name, self.state)
+
+    def transfer(self):
+        if self.channel is not None:
+           print u'Transfert libre de %s' % self
+           self.emit(QtCore.SIGNAL("menu_transfer"), self)
+        else:
+           print u'Transfert libre de %s : pas actif !' % self
 
     def mouseMoveEvent(self, e):
 
@@ -71,6 +82,7 @@ class DragDropButton(RichTextPushButton):
     def dropEvent(self, e):       
         source = e.source()
         print 'Drop: %s -> %s' % (source, self)
+        self.emit(QtCore.SIGNAL("dropped"), source, self)
 
     def blf_clicked(self):
         print 'Clicked: %s' % (self)
@@ -80,8 +92,8 @@ class Ui_AsteriskOperatorPanel(object):
     def setupUi(self, AsteriskOperatorPanel, blf):
 
         AsteriskOperatorPanel.setObjectName(_fromUtf8("AsteriskOperatorPanel"))
-#        AsteriskOperatorPanel.resize(280, len(blf)*45+15)
-        AsteriskOperatorPanel.resize(200, len(blf)*45+15)
+        AsteriskOperatorPanel.resize(280, len(blf)*45+15)
+#        AsteriskOperatorPanel.resize(200, len(blf)*45+15)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -100,19 +112,22 @@ class Ui_AsteriskOperatorPanel(object):
                b[0], # Object name
                ext, # First line (extension)
                name, # Second line (name)
-               20, 10 + (40+5)*i, 160, 40 # x,y, w, h
-#               110, 10 + (40+5)*i, 160, 40 # x,y, w, h
+               'airtahiti.png',
+#               20, 10 + (40+5)*i, 160, 40 # x,y, w, h
+               110, 10 + (40+5)*i, 160, 40 # x,y, w, h
             )
 
         # Line buttons
-#        self.line_button = []
-#        for i in range(4):
-#            self.line_button.append(DragButton( 
-#               AsteriskOperatorPanel, # Parent
-#               'line_%d' % i, # Object name
-#               'Ligne %d' % i, # Button text
-#               10, 10 + (25+5)*i, 80, 25 # x,y, w, h
-#            ))
+        self.line_button = []
+        for i in range(4):
+            self.line_button.append(DragDropButton( 
+               AsteriskOperatorPanel, # Parent
+               'line_%d' % i, # Object name
+               '',
+               'Ligne %d' % i, # Button text
+               'opt.png',
+               10, 10 + (40+5)*i, 100, 40 # x,y, w, h
+            ))
 
         self.retranslateUi(AsteriskOperatorPanel)
         QtCore.QMetaObject.connectSlotsByName(AsteriskOperatorPanel)

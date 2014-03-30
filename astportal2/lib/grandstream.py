@@ -18,6 +18,8 @@ class Grandstream(object):
    params = dict(
 # Admin password for web interface
 P2 = 'admin',
+# VLAN TAG
+#P51 = 130,
 # No Key Entry Timeout. Default - 4 seconds.
 P85 = 3,
 # Use # as Dial Key. 0 - no, 1 - yes
@@ -69,7 +71,7 @@ P331 = '',
 # Phonebook Download Interval
 # This is an integer variable in hours.  
 # Valid value range is 5-720 (default 0), and greater values will default to 720
-P332 = 5,
+P332 = 10,
 # Remove Manually-edited entries on Download
 # 0 - No, 1 - Yes, other values ignored
 P333 = 0,
@@ -90,13 +92,15 @@ P30 = '',
       self.sid = None
       self.url = 'http://%s/' % host
 
-   def get(self, action, params=''):
+   def get(self, action, params=None):
       if params:
          params = urllib.urlencode(params)
-      if self.type in (1, 2):
+      if self.type in (0, 1, 2) and params is not None:
          params += '&gnkey=0b82' # Seems it *must* be last parameter, or update fails
       elif self.sid is not None:
          params += '&sid=' + self.sid
+      for c in self.cj:
+         log.debug('Cookie: %s = %s' % (c.name, c.value))
       req = urllib2.Request(self.url + action, params)
       try:
          resp = self.opener.open(req)
@@ -140,11 +144,14 @@ P30 = '',
          for c in self.cj:
             log.debug('Cookie: %s = %s' % (c.name, c.value))
             if c.name=='SessionId':
+               log.debug('Logged in GXP1xxx')
                logged_in = True
                self.type = 1
       if not logged_in:
          log.warning('Login failed (check password? %s)', pwd)
          return False
+      
+      log.debug('GXP login ok!')
       return True
 
    def infos(self):
@@ -152,6 +159,9 @@ P30 = '',
       if self.type == 1: # Old GXP
          resp = self.get('index.htm')
          buffer = ''
+         if resp is None:
+            log.error('infos failed, no data')
+            return None
          for l in resp.readlines():
             buffer += unicode(l,'ISO-8859-1')
          html = BeautifulSoup(buffer)
@@ -160,6 +170,7 @@ P30 = '',
             model = ((content('tr')[2])('td')[1]).text.replace('&nbsp; ','').strip()
             soft = ((content('tr')[4])('td')[1]).text.replace('&nbsp; ','').strip()
          except:
+            log.error('infos failed, html=----\n%s\n----' % html)
             return None
 
       elif self.type == 2: # GXP-14XX 21XX
@@ -235,7 +246,7 @@ P30 = '',
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
-         mwi_subscribe=False):
+         mwi_subscribe=False, reboot=False):
       '''Parameters: firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None
       '''
@@ -330,8 +341,9 @@ P30 = '',
 
       # Update and reboot phone
       self.update(self.params)
-      sleep(10)
-      self.reboot()
+      if reboot:
+         sleep(3)
+         self.reboot()
 
    def encode(self):
       '''Create a configuration file suitable for phone

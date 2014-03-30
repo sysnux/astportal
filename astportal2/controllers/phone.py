@@ -292,7 +292,7 @@ class Phone_ctrl(RestController):
             if m:
                model = m.groups()[0]
                gxp_type = 1 if model in ('1200', '2000', '2010', '2020') else 3 # XXX
-               ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, gxp_type, ip))
+               ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s', '%s', '%s', '%s');">%s</a>''' % (ip, p.password, gxp_type, p.mac, ip))
             else:
                ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
 
@@ -492,7 +492,6 @@ class Phone_ctrl(RestController):
 
       # Configure phone
       need_voicemail_update = False
-      sip_server = server_sip
       sip_ascii_name = ''
       mwi_subscribe = 0
       if kw['user_id']!='-9999':
@@ -530,7 +529,7 @@ class Phone_ctrl(RestController):
             server_firmware + '/phones/firmware', 
             server_config + '/phones/config', server_syslog,
             server_config + ':8080/phonebook/gs_phonebook_xml', '', '', '',
-            sip_server, sip_id, sip_ascii_name, mwi_subscribe)
+            server_sip, sip_id, sip_ascii_name, mwi_subscribe)
 
       flash(u'Nouveau téléphone "%s" créé' % (kw['exten']))
       return {'status': 'created'}
@@ -689,4 +688,17 @@ class Phone_ctrl(RestController):
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')
 
+
+   @expose('json')
+   def gxplogin(self, ip=None, mac=None, pwd=None):
+      ''' Login to GXP phone (newer firmware)
+      '''
+      log.debug(u'gxplogin ip=%s, mac=%s, pwd=%s', (ip, mac, pwd))
+      gs = Grandstream(ip, mac)
+
+      if not gs.login(pwd):
+         log.error(u'gxplogin error login')
+         return {}
+
+      return dict(sid=gs.sid)
 
