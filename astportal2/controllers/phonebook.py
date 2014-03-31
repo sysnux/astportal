@@ -16,7 +16,7 @@ from sqlalchemy import or_, func
 
 from genshi import Markup
 
-from astportal2.model import DBSession, Phonebook, User, View_phonebook
+from astportal2.model import DBSession, Phonebook, User, Phone, View_phonebook
 from astportal2.lib.app_globals import Globals
 from astportal2.lib.myjqgrid import MyJqGrid
 
@@ -26,6 +26,9 @@ default_cid = config.get('default_cid')
 
 import logging
 log = logging.getLogger(__name__)
+
+import re
+re_gs = re.compile('GXP(\d{4}) .* (\w{2})(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})$')
 
 class New_contact_form(TableForm):
    ''' New contact form
@@ -315,25 +318,74 @@ class Phonebook_ctrl(RestController):
 
 
    @expose(content_type='text/xml; charset=utf-8')
-   def gs_phonebook_xml(self, user=None):
+   def gs_phonebook_xml(self, sip_id=None):
       ''' Export phonebook to Grandstream XML phonebook format
       '''
+      if Globals.manager is not None:
+         # Refresh Asterisk peers
+         Globals.manager.sippeers()
 
-      log.debug(u'Grandstream phonebook from=<%s> by <%s>' % (\
-         request.environ['REMOTE_ADDR'], request.environ['HTTP_USER_AGENT']))
-      log.debug(u'Grandstream phonebook user=<%s>' % user)
+      model = None
+      mac = None
+      try:
+         m = re_gs.search(request.environ['HTTP_USER_AGENT'])
+         x = m.groups()
+         model = x[0]
+         mac = ':'.join(x[1:])
+
+      except:
+         log.error(u'gs_phonebook_xml: could not parse UA from "%s"' % request.environ['HTTP_USER_AGENT'])
+
+#      try:
+#         ip = (Globals.asterisk.peers['SIP/'+sip_id[0:8]]['Address']).split(':')[0]
+#         ua = Globals.asterisk.peers['SIP/'+sip_id[0:8]]['UserAgent']
+#         log.debug(u'gs_phonebook_xml: found SIP peer "%s" @ %s)' % (ua, ip))
+#         if ip!=request.environ['REMOTE_ADDR'] or \
+#               ua[0:19]!=request.environ['HTTP_USER_AGENT'][0:19]:
+#            log.error(u'gs_phonebook_xml: SIP peer does not match request, aborting!')
+#            return ''
+#      except:
+#         log.error(u'gs_phonebook_xml: SIP peer not found, aborting! From "%s" by "%s" @ %s.' % (
+#                  sip_id, request.environ['HTTP_USER_AGENT'], request.environ['REMOTE_ADDR']))
+#         return ''
+
+      try:
+#         p = DBSession.query(Phone).filter(Phone.sip_id==sip_id[0:8]).one()
+         p = DBSession.query(Phone).filter(Phone.mac==mac).one()
+         uid = p.user.user_id
+         log.error(u'sip_id "%s" -> user %s (%d)' % (
+            sip_id[0:8], p.user.display_name, uid))
+
+      except:
+         log.error(u'gs_phonebook_xml: phone or user not found, From "%s" by "%s" @ %s.' % (
+                  mac, request.environ['HTTP_USER_AGENT'], request.environ['REMOTE_ADDR']))
+         uid = None
 
       xml = '<?xml version="1.0" encoding="utf-8"?>\n<AddressBook>\n'
 
       # Fist, look for entries in phonebook...
-      list = DBSession.query(Phonebook)
-      list = list.filter( or_(Phonebook.phone1!=None,
+      list = DBSession.query(Phonebook). \
+         filter( or_(Phonebook.phone1!=None,
                Phonebook.phone2!=None,
-               Phonebook.phone3!=None) )
+               Phonebook.phone3!=None))
+
+      # Check privacy
+      if uid is not None:
+         list = list.filter(or_(Phonebook.user_id==uid,
+            Phonebook.private==False))
+      else:
+         list = list.filter(Phonebook.private==False)
+
+      # Then sort
       list = list.order_by(Phonebook.lastname, Phonebook.firstname)
+
+      total = 0
 
       for e in list:
          if e.phone1:
+            total +=1
+#            if model=='1200' and total >= 100:
+#               break
             xml += '''<Contact>
 <LastName>%s</LastName>
 <FirstName>%s</FirstName>
@@ -344,6 +396,9 @@ class Phonebook_ctrl(RestController):
 </Contact>''' % (e.lastname, e.firstname, e.phone1)
 
          if e.phone2:
+            total +=1
+            if model=='1200' and total >= 100:
+               break
             xml += '''<Contact>
 <LastName>%s</LastName>
 <FirstName>%s</FirstName>
@@ -354,6 +409,9 @@ class Phonebook_ctrl(RestController):
 </Contact>''' % (e.lastname, e.firstname, e.phone2)
 
          if e.phone3:
+            total +=1
+            if model=='1200' and total >= 100:
+               break
             xml += '''<Contact>
 <LastName>%s</LastName>
 <FirstName>%s</FirstName>
@@ -365,10 +423,17 @@ class Phonebook_ctrl(RestController):
 
 
       # ...then add users
-      list = DBSession.query(User).filter(User.phone!=None)
+      list = DBSession.query(User).\
+         filter(User.phone!=None).\
+         filter(User.display_name!='')
       list = list.order_by(User.display_name)
 
       for e in list:
+         if e.phone[0].hide_from_phonebook:
+            continue
+         total +=1
+#         if model=='1200' and total >= 100:
+#            break
          xml += '''<Contact>
 <LastName>%s</LastName>
 <FirstName>%s</FirstName>

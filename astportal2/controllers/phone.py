@@ -708,8 +708,8 @@ class Phone_ctrl(RestController):
 
       # Backup phone configuration
       try:
-         config = directory_tftp + '/phones/config/gs-cfg%s' % p.mac.replace(':','')
-         rename(config + '.cfg', config + '.cfg.BAK')
+         config = directory_tftp + '/phones/config/cfg%s' % p.mac.replace(':','')
+         rename(config, config + '.BAK')
          rename(config + '.txt', config + '.txt.BAK')
          log.warning('%s Config files saved' % p.mac)
       except:
