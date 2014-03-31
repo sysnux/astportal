@@ -9,9 +9,9 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group
 
 from tw.api import js_callback
-from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, CheckBoxList, CheckBoxTable
+from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, CheckBoxList, CheckBoxTable, BooleanRadioButtonList
 from tw.jquery import AjaxForm
-from tw.forms.validators import NotEmpty, Int, Invalid
+from tw.forms.validators import NotEmpty, Int, Invalid, Bool
 
 from genshi import Markup
 
@@ -23,7 +23,7 @@ from astportal2.lib.asterisk import asterisk_update_phone
 
 from string import letters, digits
 from random import choice
-from os import system, popen #, rename
+from os import system, popen, rename
 import re
 import logging
 log = logging.getLogger(__name__)
@@ -114,6 +114,12 @@ class New_phone_form(AjaxForm):
       SingleSelectField('user_id', options=users,
          not_empty = False,
          label_text=u'Utilisateur'),
+      BooleanRadioButtonList('hide_from_phonebook',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Cacher de l'annuaire",
+         validator = Bool,
+         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
       HiddenField('mac', 
          not_empty = False,
          validator=Int),
@@ -168,6 +174,10 @@ class Edit_phone_form(TableForm):
          label_text=u'Utilisateur', help_text=u'Utilisateur du téléphone',
          validator=Int
          ),
+      BooleanRadioButtonList('hide_from_phonebook',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         label_text = u"Cacher de l'annuaire",
+         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
       HiddenField('_method', validator=None), # Needed by RestController
       HiddenField('phone_id', validator=Int),
       ]
@@ -291,8 +301,8 @@ class Phone_ctrl(RestController):
             m = re.search('(\d{4})',ua)
             if m:
                model = m.groups()[0]
-               gxp_type = 1 if model in ('1200', '2000', '2010', '2020') else 3 # XXX
-               ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s', '%s', '%s', '%s');">%s</a>''' % (ip, p.password, gxp_type, p.mac, ip))
+               gxp_type = 1 if model in ('1200', '2000', '2010', '2020') else 2
+               ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, gxp_type, ip))
             else:
                ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
 
@@ -407,7 +417,7 @@ class Phone_ctrl(RestController):
       match = re.search('(\w\w:\w\w:\w\w):(\w\w:\w\w:\w\w)', mac.lower())
       if not match:
          return dict(status=3, msg=u"Téléphone injoignable, vérifiez l'adresse")
-      (vendor,device) = match.groups()
+      vendor, device = match.groups()
       log.debug('vendor=%s, device=%s' % (vendor,device))
       if vendor not in _vendors.keys():
          return dict(status=4, msg=u"Type de téléphone inconnu")
@@ -472,6 +482,7 @@ class Phone_ctrl(RestController):
          p = DBSession.query(Phone).filter(Phone.exten==kw['exten']).all()
          if len(p):
             return dict(status='bad_exten')
+         exten = re.sub(r'\D', '', kw['exten'])
 
       # Check dnis is not already used
       if kw['dnis']:
@@ -479,6 +490,7 @@ class Phone_ctrl(RestController):
          p = DBSession.query(Phone).filter(Phone.dnis==kw['dnis']).all()
          if len(p):
             return dict(status='bad_dnis')
+         dnis = re.sub(r'\D', '', kw['dnis'])
 
       # Generate SIP id and secret
       while True:
@@ -491,12 +503,15 @@ class Phone_ctrl(RestController):
             break
 
       # Configure phone
+      sip_display_name = None
+      mwi_subscribe = 0
       need_voicemail_update = False
-      sip_ascii_name = ''
+      sip_server = server_sip
+      sip_display_name = ''
       mwi_subscribe = 0
       if kw['user_id']!='-9999':
          u = DBSession.query(User).get(kw['user_id'])
-         sip_ascii_name = u.ascii_name
+         sip_display_name = u.display_name
          if u.email_address:
             mwi_subscribe = 1
             need_voicemail_update = True
@@ -507,8 +522,8 @@ class Phone_ctrl(RestController):
       p.sip_id = sip_id
       p.mac = kw['mac']
       p.password = pwd
-      if kw['exten']: p.exten = kw['exten']
-      if kw['dnis']: p.dnis = kw['dnis']
+      if kw['exten']: p.exten = exten
+      if kw['dnis']: p.dnis = dnis
       if kw['dptm_id']!='-9999': p.department_id = kw['dptm_id']
       if kw['user_id']!='-9999': p.user_id = kw['user_id']
       if 'callgroups' in kw:
@@ -517,6 +532,7 @@ class Phone_ctrl(RestController):
          p.pickupgroups = ','.join([str(x) for x in kw['pickupgroups']])
       if 'contexts' in kw:
          p.contexts = ','.join([str(x) for x in kw['contexts']])
+      p.hide_from_phonebook = kw['hide_from_phonebook']
       DBSession.add(p)
 
       asterisk_update_phone(p)
@@ -529,7 +545,7 @@ class Phone_ctrl(RestController):
             server_firmware + '/phones/firmware', 
             server_config + '/phones/config', server_syslog,
             server_config + ':8080/phonebook/gs_phonebook_xml', '', '', '',
-            server_sip, sip_id, sip_ascii_name, mwi_subscribe)
+            sip_server, sip_id, '', mwi_subscribe)
 
       flash(u'Nouveau téléphone "%s" créé' % (kw['exten']))
       return {'status': 'created'}
@@ -551,6 +567,7 @@ class Phone_ctrl(RestController):
          'pickupgroups': p.pickupgroups.split(',') if  p.pickupgroups else None,
          'dptm_id': p.department_id,
          'user_id': p.user_id,
+         'hide_from_phonebook': p.hide_from_phonebook,
          '_method': 'PUT'}
       if p.exten: ident = p.exten
       elif p.mac: ident = p.mac
@@ -575,7 +592,7 @@ class Phone_ctrl(RestController):
    @validate(edit_form_valid(), error_handler=edit)
    @expose()
    def put(self, phone_id, dptm_id, user_id, exten, dnis, contexts,
-         callgroups=None, pickupgroups=None):
+         hide_from_phonebook, callgroups=None, pickupgroups=None):
       ''' Update phone 
 
       User and exten information is independant from phone, there is no need
@@ -596,6 +613,7 @@ class Phone_ctrl(RestController):
       old_dnis = p.dnis
 
       if exten!=p.exten:
+         exten = re.sub(r'\D', '', exten)
          log.debug('Exten has changed, %s -> %s' % (p.exten, exten))
          if exten=='':
             p.exten = None
@@ -603,6 +621,7 @@ class Phone_ctrl(RestController):
             p.exten = exten
 
       if dnis!=p.dnis:
+         dnis = re.sub(r'\D', '', dnis) if dnis is not None else ''
          log.debug('DNIS has changed, %s -> %s' % (p.dnis, dnis))
          if dnis=='':
             p.dnis = None
@@ -633,6 +652,8 @@ class Phone_ctrl(RestController):
       x = ','.join([str(x) for x in pickupgroups])
       if p.pickupgroups != x:
          p.pickupgroups = x
+
+      p.hide_from_phonebook = hide_from_phonebook
 
       asterisk_update_phone(p, old_exten, old_dnis)
 
@@ -675,15 +696,24 @@ class Phone_ctrl(RestController):
          log.debug('Delete context, hint (DNIS) from extensions.conf returns %s' % res)
 
          # Delete voicemail entry
-         Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
+         res = Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
             'app_voicemail_plain', [ ('Delete', 'astportal', p.exten) ])
          log.debug('Delete entry from voicemail.conf returns %s' % res)
 
       # Delete SIP entry
       actions = [ ('DelCat', p.sip_id) ]
-      Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
+      res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
          'chan_sip', actions)
       log.debug('Delete entry from sip.conf returns %s' % res)
+
+      # Backup phone configuration
+      try:
+         config = directory_tftp + '/phones/config/gs-cfg%s' % p.mac.replace(':','')
+         rename(config + '.cfg', config + '.cfg.BAK')
+         rename(config + '.txt', config + '.txt.BAK')
+         log.warning('%s Config files saved' % p.mac)
+      except:
+         pass
 
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')

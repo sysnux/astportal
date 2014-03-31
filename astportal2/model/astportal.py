@@ -79,6 +79,7 @@ class Phone(DeclarativeBase):
    created = Column(DateTime, nullable=False, default=datetime.now)
    department = relation('Department', backref=backref('phones', order_by=exten))
    user = relation('User', backref=backref('phone'))
+   hide_from_phonebook = Column(Boolean(), default=False)
 
 #   def __init__(self, num, did):
 #      self.exten = num
@@ -167,7 +168,7 @@ class Queue(DeclarativeBase):
    announce_holdtime  = Column(Integer)
    announce_position  = Column(Integer)
    priority = Column(Integer)
-   monitor = Column(Integer)
+   monitor = Column(Boolean)
    def __repr__(self):
       return '<Queue: name="%s", comment="%s">' % (
             self.name, self.comment)
@@ -325,7 +326,7 @@ class Fax(DeclarativeBase):
    comment = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
    def __repr__(self):
-      return '<Record: uniqueid="%d">' % (self.fax_id)
+      return '<Sound: uniqueid="%d">' % (self.fax_id)
 
 
 class Report(DeclarativeBase):

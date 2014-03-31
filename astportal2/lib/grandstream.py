@@ -179,7 +179,7 @@ P30 = '',
          for l in resp.readlines():
             buffer += unicode(l,'UTF-8')
          html = BeautifulSoup(buffer)
-         content = model = soft
+         content = model = soft = ''
          try:
             content = html('table')[2]
             model = (content('tr')[3])('td')[1].text.strip()
@@ -300,7 +300,7 @@ P30 = '',
          0
       self.params['P33'] = '*79'
       self.params['P73'] = 1
-      self.params['P1347'] = '*' # BLF Call-pickup Prefix
+      self.params['P1347'] = '**' # BLF Call-pickup Prefix
       self.params['P57'] = 8
 
       if self.type in (2, 3): # Newer GXP
@@ -314,7 +314,7 @@ P30 = '',
 
       else: # Old GXP
          # Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
-         self.params['P342'] = 3,
+         self.params['P342'] = 3
          self.params['P399'] = 'french'
 
       # Generate conf files (text and binary)
