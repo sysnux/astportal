@@ -102,7 +102,7 @@ class Monitor(QWidget):
 
       # Variables
       self.requests = 0 # Number of requests
-      self.last = '0' # Last update (integer representing 1/100 seconds)
+      self.last = 0 # Last update (integer representing 1/100 seconds)
       self.queues = {} # Queues dict
       self.time_diff = 0 # Time difference beetwen host and server
       self.url = QUrl(url)
@@ -134,12 +134,13 @@ class Monitor(QWidget):
       req.setRawHeader('Content-Type', 
          'application/x-www-form-urlencoded; charset=utf-8');
       self.rsp = self.man.post(req,
-         QByteArray('last=%f' % self.last))
+         QByteArray('last=%d' % self.last))
       self.rsp.finished.connect(self.response_finished)
 
    def response_finished(self):
       s = str(self.rsp.readAll())
       self.debug('Response %d finished' % (self.requests))
+      self.debug(s)
       if s:
          js = json.loads(s)
          self.last = js['last']

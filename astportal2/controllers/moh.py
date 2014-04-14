@@ -14,7 +14,7 @@ from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int, FieldStorageUploadConverter
 
 from genshi import Markup
-from os import system, unlink
+from os import system, unlink, rename
 import logging
 log = logging.getLogger(__name__)
 import re
@@ -88,7 +88,7 @@ def process_file(filename, filetype, id, type, name, lang):
 
       dir_dst = (dir_moh if type==0 else dir_sounds) % lang
       final8 = '%s/%s.sln' % (dir_dst, re.sub(r'\W', '_', name))
-      final16 = '%s/%s.sln16' % (dir_dst, re.sub(r'\W', '_', name))
+      final16 = '%s/%s16.sln' % (dir_dst, re.sub(r'\W', '_', name))
 
       # Convert to signed linear 16 bits, 8 / 16 kHz, mono
       sox8 = config.get('command.sox8') % (filename, final8)
@@ -106,6 +106,7 @@ def process_file(filename, filetype, id, type, name, lang):
       else:
          # remove uploaded file
          unlink(filename)
+#         rename(final16, final8 + '16')
          try:
             Globals.manager.send_action({'Action': 'Command',
                'Command': 'moh reload'})
@@ -426,7 +427,7 @@ class MOH_ctrl(RestController):
             context = 'record',
             priority='1',
             )
-      log.debug(res)
+      log.debug('record_by_phone, res=%s' % res)
       status = 0 if res=='Success' else 1
       return dict(status=status)
 

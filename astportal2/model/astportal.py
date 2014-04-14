@@ -6,7 +6,7 @@ AstPortal model
 from datetime import datetime
 
 from sqlalchemy import Table, Column, ForeignKey, Sequence
-from sqlalchemy import Unicode, Integer, DateTime, Boolean
+from sqlalchemy import Unicode, Integer, DateTime, Boolean, LargeBinary
 from sqlalchemy.orm import mapper, relation, backref, column_property
 
 #from astportal2.model import metadata
@@ -325,6 +325,7 @@ class Fax(DeclarativeBase):
    filename = Column(Unicode(60))
    comment = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
+   pdf = Column(LargeBinary)
    def __repr__(self):
       return '<Sound: uniqueid="%d">' % (self.fax_id)
 
@@ -411,4 +412,26 @@ class Outcall(DeclarativeBase):
    alarm_result_code = Column(Integer)
    alarm_result_msg = Column(Unicode(255))
    created = Column(DateTime, nullable=False, default=datetime.now)
+
+class Voicemessages(DeclarativeBase):
+   ''' Voice messages (ODBC voicemail)
+   '''
+   __tablename__ = 'voicemessages'
+   uniqueid = Column(Integer, Sequence('voicemessages_uniqueid_seq'), primary_key=True)
+   msgnum  = Column(Integer)
+   msg_id = Column(Unicode(40))
+   dir = Column(Unicode(80))
+   context = Column(Unicode(80))
+   macrocontext = Column(Unicode(80))
+   callerid = Column(Unicode(40))
+   origtime = Column(Unicode(40))
+   duration = Column(Unicode(20))
+   flag = Column(Unicode(8))
+   mailboxuser = Column(Unicode(80))
+   mailboxcontext = Column(Unicode(80))
+   recording = Column(LargeBinary)
+   label = Column(Unicode(30))
+   read  = Column(Boolean)
+   def __repr__(self):
+      return '<Voicemessage %d: user="%s">' % (self.uniqueid, self.mailboxuser)
 

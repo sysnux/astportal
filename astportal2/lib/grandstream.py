@@ -126,7 +126,7 @@ P30 = '',
                if c.name=='session_id':
                   log.debug('Logged in GXP2xxx, old firmware')
                   logged_in = True
-                  self.type = 2
+                  self.type = 3
             if not logged_in:
                resp = self.get('cgi-bin/dologin', {'password': self.pwd})
                if resp != None:
@@ -246,7 +246,7 @@ P30 = '',
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
-         mwi_subscribe=False, reboot=False):
+         mwi_subscribe=False, reboot=True):
       '''Parameters: firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None
       '''

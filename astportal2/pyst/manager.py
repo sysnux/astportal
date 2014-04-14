@@ -550,7 +550,7 @@ class Manager(object):
         if priority:  cdict['Priority'] = priority
         if timeout:   cdict['Timeout']  = timeout
         if caller_id: cdict['CallerID'] = caller_id
-        if async:     cdict['Async']    = 'yes'
+        if async:     cdict['Async']    = 'true'
         if account:   cdict['Account']  = account
         if application:   cdict['Application']  = application
         if data:   cdict['Data']  = data

@@ -55,8 +55,9 @@ def process_file(upload, id, dest, email):
 #      return u'Le fichier doit être au format PDF !'
 
    file = '%s/%d_%s' % (dir_fax, id, re.sub(r'[^\w\.]', '_', filename))
+   pdf_data = filedata.read()
    out = open(file, 'w')
-   out.write(filedata.read())
+   out.write(pdf_data)
    out.close()
 
    # Send fax
@@ -71,9 +72,9 @@ def process_file(upload, id, dest, email):
 
    if ret:
       log.error('executing <%s> returns <%d>' % (cmd,ret))
-      return u"Erreur lors de l'envoi, le fichier PDF n'a pas été envoyé !"
+      return u"Erreur lors de l'envoi, le fichier PDF n'a pas été envoyé !", None
 
-   return None
+   return None, pdf_data
 
 
 def row(f):
@@ -198,12 +199,14 @@ class Fax_ctrl(RestController):
          flash(u'Impossible de créer le fax', 'error')
          redirect('/fax/')
 
-      ret = process_file(kw['file'], f.fax_id, kw['dest'], u.email_address)
-
-      if ret:
+      ret, pdf_data = process_file(kw['file'], f.fax_id, kw['dest'], u.email_address)
+      
+      if ret is not None:
          flash(ret,'error')
          DBSession.delete(f)
          redirect('/fax/')
+
+      f.pdf = pdf_data
 
       flash(u'"%s" en cours d\'envoi à %s' % (kw['file'].filename, kw['dest']))
       redirect('/fax/')
@@ -235,11 +238,21 @@ class Fax_ctrl(RestController):
       ''' Download fax
       '''
       f = DBSession.query(Fax).get(id)
-      if f.type==0:
-         fn = '%s/%d_%s' % (dir_fax, f.fax_id, re.sub(r'[^\w\.]', '_', f.filename))
-      else:
-         fn = '%s/%s' % (dir_fax, f.filename)
 
+      if f.pdf is None:
+         flash(u'Fichier PDF non disponible', 'error')
+         redirect('/fax/')
+
+      name = 'fax-%s.pdf' % id
+      fn = '/tmp/' + name
+      try:
+         fd = open( fn, 'w')
+         fd.write(f.pdf)
+         fd.close()
+      except:
+         flash(u'Fichier PDF non disponible', 'error')
+         redirect('/fax/')
+ 
       import os
       try:
          st = os.stat(fn)
@@ -247,6 +260,7 @@ class Fax_ctrl(RestController):
       except:
          flash(u'Fichier PDF introuvable: %s' % fn, 'error')
          redirect('/fax/')
+
       rh = response.headers
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
@@ -254,7 +268,7 @@ class Fax_ctrl(RestController):
       rh['Cache-control'] = 'max-age=0' #for IE
       rh['Content-Type'] = 'application/pdf'
       rh['Content-disposition'] = u'attachment; filename="%s"; size=%d;' % (
-         f.filename, st.st_size)
+         name, st.st_size)
       rh['Content-Transfer-Encoding'] = 'binary'
       return fd.read()
 

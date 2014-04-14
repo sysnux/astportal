@@ -216,7 +216,7 @@ class Queue_ctrl(RestController):
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
       q.priority = int(kw['priority'])
-      q.monitor = int(kw['monitor'])
+      q.monitor = True if kw['monitor']=='1' else False
       q.connectdelay = int(kw['connectdelay'])
       q.connecturl = kw['connecturl']
       q.hangupurl = kw['hangupurl']

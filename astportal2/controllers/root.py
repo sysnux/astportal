@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 from astportal2.controllers.cdr import Display_CDR
 from astportal2.controllers.billing import Billing_ctrl
 from astportal2.controllers.user import User_ctrl
-from astportal2.controllers.voicemail import Voicemail_ctrl
+from astportal2.controllers.voicemail_odbc import Voicemail_ctrl
 from astportal2.controllers.phone import Phone_ctrl
 from astportal2.controllers.department import Dptm_ctrl
 from astportal2.controllers.groups import Group_ctrl

@@ -385,11 +385,30 @@ class User_ctrl(RestController):
             log.info('Delete voicemail directory %s/%s' % (dir_vm, p.exten))
             res = Globals.manager.update_config(
                dir_ast  + 'voicemail.conf', 
-               'app_voicemail_plain', actions)
+               'app_voicemail', actions)
             log.debug('Update voicemail.conf returns %s' % res)
 
             Globals.manager.send_action({'Action': 'Command',
                'command': 'voicemail reload'})
+
+            res = Globals.manager.update_config(
+               dir_ast  + 'sip.conf', 
+               'app_voicemail_plain', actions)
+
+            actions = [('Delete', p.sip_id, 'mailbox')]
+            res = Globals.manager.update_config(
+               dir_ast  + 'sip.conf', 
+               'chan_sip', actions)
+            log.debug('Update sip.conf (delete) returns %s' % res)
+
+            actions = [('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten)]
+            res = Globals.manager.update_config(
+               dir_ast  + 'sip.conf', 
+               'chan_sip', actions)
+            log.debug('Update sip.conf (append) returns %s' % res)
+
+            Globals.manager.send_action({'Action': 'Command',
+               'command': 'sip reload'})
 
       if kw.has_key('user_name'): # Modification par administrateur
          u.user_name = kw['user_name']

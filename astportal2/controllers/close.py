@@ -18,29 +18,10 @@ from astportal2.lib.base import BaseController
 re_db = re.compile(r'(\w*)\s*: (\S*)')
 
 closed = dict(
-      AGENCE50 = u'Agence Arue 06750',
-      AGENCE40 = u'Agence Bora-Bora 06740',
-      AGENCE32 = u'Agence Bruat 06732',
-      AGENCE44 = u'Agence Cathédrale 06744',
-      AGENCE33 = u'Agence Faa\'a 06733',
-      AGENCE46 = u'Agence Fare Ute 06746',
-      AGENCE31 = u'Agence Maharepa 06731',
-      AGENCE34 = u'Agence Mahina 06734',
-      AGENCE38 = u'Agence Mamao 06738',
-      AGENCE36 = u'Agence Moana Nui 06736',
-      AGENCE39 = u'Agence Paea 06739',
-      AGENCE41 = u'Agence Papara 06741',
-      AGENCE43 = u'Agence Pirae 06743',
-      AGENCE30 = u'Agence Pomare 06730',
-      AGENCE51 = u'Agence Punaauia Plaine 06751',
-      AGENCE35 = u'Agence Raiatea 06735',
-      AGENCE48 = u'Agence Tamanu 06748',
-      AGENCE37 = u'Agence Taravao 06737',
-      AGENCE49 = u'Agence Tiahura 06749',
-      AGENCE86 = u'Espace Premier 06786',
-      AGENCE87 = u'Agence Casden 06787',
-      AGENCE88 = u'Agence Credicom 06788',
-      AGENCE89 = u'Espace CliPro 06789',
+      AGENCE01 = u'Escale Bora-Bora',
+      AGENCE02 = u'Agence Papeete',
+      AGENCE03 = u'Escale Raiatea',
+      AGENCE04 = u'Escale Rangiroa',
       )
 
 

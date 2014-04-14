@@ -138,7 +138,7 @@ class Operator(QWidget):
          True)
 
       if ok:
-         print u'Transfert libre vers ' + text
+         print u'Transfert libre vers %s' % text
       else:
          print u'Transfert libre annulé !'
 
