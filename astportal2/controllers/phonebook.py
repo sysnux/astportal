@@ -21,7 +21,7 @@ from astportal2.lib.app_globals import Globals
 from astportal2.lib.myjqgrid import MyJqGrid
 
 from tg import config
-default_company = config.get('default_company')
+default_company = config.get('company')
 default_cid = config.get('default_cid')
 
 import logging
@@ -153,7 +153,7 @@ class Phonebook_ctrl(RestController):
                { 'name': 'firstname', 'width': 80 },
                { 'name': 'lastname', 'width': 80 },
                { 'name': 'company', 'width': 120 },
-               { 'name': 'phones', 'width': 160,  },
+               { 'name': 'phones', 'width': 160, 'sortable': False },
                { 'name': 'email', 'width': 160,  },
                { 'name': 'private', 'width': 40,  },
             ],
