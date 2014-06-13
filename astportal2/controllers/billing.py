@@ -64,17 +64,10 @@ class CSV_form(TableForm):
    action = 'csv'
 new_csv_form = CSV_form('new_csv_form')
 
-
-class Billing_form(TableForm):
-   '''Billing form :)
-   '''
-
-   dptms = [(d.dptm_id, d.comment) 
-      for d in DBSession.query(Department).order_by(Department.name).all()]
-   dptms.insert( 0, ('ALL',u'* - Tous les services') )
+def month_list():
    m = [ u'Janvier', u'Février', u'Mars', u'Avril', u'Mai', u'Juin', 
       u'Juillet', u'Août', u'Septembre', u'Octobre', u'Novembre', u'Décembre' ]
-   month = [ ('', u' - - - - - - ') ]
+   months = [ ('', u' - - - - - - ') ]
    today = datetime.datetime.now()
    for i in range(0,18):
       j = today.month-i-1
@@ -83,7 +76,22 @@ class Billing_form(TableForm):
          j += 12
       else:
          y = today.year
-      month.append( ( '01/%02d/%04d' % (j+1,y), m[j] + ' ' + str(y)) )
+      months.append( ( '01/%02d/%04d' % (j+1,y), m[j] + ' ' + str(y)) )
+
+   return months
+
+
+def dptm_list():
+   dptms = [(d.dptm_id, d.comment) 
+      for d in DBSession.query(Department).order_by(Department.name).all()]
+   dptms.insert( 0, ('ALL',u'* - Tous les services') )
+
+   return dptms
+
+
+class Billing_form(TableForm):
+   '''Billing form :)
+   '''
 
    name = 'search_form'
    fields = [
@@ -92,7 +100,7 @@ class Billing_form(TableForm):
          name = 'month',
          label_text = u'Mois',
          not_empty = False,
-         options = month),
+         options = month_list),
       CalendarDatePicker(
          id = 'begin',
          label_text = u'Date début',
@@ -120,7 +128,7 @@ class Billing_form(TableForm):
       SingleSelectField(
          name = 'department',
          label_text = u'Service',
-         options = dptms),
+         options = dptm_list),
       MultipleSelectField(
          help_text = u'Maintenez la touche "Ctrl" appuyée pour sélectionner plusieurs téléphones',
          name = 'phones',
