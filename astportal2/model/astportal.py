@@ -113,7 +113,7 @@ class View_phonebook(DeclarativeBase):
 CREATE VIEW view_pb AS 
    SELECT -phone_id as pb_id, lastname, firstname, '__COMPANY__' AS company, email_address AS email, exten AS phone1, dnis AS phone2, '' AS phone3, 'f' AS private, -1 as user_id
    FROM phone LEFT OUTER JOIN tg_user ON phone.user_id=tg_user.user_id 
-   WHERE exten is not null 
+   WHERE exten is not null AND not hide_from_phonebook
 UNION 
    SELECT pb_id, lastname, firstname, company, email, phone1, phone2, phone3, private, user_id
    FROM phonebook;

@@ -21,7 +21,7 @@ from astportal2.lib.app_globals import Globals
 from astportal2.lib.myjqgrid import MyJqGrid
 
 from tg import config
-default_company = config.get('company')
+default_company = config.get('default_company')
 default_cid = config.get('default_cid')
 
 import logging
@@ -336,21 +336,7 @@ class Phonebook_ctrl(RestController):
       except:
          log.error(u'gs_phonebook_xml: could not parse UA from "%s"' % request.environ['HTTP_USER_AGENT'])
 
-#      try:
-#         ip = (Globals.asterisk.peers['SIP/'+sip_id[0:8]]['Address']).split(':')[0]
-#         ua = Globals.asterisk.peers['SIP/'+sip_id[0:8]]['UserAgent']
-#         log.debug(u'gs_phonebook_xml: found SIP peer "%s" @ %s)' % (ua, ip))
-#         if ip!=request.environ['REMOTE_ADDR'] or \
-#               ua[0:19]!=request.environ['HTTP_USER_AGENT'][0:19]:
-#            log.error(u'gs_phonebook_xml: SIP peer does not match request, aborting!')
-#            return ''
-#      except:
-#         log.error(u'gs_phonebook_xml: SIP peer not found, aborting! From "%s" by "%s" @ %s.' % (
-#                  sip_id, request.environ['HTTP_USER_AGENT'], request.environ['REMOTE_ADDR']))
-#         return ''
-
       try:
-#         p = DBSession.query(Phone).filter(Phone.sip_id==sip_id[0:8]).one()
          p = DBSession.query(Phone).filter(Phone.mac==mac).one()
          uid = p.user.user_id
          log.error(u'sip_id "%s" -> user %s (%d)' % (
@@ -503,3 +489,62 @@ class Phonebook_ctrl(RestController):
          data=[]
       log.debug('data=%s' % data)
       return dict(data=['azerty', 'qwerty', 'toto', 'titi'])
+
+   @expose()
+   def csv(self):
+      ''' Export data
+      '''
+
+      from datetime import datetime
+      today = datetime.today()
+      filename = 'telephone-' + today.strftime('%Y%m%d') + '.csv'
+      from StringIO import StringIO
+      import csv
+      csvdata = StringIO()
+      writer = csv.writer(csvdata)
+
+      # Global header
+      writer.writerow(['Annuaire téléphonique'])
+      writer.writerow(['Date', today.strftime('%d/%m/%Y')])
+      writer.writerow([])
+      writer.writerow(['Prénom', 'Nom', 'Société', 'Téléphone 1',
+         'Téléphone 2', 'Téléphone 3', 'email'])
+
+      # Add data lines
+      for b in DBSession.query(View_phonebook). \
+            filter(or_(View_phonebook.private==False, 
+               View_phonebook.user_id==request.identity['user'].user_id)). \
+            all():
+         log.debug(u'db=%s' % [b.lastname, b.firstname, b.company, b.email, 
+            b.phone1, b.phone2, b.phone3])
+         lastname = unicode(b.lastname).encode('utf-8') \
+               if b.lastname else ''
+         firstname = unicode(b.firstname).encode('utf-8') \
+               if b.firstname else ''
+         if b.company == u'__COMPANY__':
+            company = unicode(default_company).encode('utf-8')
+         elif b.company is not None:
+            company = unicode(b.company).encode('utf-8')
+         else:
+            company = ''
+         email = unicode(b.email).encode('utf-8') \
+               if b.email else ''
+         phone1 = unicode(b.phone1).encode('utf-8') \
+               if b.phone1 else ''
+         phone2 = unicode(b.phone2).encode('utf-8') \
+               if b.phone2 else ''
+         phone3 = unicode(b.phone3).encode('utf-8') \
+               if b.phone3 else ''
+         writer.writerow([lastname, firstname, company, email, 
+            phone1, phone2, phone3])
+
+      # Send response
+      rh = response.headers
+      rh['Content-Type'] = 'text/csv; charset=utf-8'
+      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Pragma'] = 'public' # for IE
+      rh['Cache-control'] = 'max-age=0' #for IE
+
+      return csvdata.getvalue()
+
+
