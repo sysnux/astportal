@@ -10,7 +10,7 @@ from repoze.what.predicates import in_group
 
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
-from tw.forms.validators import NotEmpty, Int, Bool
+from tw.forms.validators import NotEmpty, Int, StringBoolean
 
 from genshi import Markup
 
@@ -79,7 +79,7 @@ common_fields = [
       label_text=u'Priorité', help_text=u'Priorité par rapport aux autres groupes'),
    SingleSelectField('monitor',
       options = [ (False, u'Non'), (True, u'Oui')],
-      validator=Bool,
+      validator=StringBoolean,
       label_text=u'Enregistrement de la conversation', help_text=u''),
    HiddenField('queue_id',validator=Int),
    ]
@@ -268,7 +268,7 @@ class Queue_ctrl(RestController):
    def put(self, queue_id, **kw):
       ''' Update queue in DB
       '''
-      log.info('update %d' % queue_id)
+      log.info('update %d, monitor=%s' % (queue_id, kw['monitor']))
       q = DBSession.query(Queue).get(queue_id)
       q.comment = kw['comment']
       q.music_id = int(kw['music']) if kw['music']!='-1' else None

@@ -188,7 +188,7 @@ edit_phone_form = Edit_phone_form('edit_form_phone')
 
 
 def peer_info(sip_id=None, exten=None):
-   '''Find peer by id or exten return ip address and user agent
+   '''Find peer by id or exten, return ip address and user agent
    '''
 
    if sip_id is not None and 'SIP/'+sip_id in Globals.asterisk.peers:
@@ -201,20 +201,19 @@ def peer_info(sip_id=None, exten=None):
       log.warning('%s:%s not registered ?' % (sip_id, exten))
       peer = None
 
+   ip = ua = None
    if peer:
       # Peer exists, try to find User agent
       if 'UserAgent' not in Globals.asterisk.peers['SIP/'+peer]:
          log.debug('SIPshowPeer(%s)' % peer)
          res = Globals.manager.sipshowpeer(peer)
          Globals.asterisk.peers['SIP/'+peer]['UserAgent'] = res.get_header('SIP-Useragent')
-      if Globals.asterisk.peers['SIP/'+peer]['Address']:
-         ip = (Globals.asterisk.peers['SIP/'+peer]['Address']).split(':')[0]
          ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
-      else:
-         ip = ua = None
 
-   else: 
-      ip = ua = None
+      else:
+         if 'Address' in Globals.asterisk.peers['SIP/'+peer] and \
+            Globals.asterisk.peers['SIP/'+peer]['Address'] is not None:
+            ip = (Globals.asterisk.peers['SIP/'+peer]['Address']).split(':')[0]
 
    return ip, ua
 
@@ -708,12 +707,12 @@ class Phone_ctrl(RestController):
 
       # Backup phone configuration
       try:
-         config = directory_tftp + '/phones/config/cfg%s' % p.mac.replace(':','')
+         config = directory_tftp + 'phones/config/cfg%s' % p.mac.replace(':','')
          rename(config, config + '.BAK')
          rename(config + '.txt', config + '.txt.BAK')
          log.warning('%s Config files saved' % p.mac)
       except:
-         pass
+         log.error('%s Config files save (%s)' % (p.mac, config))
 
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')

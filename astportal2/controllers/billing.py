@@ -161,7 +161,7 @@ def f_cost(x):
    ''' Formatted cost
    '''
    if not x: x=0
-   return locale.format('%d', ceil(x/100), grouping=True)
+   return locale.format('%d', x, grouping=True)
 
 
 def user(dict,n):

@@ -908,6 +908,7 @@ def generate_dialplan():
 
       elif action==20: # Queue
          q = DBSession.query(Queue).get(int(parameters))
+         options = ''
          if q:
             if q.connecturl:
                svi_out.write(u"exten => s,%d,Set(CONNECTURL=%s)\n" %
@@ -936,8 +937,15 @@ def generate_dialplan():
                svi_out.write(u"exten => s,%d,Set(MONITOR=0)\n" % prio) 
                prio += 1
 
-            svi_out.write(u"exten => s,%d,Queue(%s,,,,,,,agent_connect)\n" % 
-               (prio, q.name) )
+            if q.music_id is None:
+               options += 'r' # Indicate ringing to calling party
+            else:
+               # Answer needed for music on hold to work
+               svi_out.write(u"exten => s,%d,Answer()\n" % (prio) )
+               prio += 1
+
+            svi_out.write(u"exten => s,%d,Queue(%s,%s,,,,,,agent_connect)\n" % 
+               (prio, q.name, options) )
          else:
             svi_out.write(u"exten => s,%d,Queue(UNDEFINED)\n" % prio)
          prio += 1

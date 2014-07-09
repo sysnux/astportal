@@ -10,8 +10,8 @@ if [ ! -d $1 ] ; then
    mkdir $1
 fi
 
-if [ ! -f $1/$3.wav ] ; then
+if [ ! -f $1/$3.* ] ; then
    rm -f $1/* # Remove old file
-   cp $2/$3.wav $1
+   cp $2/$3.* $1
 fi
 

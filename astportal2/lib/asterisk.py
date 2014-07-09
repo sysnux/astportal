@@ -142,7 +142,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Delete', 'dnis', 'exten', None, 
-            '%s,1,Gosub(stdexten,%s,1)' % (old_dnis[2:], old_exten))])
+            '%s,1,Gosub(stdexten,%s,1)' % (old_dnis[-4:], old_exten))])
       log.debug('Delete <%s,1,Gosub(stdexten,%s,1)> returns %s' % \
             (old_dnis, p.exten, res))
 
@@ -151,7 +151,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Append', 'dnis', 'exten', '>%s,1,Gosub(stdexten,%s,1)' % \
-               (p.dnis[2:], p.exten) )]
+               (p.dnis[-4:], p.exten) )]
       )
       log.debug('Update dnis extensions.conf returns %s' % res)
 
@@ -210,11 +210,11 @@ def asterisk_update_queue(q):
             ('Append', moh_class, 'setinterfacevar', 'yes'),
             ('Append', moh_class, 'setqueueentryvar', 'yes'),
             ('Append', moh_class, 'weight', q.priority),
+            ('Append', moh_class, 'announce',
+               'astportal/' + DBSession.query(Sound).get(q.announce_id).name \
+                  if q.announce_id is not None else ''
+            )
          ]
-
-   if q.announce_id is not None:
-      actions.append(('Append', moh_class, 'announce',
-         'astportal/' + DBSession.query(Sound).get(q.announce_id).name))
 
    if q.music_id is not None:
       # Queue music on hold is actually a music class, need to create it
@@ -301,7 +301,8 @@ class Status(object):
             'DTMF', 'RTCPReceived', 'RTCPSent', 'ExtensionStatus', 'Dial', 
             'MessageWaiting', 'Shutdown', 'Reload', 'JabberEvent', 'JabberStatus', 
             'Registry', 'NewAccountCode', 'NewCallerid', 'Transfer', 
-            'OriginateResponse', 'Status', 'Masquerade'):
+            'OriginateResponse', 'Status', 'Masquerade', 'HangupRequest',
+            'SoftHangupRequest', 'ChannelUpdate', 'LocalBridge'):
 #         log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
          return
       if e=='Newexten':

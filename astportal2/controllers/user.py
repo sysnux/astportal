@@ -317,10 +317,8 @@ class User_ctrl(RestController):
          redirect('/users/')
 
       try:
-         ln = u.display_name.split(' ')[0]
-         fn = u.display_name.split(' ')[1:]
-         if type(fn)==type([]):
-            fn = ' '.join(fn)
+         ln = u.lastname
+         fn = u.firstname
       except:
          ln = u.display_name
          fn = ''
