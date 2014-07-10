@@ -208,7 +208,7 @@ def peer_info(sip_id=None, exten=None):
          log.debug('SIPshowPeer(%s)' % peer)
          res = Globals.manager.sipshowpeer(peer)
          Globals.asterisk.peers['SIP/'+peer]['UserAgent'] = res.get_header('SIP-Useragent')
-         ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
+      ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
 
       else:
          if 'Address' in Globals.asterisk.peers['SIP/'+peer] and \
