@@ -168,9 +168,9 @@ class CC_Monitor_ctrl(TGController):
       me = request.identity['user'].ascii_name
 
       qq = [{'name': k,
-         'params': Globals.asterisk.queues[k]
-         } for k in sorted(Globals.asterisk.queues, 
-               key=lambda x: int(Globals.asterisk.queues[x]['Weight']), 
+         'params': queues[k]
+         } for k in sorted(queues, 
+               key=lambda x: int(queues[x]['Weight']), 
                reverse=True)
          ]
       return dict(last=last_update, change=True, # XXX
