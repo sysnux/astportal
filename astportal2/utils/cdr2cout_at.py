@@ -3,23 +3,7 @@
 ####! /opt/Python-2.7.3/bin/python
 #
 # Calcul du coût des communications à partir des logs d'asterisk
-# Version Air Tahiti
 #
-# Si, dans PHNTRAENDIDT(fichiers tickets_taxe) tu as la forme :
-#
-# 010001001 [010 en premiers digit] alors c'est le T0 côté bâtiment.
-# 009002001 [009 en premiers digit] alors c'est le T0 côté aéroport.
-#
-# 003002001 [003 en premiers digit] alors c'est le T2 côté aéroport.
-# 001001001 [001 en premiers digit] alors c'est le T2 côté bâtiment.
-# note:
-# - les derniers chiffres varient selon l'intervalle de temps qui a été pris 
-# ex : 003002004 (4eme IT)
-#
-# les T0 sont en abonnement classique (préfixes 009 et 010).
-# OPTIMUM 200 voie de sortie Aéroport [préfixe 003].
-# OPTIMUM 500 voie de sortie Bâtiment [préfixe 001].
-# sur les appels sortants, le pabx préfixe 70
 #
 # Jean-Denis Girard <jd.girard@sysnux.pf>
 # SysNux (c) http://www.sysnux.pf/
@@ -330,10 +314,8 @@ for z in DBSession.query(Zone):
 zones = sorted(zones_data.keys(),
    cmp=lambda x,y: cmp(len(x), len(y)), reverse=True)
 
-# Définitions abonnements
-optimum_aero = Optimum(500, '003')
-optimum_bat = Optimum(500, '001')
-classic = Classic()
+# Définition(s) abonnement(s)
+optimum_soc = Optimum(500, '1')
 
 nouveau = erreur = 0
 
@@ -348,25 +330,8 @@ for cdr in DBSession.query(CDR). \
 
    user, dept = c2ud.get(cdr.src, (None, None))
 
-   if cdr.dstchannel.startswith('001'):
-      # T2 bâtiment Optimum 500
-      typ = u'Optimum bâtiment'
-      ttc, ht = optimum_bat(cdr)
-
-   elif cdr.dstchannel.startswith('003'):
-      # T2 aéroport Optimum 500
-      typ = u'Optimum aéroport'
-      ttc, ht = optimum_aero(cdr)
-
-   elif cdr.dstchannel.startswith('009'): 
-      # T0 abonnement classique (aéroport)
-      typ = u'classique aéroport'
-      ttc, ht = classic(cdr)
-
-   elif cdr.dstchannel.startswith('010'): 
-      # T0 abonnement classique bâtiment
-      typ = u'classique bâtiment'
-      ttc, ht = classic(cdr)
+   typ = u'Optimum bâtiment'
+   ttc, ht = optimum_soc(cdr)
 
    if ht is None:
       erreur += 1

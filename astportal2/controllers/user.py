@@ -9,8 +9,9 @@ from tgext.menu import sidebar
 from repoze.what.predicates import in_group, not_anonymous
 
 from tw.api import js_callback
-from tw.forms import TableForm, LabelHiddenField, TextField, CheckBoxList, PasswordField, HiddenField, TextArea, Label
-from tw.forms.validators import Schema, NotEmpty, Email, Int, Regex, FieldsMatch
+from tw.forms import TableForm, LabelHiddenField, TextField, CheckBoxList, \
+   PasswordField, HiddenField, TextArea, Label, BooleanRadioButtonList
+from tw.forms.validators import Schema, NotEmpty, Email, Int, Regex, FieldsMatch, Bool, StringBoolean
 
 from genshi import Markup
 
@@ -64,6 +65,18 @@ admin_form_fields = [
    TextField('email_address', validator=Email,
       label_text=u'Adresse email',
       help_text=u'Entrez l\'adresse email de l\'utisateur'),
+   BooleanRadioButtonList('voicemail',
+      options = [ (False, u'Non'), (True, u'Oui')],
+      default = True,
+      label_text = u"Messagerie vocale activée",
+      validator = StringBoolean,
+      help_text = u"Activer la messagerie vocale"),
+   BooleanRadioButtonList('email_voicemail',
+      options = [ (False, u'Non'), (True, u'Oui')],
+      default = False,
+      label_text = u"Envoyer le message vocal par email",
+      validator = StringBoolean,
+      help_text = u"Envoyer le message vocal par email"),
    CheckBoxList('groups', validator=Int,
    options=DBSession.query(Group.group_id, 
       Group.group_name).order_by(Group.group_name),
@@ -106,6 +119,8 @@ user_fields = [
    LabelHiddenField('email_address', suppress_label=False,
       label_text=u'Adresse email',
       help_text=u'Entrez l\'adresse email de l\'utisateur'),
+   LabelHiddenField('voicemail'),
+   LabelHiddenField('email_voicemail'),
    LabelHiddenField( 'groups',
       label_text=u'Groupes', suppress_label=False),
    HiddenField('_method', validator=None) # Needed by RestController
@@ -127,7 +142,9 @@ def row(u):
    '''
    if u.phone:
       phone = ', '.join(['<a href="/phones/%s/edit">%s (%s)</a>' % (
-         p.phone_id, p.exten, p.dnis) for p in u.phone])
+         p.phone_id, 
+         p.exten if p.exten is not None else '',
+         p.dnis if p.dnis is not None else '') for p in u.phone])
    else:
       phone = ''
 
@@ -155,7 +172,7 @@ def row(u):
 
 class User_ctrl(RestController):
 
-#   allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
+   allow_only = not_anonymous(msg=u'Veuiller vous connecter pour continuer')
    
    @sidebar(u'-- Administration || Utilisateurs', sortorder = 12,
       icon = '/images/preferences-desktop-user.png',
@@ -184,6 +201,7 @@ class User_ctrl(RestController):
             )
       tmpl_context.grid = grid
       tmpl_context.form = None
+      tmpl_context.count = u'Total : %d utilisateurs' % DBSession.query(User).count()
       return dict( title=u'Liste des utilisateurs', debug='')
 
 
@@ -261,7 +279,7 @@ class User_ctrl(RestController):
       return dict(page=page, total=total, rows=data)
 
 
-   @expose(template="astportal2.templates.form_new")
+   @expose(template="astportal2.templates.form_new_user")
    @require(in_group('admin',
       msg=u'Seul un membre du groupe administrateur peut créer un utilisateur'))
    def new(self, **kw):
@@ -283,6 +301,8 @@ class User_ctrl(RestController):
       u.firstname = kw['firstname']
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
+      u.voicemail = kw['voicemail']
+      u.email_voicemail = kw['email_voicemail']
       u.password = pwd1
       u.display_name = u.lastname + ' ' + u.firstname
       u.ascii_name = asterisk_string(u.display_name)
@@ -297,7 +317,7 @@ class User_ctrl(RestController):
 
 
    @sidebar('Compte', sortorder = 6, icon = '/images/user-identity.png')
-   @expose(template="astportal2.templates.form_new")
+   @expose(template="astportal2.templates.form_new_user")
    def edit(self, id=None, **kw):
       ''' Display edit user form
       '''
@@ -335,6 +355,8 @@ class User_ctrl(RestController):
             'firstname': fn,
             'lastname': ln,
             'email_address': u.email_address,
+            'voicemail': u.voicemail,
+            'email_voicemail': u.email_voicemail,
             'pwd1': u.password,
             'pwd2': u.password,
             'phone_id': phone,
@@ -359,20 +381,22 @@ class User_ctrl(RestController):
          flash(u'Accès interdit !', 'error')
          redirect('/')
       uid = int(kw['user_id'])
-      log.info('update %d' % uid)
+      log.info('update %d (voicemail=%s, email_voicemail=%s)' % (uid, kw['voicemail'], kw['email_voicemail']))
       u = DBSession.query(User).get(uid)
       u.firstname = kw['firstname']
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
+      u.voicemail = kw['voicemail']
+      u.email_voicemail = kw['email_voicemail']
       u.password = kw['pwd1'] 
       u.display_name = u.lastname + ' ' + u.firstname
       u.ascii_name = asterisk_string(u.display_name)
 
       # Update voicemail
-      if u.email_address:
+      if u.voicemail:
          for p in u.phone:
             vm = u'>%s,%s,%s' \
-               % (u.password, u.ascii_name, u.email_address)
+               % (u.password, u.ascii_name, u.email_address if u.email_voicemail else '')
             actions = [
                ('Append', 'astportal', p.exten, vm),
             ]
@@ -426,7 +450,7 @@ class User_ctrl(RestController):
       u = DBSession.query(User).get(kw['_id'])
 
       # Delete voicemail
-      if u.email_address:
+      if u.voicemail:
          for p in u.phone:
             res = Globals.manager.update_config(
                dir_ast  + 'voicemail.conf', 

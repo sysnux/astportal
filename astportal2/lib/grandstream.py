@@ -19,7 +19,7 @@ class Grandstream(object):
 # Admin password for web interface
 P2 = 'admin',
 # VLAN TAG
-#P51 = 130,
+P51 = 1601,
 # No Key Entry Timeout. Default - 4 seconds.
 P85 = 3,
 # Use # as Dial Key. 0 - no, 1 - yes
@@ -30,8 +30,8 @@ P39 = 5004,
 P78 = 0,
 # Keep-alive interval (in seconds. default 20 seconds)
 P84 = 20,
-# Firmware Upgrade. 0 - TFTP Upgrade,  1 - HTTP Upgrade.
-P212 = 0,
+# Firmware Upgrade. 0 - TFTP Upgrade,  1 - HTTP Upgrade,  2 - HTTPS Upgrade.
+P212 = 2,
 # Firmware Server Path
 P192 = '',
 # Config Server Path
@@ -62,7 +62,8 @@ P240 = 0,
 # 0 = No
 # 1 = YES, HTTP
 # 2 = YES, TFTP
-P330 = 1,
+# 3 = YES, HTTPS
+P330 = 3,
 
 # Phonebook XML Server Path
 # This is a string of up to 128 characters that should contain a path to the XML file.  
@@ -82,6 +83,12 @@ P207 = '',
 P208 = 3,
 # NTP Server
 P30 = '',
+# LCD Backlight Brightness. (0-8, where 0 is off and 8 is brightest) Active
+P334 = 8,
+# LCD Backlight Brightness. (0-8, where 0 is off and 8 is brightest) Idle
+P335 = 0,
+# Configuration Via Keypad Menu. 0 - Unrestricted, 1 - Basic settings only, 2 - Constrai nt mode
+P1357 = 2,
 )
 
    def __init__(self, host, mac, pwd='admin'):
@@ -126,18 +133,22 @@ P30 = '',
                if c.name=='session_id':
                   log.debug('Logged in GXP2xxx, old firmware')
                   logged_in = True
-                  self.type = 3
+                  self.type = 2
             if not logged_in:
                resp = self.get('cgi-bin/dologin', {'password': self.pwd})
                if resp != None:
                   r = resp.readline()
                   log.debug('GXP new firmware returns %s' % r)
-                  data = json.loads(r)
-                  if data['response'] == 'success':
-                     self.sid = data['body']['sid']
-                     logged_in = True
-                     self.type = 3
-                     log.debug('Logged in GXP2xxx, new firmware')
+                  try:
+                     data = json.loads(r)
+                     if data['response'] == 'success':
+                        self.sid = data['body']['sid']
+                        logged_in = True
+                        self.type = 3
+                        log.debug('Logged in GXP2xxx, new firmware')
+                  except:
+                     log.error('new firmware does not return JSON ?')
+                     pass
          else:
             log.warning('GXP-2xxx login failed!')
       else:

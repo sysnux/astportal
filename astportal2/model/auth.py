@@ -20,7 +20,7 @@ except ImportError:
              'Please install it. Example: easy_install hashlib')
 
 from sqlalchemy import Table, ForeignKey, Column, Sequence
-from sqlalchemy.types import Unicode, Integer, DateTime
+from sqlalchemy.types import Unicode, Integer, DateTime, Boolean
 from sqlalchemy.orm import relation, synonym, column_property
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -109,6 +109,8 @@ class User(DeclarativeBase):
     created = Column(DateTime, default=datetime.now)
     display_name = Column(Unicode(161)) # 'firstname lastname', needed by repoze.who / what
     ascii_name = Column(Unicode(161)) # ASCII representation of 'firstname lastname', needed by Asterisk
+    voicemail = Column(Boolean(), default=True) # Voicemail active
+    email_voicemail = Column(Boolean(), default=True) # Email voicemail
 
     #{ Special methods
 

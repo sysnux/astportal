@@ -96,7 +96,7 @@ def row(f):
 class Fax_ctrl(RestController):
    
    allow_only = in_any_group('admin', 'Fax', 
-      msg=u'Vous devez appartenir au groupe "fax" pour envoyer des télécopies')
+      msg=u'Vous devez appartenir au groupe "Fax" pour envoyer des télécopies')
 
    @sidebar(u"Fax", sortorder=3,
       icon = '/images/kfax.png')

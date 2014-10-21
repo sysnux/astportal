@@ -88,7 +88,7 @@ def process_file(filename, filetype, id, type, name, lang):
 
       dir_dst = (dir_moh if type==0 else dir_sounds) % lang
       final8 = '%s/%s.sln' % (dir_dst, re.sub(r'\W', '_', name))
-      final16 = '%s/%s16.sln' % (dir_dst, re.sub(r'\W', '_', name))
+      final16 = '%s/%s.sln16' % (dir_dst, re.sub(r'\W', '_', name))
 
       # Convert to signed linear 16 bits, 8 / 16 kHz, mono
       sox8 = config.get('command.sox8') % (filename, final8)
@@ -305,7 +305,17 @@ class MOH_ctrl(RestController):
       if kw.has_key('owner_id'):
          s.owner_id = kw['owner_id']
       s.comment = kw['comment']
-      ret = process_file(kw['file'], id, s.type, s.name, s.language)
+
+      wav = kw['file']
+      filetype = wav.type
+      filedata = wav.file
+      filename = '%s/%d_%s' % (dir_tmp, s.sound_id, wav.filename)
+      # Temporarily save uploaded audio file
+      out = open(filename, 'w')
+      out.write(filedata.read())
+      out.close()
+
+      ret = process_file(filename, filetype, s.sound_id, filetype, s.name, s.language)
 
       if ret:
          flash(ret,'error')
@@ -326,7 +336,7 @@ class MOH_ctrl(RestController):
       # remove uploaded file
       try:
          dir = (dir_moh if s.type==0 else dir_sounds) % s.language
-         unlink('%s/%s.wav' % (dir, s.name))
+         unlink('%s/%s.wav' % (dir, re.sub(r'\W', '_', s.name)))
       except:
          log.error('unlink failed %s' % s.name)
       s = DBSession.delete(s)

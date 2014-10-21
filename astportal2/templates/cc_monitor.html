@@ -27,7 +27,10 @@ tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
 <![CDATA[
 
 var last=0, // last_update
-    me = null, // Current user
+    my_name = null, // Current user name
+    my_phone = null, // Current user phone
+    my_group = null, // Current user's groups
+    my_location = null, // Current user SIP user
     admin = false, // Is administrator?
     my_status = null, // Current user status (1=> not in use)
     time_diff=0, // Time diff beween client and server
@@ -61,7 +64,9 @@ function updates_ready(data) {
       queues = data.queues;
       members = data.members;
       change = data.change;
-      me = data.me;
+      my_name = data.my_name;
+      my_phone = data.my_phone;
+      my_groups = data.my_groups;
       admin = data.admin;
       last = data.last;
       time_diff = last - ((new Date()).getTime()/1000); // Epoch time
@@ -104,6 +109,7 @@ function list_queues() { // Builds main part of the screen
          qt += '<td id="wait_' + qid + '">' + waiting.join(', ') + '</td></tr>';
 
          html += '<h2>Groupe ' + qname + '</h2>';
+         var in_group = false;
          var table = '';
          if (admin) {
             table += '<table><tr><th rowspan="2">&nbsp;</th><th rowspan="2">Agents<br/>(pénalité)</th><th rowspan="2">&Eacute;tat</th>';
@@ -137,12 +143,23 @@ function list_queues() { // Builds main part of the screen
                   '\',\'' + qm[m].replace(/'/, ' ') + '\')"/></td>';
             }
             table += '</tr>';
+            if (qm[m]==my_name) {
+               in_group = true;
+               my_location = members[qm[m]]['Location'];
+            }
             i++;
          }
          if (i==1) { // No members !
             html += '<i>Aucun agent</i><br/>';
          } else {
             html += table +'</table>';
+         }
+         if (!admin && my_groups.indexOf('AG ' + qname)>=0) {
+            if (in_group) {
+               html += '<a href="#" onclick="leave_queue(\'' + qname + '\', \'' + my_location + '\', \'' + my_name + '\')">Sortir</a> du groupe';
+            } else {
+               html += '<a href="#" onclick="join_queue(\'' + qname + '\', ' + my_phone + ')">Entrer</a> dans le groupe';
+            }
          }
          if (admin) {
             html += '<a href="#" onclick="fetch_exten(\'' + qname + '\')">Ajouter un agent</a>';
@@ -189,13 +206,31 @@ function list_queues() { // Builds main part of the screen
    display_tmo = setTimeout(list_queues, 500);
 }
 
+function join_queue(q, u) {
+   $.post(
+      "${tg.url('/cc_monitor/add_member')}",
+      {'queue': q, 'member': u, 'penality': 0},
+      function (data) { // 
+      },
+      'json');
+}
+
+function leave_queue(q, i, u) {
+   $.post(
+      "${tg.url('/cc_monitor/remove_member')}",
+      {'queue': q, 'iface': i, 'member': u},
+      function (data) { // 
+      },
+      'json');
+}
+
 function member_status(name, now, queue) {
    member = members[name];
    var lis = '', rec = '';
    var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE
-         if (name==me && my_status && member['HangupURL']!='') {
+         if (name==my_name && my_status && member['HangupURL']!='') {
             // Open hangup window
             var params = '?uid=' + member['Uniqueid'];
             params += '&member=' + name;
@@ -214,7 +249,7 @@ function member_status(name, now, queue) {
          dur = '';
          break;
       case '2': // AST_DEVICE_INUSE
-         if (name==me && member['PeerChannel']!='' && !my_status) {
+         if (name==my_name && member['PeerChannel']!='' && !my_status) {
             my_status = member['Uniqueid'];
             if (member['ConnectURL']!='') {
                // Open connect window

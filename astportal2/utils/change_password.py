@@ -1,4 +1,4 @@
-#! /opt/Python-2.6.7/bin/python
+#! /opt/tg22env/bin/python
 # -*- coding: utf-8 -*-
 
 # Script de changement des mots de passe
@@ -9,12 +9,12 @@ import os, sys
 import ConfigParser
 from sqlalchemy import create_engine
 
-sys.path.append('/home/astportal21')
-os.environ['PYTHON_EGG_CACHE'] = '/home/astportal21'
+sys.path.append('/opt/astportal21')
+os.environ['PYTHON_EGG_CACHE'] = '/opt/astportal21'
 from astportal2.model import init_model, DBSession, Phone
 
 config = ConfigParser.ConfigParser({'here': os.getcwd()})
-config.read(os.path.join(os.getcwd(), '/home/astportal21/csb.ini'))
+config.read(os.path.join(os.getcwd(), '/opt/astportal21/socredo.ini'))
 sqlalchemy_url = config.get('app:main', 'sqlalchemy.url')
 engine = create_engine(sqlalchemy_url)
 init_model(engine)

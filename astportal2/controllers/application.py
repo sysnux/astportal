@@ -44,7 +44,7 @@ def play_or_tts(typ, val, brk=None):
       name = 'astportal/%s' % s.name if s is not None else 'beep'
       if brk is not None:
          app = u'Background'
-         param = u'%s,%s' % (name,brk)
+         param = u'%s' % (name)
       else:
          app = u'Playback'
          param = u'%s' % (name)
@@ -55,7 +55,7 @@ def play_or_tts(typ, val, brk=None):
       app = u'RealSpeak'
       txt = DBSession.query(Text).get(val)
       param = u'%s' % (txt.text.replace(',','\,'))
-      if brk:
+      if brk is not None:
          param += u',%s' % (brk)
 
    return (app, param)
@@ -456,7 +456,7 @@ class Application_ctrl(RestController):
 
       action_by_id = {}
       for a in DBSession.query(Action):
-         action_by_id[a.action_id] = a.name
+         action_by_id[a.action_id] = asterisk_string(a.name)
 
       prev_context = None
       nodes = []
@@ -485,16 +485,17 @@ class Application_ctrl(RestController):
       dot = open(dir_tmp + '/graphviz.dot', 'w')
       dot.write('digraph g {\n')
       for n in nodes:
-         dot.write(n.encode('utf-8'))
+         dot.write(asterisk_string(n))
       log.debug('edges: %s' % edges)
       for e in edges:
-         dot.write(e.encode('utf-8'))
+         dot.write(asterisk_string(e))
       dot.write('}\n')
       dot.close()
 
       fn = '%s/%s.pdf' % (dir_tmp, app.name)
       from pygraphviz import AGraph
       g = AGraph(dir_tmp + '/graphviz.dot')
+      log.debug(' * * * AGraph encoding %s' % g.encoding)
       g.layout(prog='dot')
       g.draw(fn)
 
@@ -537,7 +538,9 @@ def generate_dialplan():
    apps = apps.filter(Application.active==True)
    apps = apps.order_by(Application.exten)
    for a in apps:
-      dnis = u'exten => %s' % a.dnis
+      if a.dnis is None:
+         continue
+      dnis = u'exten => %s' % a.dnis[-4:]
       app_id = a.app_id
       name = a.name
       begin = a.begin
@@ -569,6 +572,8 @@ def generate_dialplan():
    apps = apps.filter(Application.active==True)
    apps = apps.order_by(Application.exten)
    for a in apps:
+      if a.exten is None:
+         continue
       dnis = u'exten => %s' % a.exten
       app_id = a.app_id
       name = a.name
@@ -630,8 +635,6 @@ def generate_dialplan():
          (app, param) = play_or_tts(parameters[0], int(parameters[2:]))
 
       elif action==2: # Menu
-#         if context=='Entrant': next = 'App_%s_Menu' % app_id
-#         else: next = 'App_%s_%s' % (app_id, context)
          next = 'App_%s_%s' % (app_id, context)
          param = parameters.split('::')
          cpt = 'svi_cpt_%s_%d' % (context, prio)
@@ -646,19 +649,20 @@ def generate_dialplan():
          prio +=1
          log.debug('Background ? (%s, %s, %s)' % (param[0][0], int(param[0][2:]), param[3]))
          (a, p) = play_or_tts(param[0][0], int(param[0][2:]), param[3])
-         svi_out.write(u'exten => s,%d,%s(%s,%s)\n' % (prio, a, p, param[3]))
+         svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, a, p))
          prio +=1
-         #svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,m_%d,1,%s)\n' % (
-         #   prio, sce_id, param[3]))
          svi_out.write(u'exten => s,%d,WaitExten\n' % prio)
          prio +=1
          (a, p) = play_or_tts(param[1][0], int(param[1][2:]))
          svi_out.write(u'exten => i,1,%s(%s)\n' % (a, p))
          svi_out.write(u'exten => i,2,Goto(s,a_%d)\n' % (tag))
          svi_out.write(u'exten => t,1,Goto(s,a_%d)\n' % (tag))
-         (a, p) = play_or_tts(param[2][0], int(param[2][2:]))
-         svi_out.write(u'exten => e_%d,1,%s(%s)\n' % (tag,a, p))
-         svi_out.write(u'exten => e_%d,2,Hangup\n' % tag)
+         if param[2]=='-2': # Continue
+            svi_out.write(u'exten => e_%d,1,Goto(s,%d)\n' % (tag, prio))
+         else:
+            (a, p) = play_or_tts(param[2][0], int(param[2][2:]))
+            svi_out.write(u'exten => e_%d,1,%s(%s)\n' % (tag,a, p))
+            svi_out.write(u'exten => e_%d,2,Hangup\n' % tag)
          for c in param[3]:
             svi_out.write(u'exten => %c,1,Goto(%s_Menu_${EXTEN},s,1)\n' % (c, next))
          return_ok = False # Don't return after "Menu" else timeout is never executed.
@@ -944,21 +948,38 @@ def generate_dialplan():
                svi_out.write(u"exten => s,%d,Answer()\n" % (prio) )
                prio += 1
 
-            svi_out.write(u"exten => s,%d,Queue(%s,%s,,,,,,agent_connect)\n" % 
-               (prio, q.name, options) )
+            timeout = q.timeout if q.timeout else ''
+
+            svi_out.write(u"exten => s,%d,Queue(%s,%s,,,%s,,,agent_connect)\n" % 
+               (prio, q.name, options, timeout) )
          else:
             svi_out.write(u"exten => s,%d,Queue(UNDEFINED)\n" % prio)
          prio += 1
          continue
 
       elif action==21: # Queue_log
-         q, e, i = parameters.split('::')
+         try:
+            q, e, i, a = parameters.split('::')
+         except:
+            q, e, i = parameters.split('::')
+            a = ''
          if i!='':
             i = ',' + i
-         q = DBSession.query(Queue).get(int(q))
+         if a=='':
+            a = '-'
+         q = int(q)
+         if q >=0:
+            q = DBSession.query(Queue).get(int(q))
+            name = q.name
+         elif q==-2:
+            name = 'Trace 1'
+         elif q==-3:
+            name = 'Trace 2'
+         elif q==-4:
+            name = 'Trace 3'
          qe = DBSession.query(Queue_event).get(int(e))
-         svi_out.write(u"exten => s,%d,QueueLog(%s,${UNIQUEID},-,%s%s)\n" % \
-            (prio, q.name, qe.event, i))
+         svi_out.write(u"exten => s,%d,QueueLog(%s,${UNIQUEID},%s,%s%s)\n" % \
+            (prio, name, a, qe.event, i))
          prio += 1
          continue
 
@@ -969,6 +990,10 @@ def generate_dialplan():
       elif action==23: # Conference
          app = u'ConfBridge'
          param = u'%s' % (parameters)
+
+      elif action==24: # AGI
+         app = u'AGI'
+         param = u'astportal/%s' % (parameters)
 
       else:
          m = u'Unknown action sce_id=%d, action=%d\n' % (sce_id, action)
@@ -1125,9 +1150,12 @@ def mk_label(scenario, action_by_id):
          (msg, err, abandon, choices) = params.split('::')
          (a, msg) = play_or_tts(msg[0], int(msg[2:]))
          (a, err) = play_or_tts(err[0], int(err[2:]))
-         (a, abandon) = play_or_tts(abandon[0], int(abandon[2:]))
+         if abandon=='-2': # Continue
+            abandon = u'Continuer'
+         else:
+            (a, abandon) = play_or_tts(abandon[0], int(abandon[2:]))
          labels.append(u'<%d>%s %s, %s, %s (%s)' % (
-         s.step, action_by_id[act], msg, err, abandon, comments))
+            s.step, action_by_id[act], msg, err, abandon, comments))
 
       elif act==16: # Label
          labels.append(u'<%s>%s %s (%s)' % (
@@ -1175,12 +1203,16 @@ def mk_label(scenario, action_by_id):
                   s.step, action_by_id[act], qname, comments))
 
       elif act==21: # Queue_log
-         q, e, i = params.split('::')
+         try:
+            q, e, i, a = params.split('::')
+         except:
+            q, e, i = params.split('::')
+            a = ''
          q = DBSession.query(Queue).get(int(q))
          qname = q.name if q is not None else u'INCONNU'         
          e = DBSession.query(Queue_event).get(int(e))
-         labels.append(u'<%d>%s, %s, %s, %s (%s)' % (
-               s.step, action_by_id[act], qname, e.event, i, comments))
+         labels.append(u'<%d>%s, %s, %s, %s, %s (%s)' % (
+               s.step, action_by_id[act], qname, e.event, i, a, comments))
 
       else:
          labels.append(u'<%d>%s %s (%s)' % (

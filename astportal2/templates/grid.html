@@ -48,6 +48,7 @@ function del(xid,msg) {
          <!-- JQuery Grid -->
          ${tmpl_context.grid()}
       </div>
+      <i py:if="tmpl_context.count" py:content="tmpl_context.count"></i>
 
       <!-- -->
       <form name="form_delete" action="delete" method="POST">

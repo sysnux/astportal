@@ -88,6 +88,10 @@ def dptm_list():
 
    return dptms
 
+def phone_list():
+   phones = [(p.exten, p.exten + ' ' + phone_user_display_name(p)) 
+      for p in DBSession.query(Phone).filter(Phone.exten!=None).order_by(Phone.exten)]
+   return phones
 
 class Billing_form(TableForm):
    '''Billing form :)
@@ -133,8 +137,7 @@ class Billing_form(TableForm):
          help_text = u'Maintenez la touche "Ctrl" appuyée pour sélectionner plusieurs téléphones',
          name = 'phones',
          label_text = u'Téléphones',
-         options = [(p.exten, p.exten + ' ' + phone_user_display_name(p)) 
-            for p in DBSession.query(Phone).filter(Phone.exten!=None).order_by(Phone.exten)]),
+         options = phone_list),
       Spacer(),
       ]
 

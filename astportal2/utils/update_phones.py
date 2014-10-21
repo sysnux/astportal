@@ -10,7 +10,7 @@ path.insert(0, '/opt/astportal21')
 
 from paste.deploy import appconfig
 from astportal2.config.environment import load_environment
-conf = appconfig('config:/home/SysNux/Projets/astportal21/x220.ini')
+conf = appconfig('config:/opt/astportal21/socredo.ini')
 load_environment(conf.global_conf, conf.local_conf) # Needed for DBSession
 
 from tg import config

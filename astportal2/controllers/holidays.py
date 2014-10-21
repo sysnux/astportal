@@ -5,7 +5,7 @@ from tg import expose, flash, redirect, tmpl_context, validate, config, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
-from repoze.what.predicates import in_group
+from repoze.what.predicates import in_any_group
 
 from tw.api import js_callback
 from tw.forms import TableForm, Label, TextField, HiddenField, CalendarDatePicker
@@ -122,8 +122,8 @@ def row(h):
 
 class Holiday_ctrl(RestController):
    
-   allow_only = in_group('admin', 
-         msg=u'Vous devez appartenir au groupe "admin" pour gérer les jours fériés')
+   allow_only = in_any_group('admin', u'Fériés',
+         msg=u'Vous devez appartenir au groupe "Fériés" pour gérer les jours fériés')
 
    @sidebar(u'-- Administration || Jours fériés',
       icon = '/images/view-calendar-journal.png', sortorder = 16)

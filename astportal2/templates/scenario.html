@@ -112,7 +112,7 @@ $(document).ready(
          $('#1_file').html(o);
          $('#3_announce').html(o);
          $('#3_error').html(o);
-         $('#3_abandon').html(o);
+         $('#3_abandon').html('<option value="-2">Continuer</option>\n' + o);
          $('#4_announce').html(o);
          $('#4_error').html(o);
          $('#4_abandon').html(o);
@@ -129,6 +129,24 @@ $(document).ready(
             o += '</option>\n';
          }
          $('#20_queuename').html(o);
+
+         o = '<option value="-1"> - - - </option>\n';
+         o += '<optgroup label="Groupes ACD">\n';
+         for (q in queues) {
+            queues_by_id[queues[q].queue_id] = queues[q].queue_name;
+            o += '<option value="' + queues[q].queue_id + '">'; 
+            o += queues[q].queue_name + ': ' + queues[q].queue_comment;
+            o += '</option>\n';
+         }
+         o += '</optgroup>\n';
+         o += '<optgroup label="Spéciaux">\n';
+         o += '<option value="-2">Trace 1</option>\n';
+         o += '<option value="-3">Trace 2</option>\n';
+         o += '<option value="-4">Trace 3</option>\n';
+         o += '</optgroup>\n';
+         queues_by_id[-2] = 'Trace 1';
+         queues_by_id[-3] = 'Trace 2';
+         queues_by_id[-4] = 'Trace 3';
          $('#21_queuename').html(o);
 
          o = '<option value="-1"> - - - </option>\n';
@@ -211,6 +229,13 @@ function valid_action() {
          var choices = p4.split('');
          var ctxt = scenario[current-1].context + '_Menu_';
          for (i=0; i<choices.length; i++) {
+            var create_context = true;
+            for (s in scenario)
+               if (scenario[s].context==ctxt + choices[i]) {
+                  create_context = false;
+                  break
+               }
+            if (!create_context) continue;
             var s = new Object();
             s.context = ctxt + choices[i];
             s.extension = 's';
@@ -386,6 +411,7 @@ function valid_action() {
          param = $("#21_queuename").val();
 			param += '::' + $("#21_event").val();
 			param += '::' + $("#21_info").val();
+			param += '::' + $("#21_agent").val();
          break;
 
       case 22: // Open playback
@@ -394,6 +420,10 @@ function valid_action() {
 
       case 23: // Conference
          param = $("#23_name").val();
+         break;
+
+      case 24: // AGI
+         param = $("#24_script").val();
          break;
 
       case -1:
@@ -640,6 +670,11 @@ function display(redraw) {
             par = scenario[r].parameters;
             break;
 
+         case 24: // AGI
+            act = actions_by_id[app];
+            par = scenario[r].parameters;
+            break;
+
          case 11: // Time based test
             var a = scenario[r].parameters.split('::');
             var begin=a[0], end=a[1], dow=a[2], day=a[3], 
@@ -881,6 +916,7 @@ function edit_action(i) {
          $("#21_queuename").val(a[0]);
          $("#21_event").val(a[1]);
          $("#21_info").val(a[2]);
+         $("#21_agent").val(a[3]);
          break;
 
       case 22: // Open playback
@@ -1183,7 +1219,7 @@ function update_canvas() {
             <td><select id="3_announce"></select></td></tr>
          <tr><td>Message d'erreur</td>
             <td><select id="3_error"></select></td></tr>
-         <tr><td>Message d'abandon:</td>
+         <tr><td>3 erreurs (continuer ou message puis raccrocher):</td>
             <td><select id="3_abandon"></select></td></tr>
          <tr><td>Entrez les choix autorisés:</td>
             <td><input type="text" id="3_choice"/></td></tr>
@@ -1234,7 +1270,14 @@ function update_canvas() {
 
    <!-- Text to speech: 5 -->
    <div id="action_params_5" style="display: none">
-      Entrez le texte: <input type="text" id="2_tts"/>
+      <table>
+         <tr><td>Entrez le texte:</td>
+            <td><input type="text" id="2_tts"/></td></tr>
+         <!-- tr><td>Langue:</td>
+            <td><input type="radio" name="2_language" value="true" checked="checked"/>Oui</td></tr>
+         <tr><td>&nbsp;</td>
+            <td><input type="radio" name="2_language" value=""/>Non</td></tr -->
+      </table>
    </div>
 
    <!-- Record: 6 -->
@@ -1444,11 +1487,13 @@ function update_canvas() {
       <select id="20_queuename"></select>
    </div>
 
-   <!-- Queue: 21 -->
+   <!-- QueueLog: 21 -->
    <div id="action_params_21" style="display: none">
 		<table>
       	<tr><td>Nom du groupe d'appel:</td>
       		<td><select id="21_queuename"></select></td></tr>
+			<tr><td>Agent:</td>
+      		<td><input type="text" id="21_agent"/></td></tr>
 			<tr><td>Evénement:</td>
       		<td><select id="21_event"></select></td></tr>
 			<tr><td>Information:</td>
@@ -1466,6 +1511,12 @@ function update_canvas() {
    <div id="action_params_23" style="display: none">
       Entrez le nom de la salle de conférence:
       <input type="text" id="23_name"/>
+   </div>
+
+   <!-- AGI: 24 -->
+   <div id="action_params_24" style="display: none">
+      Entrez le nom du programme à exécuter
+      <input type="text" id="24_script"/>
    </div>
 
    <div>

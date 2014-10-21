@@ -169,6 +169,7 @@ class Queue(DeclarativeBase):
    announce_position  = Column(Integer)
    priority = Column(Integer)
    monitor = Column(Boolean)
+   timeout = Column(Integer)
    def __repr__(self):
       return '<Queue: name="%s", comment="%s">' % (
             self.name, self.comment)

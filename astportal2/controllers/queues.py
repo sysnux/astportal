@@ -81,6 +81,9 @@ common_fields = [
       options = [ (False, u'Non'), (True, u'Oui')],
       validator=StringBoolean,
       label_text=u'Enregistrement de la conversation', help_text=u''),
+   TextField('timeout', validator=Int, size=4, default=0,
+      label_text=u'Temps d\'attente', 
+      help_text=u'Délai d\'attente dans la file avant de continuer'),
    HiddenField('queue_id',validator=Int),
    ]
 
@@ -220,6 +223,7 @@ class Queue_ctrl(RestController):
       q.connectdelay = int(kw['connectdelay'])
       q.connecturl = kw['connecturl']
       q.hangupurl = kw['hangupurl']
+      q.timeout = kw['timeout']
       DBSession.add(q)
 
       # Create new group for supervisors
@@ -258,7 +262,7 @@ class Queue_ctrl(RestController):
             'announce_position': 'yes' if q.announce_position==1 else 'no', 
             'priority': q.priority, 'monitor': q.monitor,
             'connectdelay': q.connectdelay, 'connecturl': q.connecturl,
-            'hangupurl': q.hangupurl}
+            'hangupurl': q.hangupurl, 'timeout': q.timeout}
       tmpl_context.form = edit_queue_form
       return dict(title = u'Modification groupe d\'appels ' + q.name, debug='', values=v)
 
@@ -278,6 +282,7 @@ class Queue_ctrl(RestController):
       q.connectdelay = int(kw['connectdelay'])
       q.connecturl = kw['connecturl']
       q.hangupurl = kw['hangupurl']
+      q.timeout = kw['timeout']
       q.announce_frequency = int(kw['announce_frequency'])
       q.min_announce_frequency = int(kw['min_announce_frequency'])
       q.announce_holdtime = 1 if kw['announce_holdtime']=='yes' else 0

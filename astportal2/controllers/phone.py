@@ -191,6 +191,7 @@ def peer_info(sip_id=None, exten=None):
    '''Find peer by id or exten, return ip address and user agent
    '''
 
+   log.debug('Globals.asterisk.peers: %s ' %Globals.asterisk.peers)
    if sip_id is not None and 'SIP/'+sip_id in Globals.asterisk.peers:
       log.debug('peer_info sip_id  %s' % sip_id)
       peer = sip_id
@@ -205,13 +206,14 @@ def peer_info(sip_id=None, exten=None):
    if peer:
       # Peer exists, try to find User agent
       if 'UserAgent' not in Globals.asterisk.peers['SIP/'+peer]:
-         log.debug('SIPshowPeer(%s)' % peer)
          res = Globals.manager.sipshowpeer(peer)
-         Globals.asterisk.peers['SIP/'+peer]['UserAgent'] = res.get_header('SIP-Useragent')
-      ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
+         ua = res.get_header('SIP-Useragent')
+         Globals.asterisk.peers['SIP/'+peer]['UserAgent'] = ua
 
       else:
-         if 'Address' in Globals.asterisk.peers['SIP/'+peer] and \
+         ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
+
+      if 'Address' in Globals.asterisk.peers['SIP/'+peer] and \
             Globals.asterisk.peers['SIP/'+peer]['Address'] is not None:
             ip = (Globals.asterisk.peers['SIP/'+peer]['Address']).split(':')[0]
 
@@ -284,6 +286,7 @@ class Phone_ctrl(RestController):
          )
       tmpl_context.grid = grid
       tmpl_context.form = None
+      tmpl_context.count = u'Total : %d téléphones' % DBSession.query(Phone).count()
       return dict( title=u'Liste des téléphones', debug='')
 
 
@@ -296,17 +299,7 @@ class Phone_ctrl(RestController):
       if ip == 'None': 
          ip = ''
       else:
-         if ua and ua.startswith('Grandstream GXP'):
-            m = re.search('(\d{4})',ua)
-            if m:
-               model = m.groups()[0]
-               gxp_type = 1 if model in ('1200', '2000', '2010', '2020') else 2
-               ip = Markup('''<a href="#" title="Connexion interface t&eacute;l&eacute;phone" onclick="phone_open('%s','%s', '%s');">%s</a>''' % (ip, p.password, gxp_type, ip))
-            else:
-               ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
-
-         else:
-            ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
+         ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
       data = [ { 'id'  : p.phone_id, 
          'cell': (p.sip_id, p.password, ip, p.mac) }]
       return dict(page=1, total=1, rows=data)
@@ -543,7 +536,7 @@ class Phone_ctrl(RestController):
          new_phone.configure( pwd, directory_tftp,
             server_firmware + '/phones/firmware', 
             server_config + '/phones/config', server_syslog,
-            server_config + ':8080/phonebook/gs_phonebook_xml', '', '', '',
+            server_config + '/phonebook/gs_phonebook_xml', '', '', '',
             sip_server, sip_id, '', mwi_subscribe)
 
       flash(u'Nouveau téléphone "%s" créé' % (kw['exten']))

@@ -334,18 +334,34 @@ class Phonebook_ctrl(RestController):
          mac = ':'.join(x[1:])
 
       except:
-         log.error(u'gs_phonebook_xml: could not parse UA from "%s"' % request.environ['HTTP_USER_AGENT'])
+         log.error(u'gs_phonebook_xml: could not parse UA from env="%s"' % request.environ)
 
       try:
          p = DBSession.query(Phone).filter(Phone.mac==mac).one()
          uid = p.user.user_id
-         log.error(u'sip_id "%s" -> user %s (%d)' % (
-            sip_id[0:8], p.user.display_name, uid))
+         log.warning(u'mac "%s" -> user %s (%d)' % (
+            mac, p.user.display_name, uid))
 
       except:
          log.error(u'gs_phonebook_xml: phone or user not found, From "%s" by "%s" @ %s.' % (
                   mac, request.environ['HTTP_USER_AGENT'], request.environ['REMOTE_ADDR']))
          uid = None
+
+      if uid is None:
+         # GXP2160 does not send mac address in header, try to find by IP
+         ip = request.environ.get('HTTP_X_FORWARDED_FOR', 'xxx')
+         for peer in Globals.asterisk.peers:
+            if 'Address' in Globals.asterisk.peers[peer] and ip == Globals.asterisk.peers[peer]['Address']:
+               try:
+                  p = DBSession.query(Phone).filter(Phone.sip_id==peer[4:]).one()
+                  uid = p.user.user_id
+                  log.warning(u'ip %s -> peer %s -> user %s (%d)' % (
+                     ip, peer, p.user.display_name, uid))
+               except:
+                  log.error(u'gs_phonebook_xml: ip %s found but peer %s does not exist.' % (
+                     ip, peer))
+                  uid = None
+               break
 
       xml = '<?xml version="1.0" encoding="utf-8"?>\n<AddressBook>\n'
 

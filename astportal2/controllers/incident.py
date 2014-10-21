@@ -19,7 +19,7 @@ re_db = re.compile(r'(\w*)\s*: (\S*)')
 
 incidents = dict(
       AAA = u'Aucun',
-      PCA = u'Plan de continuité d\'activité',
+      ALEA = u'Aléa',
       EXCEPT = u'Fermeture exceptionnelle',
       )
 
@@ -28,7 +28,7 @@ class Incident_ctrl(BaseController):
 
 
    allow_only = in_any_group('admin', 'INC',
-         msg=u'Vous devez appartenir au groupe "admin" pour gérer les incidents')
+         msg=u'Vous devez appartenir au groupe "INC" pour gérer les incidents')
 
    @sidebar(u'-- Administration || Incidents',
       icon = '/images/script-error.png', sortorder = 16)

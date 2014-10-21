@@ -302,7 +302,8 @@ class Status(object):
             'MessageWaiting', 'Shutdown', 'Reload', 'JabberEvent', 'JabberStatus', 
             'Registry', 'NewAccountCode', 'NewCallerid', 'Transfer', 
             'OriginateResponse', 'Status', 'Masquerade', 'HangupRequest',
-            'SoftHangupRequest', 'ChannelUpdate', 'LocalBridge'):
+            'SoftHangupRequest', 'ChannelUpdate', 'LocalBridge',
+            'AOC-E', 'DAHDIChannel', 'JitterBufStats', 'ChannelReload'):
 #         log.debug(' * * * NOT IMPLEMENTED %s' % str(event.headers))
          return
       if e=='Newexten':
@@ -475,6 +476,10 @@ Channel: SIP/100-0000001f
       else:
          log.error('QueueMember without name %s' % dict)
          return
+      if q not in self.queues:
+         log.error('Queue does not exist %s' % q)
+         return
+
       self.queues[q]['Members'].append(m)
 
       if m in self.members: # Known member, update his info

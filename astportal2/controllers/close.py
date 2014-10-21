@@ -18,10 +18,10 @@ from astportal2.lib.base import BaseController
 re_db = re.compile(r'(\w*)\s*: (\S*)')
 
 closed = dict(
-      AGENCE01 = u'Escale Bora-Bora',
-      AGENCE02 = u'Agence Papeete',
-      AGENCE03 = u'Escale Raiatea',
-      AGENCE04 = u'Escale Rangiroa',
+      AGENCE01 = u'Agence 1',
+      AGENCE02 = u'Agence 2',
+      AGENCE03 = u'Agence 3',
+      AGENCE04 = u'Agence 4',
       )
 
 

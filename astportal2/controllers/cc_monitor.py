@@ -96,13 +96,17 @@ class CC_Monitor_ctrl(TGController):
       '''
       log.info('Adding member "%s" to queue "%s", penality %s' % (member, queue, penality))
       p = DBSession.query(Phone).get(member)
+      log.debug('Member phone %s' % (p))
 
-      if p.sip_id is not None and 'SIP/'+p.sip_id in Globals.asterisk.peers:
-         iface = p.sip_id
-      elif p.exten is not None and 'SIP/'+p.exten in Globals.asterisk.peers:
-         iface = p.exten
+      if p.sip_id is not None:
+         if 'SIP/'+p.sip_id not in Globals.asterisk.peers and \
+            p.exten is not None and \
+            'SIP/'+p.exten in Globals.asterisk.peers:
+            iface = p.exten
+         else:
+            iface = p.sip_id
       else:
-         log.error('%s:%s not registered, not adding member ?' % (p.sip_id, p.exten))
+         log.error('User phone unknown, not adding member' % (p))
          return dict(res='ko')
 
       user = p.user.ascii_name if p.user else p.exten
@@ -132,6 +136,12 @@ class CC_Monitor_ctrl(TGController):
       '''
       last = int(last) # Last template refresh (0 -> page just loaded)
       change = False
+      u = DBSession.query(User).filter(User.user_name==request.identity['repoze.who.userid']).one()
+      try:
+         phone = u.phone[0].phone_id
+      except:
+         phone = None
+      log.debug('User %s, phone_id=%s' % (u, phone))
       queues = copy.deepcopy(Globals.asterisk.queues)
       members = copy.deepcopy(Globals.asterisk.members)
 #      log.debug('Q BEFORE %s' % Globals.asterisk.queues)
@@ -162,10 +172,6 @@ class CC_Monitor_ctrl(TGController):
             elif in_group('AG ' + q):
                queues[q] = Globals.asterisk.queues[q]
 
-#      log.debug('Q AFTER %s' % Globals.asterisk.queues)
-#      log.debug('M AFTER %s' % Globals.asterisk.members)
-
-      me = request.identity['user'].ascii_name
 
       qq = [{'name': k,
          'params': queues[k]
@@ -174,7 +180,9 @@ class CC_Monitor_ctrl(TGController):
                reverse=True)
          ]
       return dict(last=last_update, change=True, # XXX
-            queues=qq, members=Globals.asterisk.members, me=me, admin=admin)
+            queues=qq, members=Globals.asterisk.members, admin=admin,
+            my_name=u.ascii_name, my_phone=phone,
+            my_groups=[g.group_name for g in u.groups])
 
 
    @expose('json')

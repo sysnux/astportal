@@ -15,8 +15,8 @@ log = logging.getLogger(__name__)
 
 class Monitor_ctrl(TGController):
  
-#   allow_only = in_group('admin', 
-#         msg=u'Vous devez être membre du groupe "admin" pour accéder à cette page')
+   allow_only = in_group('admin', 
+      msg=u'Vous devez être membre du groupe "admin" pour accéder à cette page')
 
    @sidebar(u'-- Administration || Surveillance', sortorder = 11,
       icon = '/images/astronomy_section.png')
