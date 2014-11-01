@@ -279,7 +279,7 @@ class Voicemail_ctrl(BaseController):
       log.debug('message = %s' % msg)
 
       import psycopg2
-      conn = psycopg2.connect('dbname=astdeb user=astportal host=192.168.1.1')
+      conn = psycopg2.connect('dbname=astportal2 user=postgres')
       lo = conn.lobject(int(msg.recording), 'rb')
       f = open( '/tmp/msg-%d.gsm' % msg.uniqueid, 'w')
       f.write(lo.read())
@@ -333,7 +333,7 @@ class Voicemail_ctrl(BaseController):
       log.debug('message = %s' % msg)
 
       import psycopg2
-      conn = psycopg2.connect('dbname=astdeb user=astportal host=192.168.1.1')
+      conn = psycopg2.connect('dbname=astportal2 user=postgres')
       lo = conn.lobject(int(msg.recording), 'rb')
       f = open( '/tmp/msg-%d.gsm' % msg.uniqueid, 'w')
       f.write(lo.read())

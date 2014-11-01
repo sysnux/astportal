@@ -292,7 +292,8 @@ class Status(object):
 
       if e not in ('CEL', 'WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
             'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
-            'DTMF', 'RTCPReceived', 'RTCPSent', 'VarSet'):
+            'DTMF', 'RTCPReceived', 'RTCPSent', 'VarSet', 'PeerStatus', 'PeerEntry',
+            'QueueParams', 'QueueMember'):
          log.debug('Received event %s: %s' % (
             e, event.headers))
 

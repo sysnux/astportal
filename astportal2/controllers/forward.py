@@ -263,7 +263,26 @@ class Forward_ctrl(RestController):
             cf_types, phone.sip_id, dest))
          log.debug('database put %s %s %s returns %s' % (
             cf_types, phone.sip_id, dest, man))
+
+         # Notify user's phone
+         man = Globals.manager.command('sip notify grandstream-idle-screen-refresh %s' % (
+            phone.sip_id))
+         log.debug('sip notify grandstream-idle-screen-refresh %s returns %s' % (
+            phone.sip_id, man))
+
+      if len(dest) < 6:
+         # Notify dest phone if not external
+         try:
+            phone = DBSession.query(Phone).filter(Phone.exten==dest).one()
+            man = Globals.manager.command('sip notify grandstream-idle-screen-refresh %s' % (
+               phone.sip_id))
+            log.debug('sip notify grandstream-idle-screen-refresh %s returns %s' % (
+               phone.sip_id, man))
+         except:
+            log.warning('Phone not found for dest "%s"')
+
 #      flash(u'Une erreur est survenue', 'error')
+
       redirect('/forwards/')
 
 
@@ -286,6 +305,24 @@ class Forward_ctrl(RestController):
          cf_types, p.sip_id, dest))
       log.debug('database put %s %s %s returns %s' % (
          cf_types, p.sip_id, dest, man))
+
+      # Notify user's phone
+      man = Globals.manager.command('sip notify grandstream-idle-screen-refresh %s' % (
+         p.sip_id))
+      log.debug('sip notify grandstream-idle-screen-refresh %s returns %s' % (
+         p.sip_id, man))
+
+      if len(dest) < 6:
+         # Notify dest phone if not external
+         try:
+            p = DBSession.query(Phone).filter(Phone.exten==dest).one()
+            man = Globals.manager.command('sip notify grandstream-idle-screen-refresh %s' % (
+               p.sip_id))
+            log.debug('sip notify grandstream-idle-screen-refresh %s returns %s' % (
+               p.sip_id, man))
+         except:
+            log.warning('Phone not found for dest "%s"')
+
 #      flash(u'Une erreur est survenue', 'error')
       redirect('/forwards/')
 

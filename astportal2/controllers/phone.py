@@ -45,7 +45,7 @@ _vendors = {
 }
 
 _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'), 
-   ('services', u'Services'), ('local', u'Local'),
+   ('services', u'Services'), ('shortcuts', u'Raccourcis'), ('local', u'Local'),
    ('gsm', u'GSM'), ('international', u'International'))
 
 def departments():
@@ -98,7 +98,7 @@ class New_phone_form(AjaxForm):
       CheckBoxTable('contexts',  validator=Int,
          options = _contexts,
          not_empty = False,
-         default = ('urgent','internal','services'),
+         default = ('urgent', 'internal', 'services', 'shortcuts'),
          label_text=u'Droits d\'appels', help_text='Autorisations pour les appels sortants'),
       CheckBoxTable('callgroups', validator=Int,
          options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),

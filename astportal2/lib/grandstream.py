@@ -19,7 +19,8 @@ class Grandstream(object):
 # Admin password for web interface
 P2 = 'admin',
 # VLAN TAG
-P51 = 1601,
+#P51 = 1601,
+
 # No Key Entry Timeout. Default - 4 seconds.
 P85 = 3,
 # Use # as Dial Key. 0 - no, 1 - yes
@@ -88,7 +89,7 @@ P334 = 8,
 # LCD Backlight Brightness. (0-8, where 0 is off and 8 is brightest) Idle
 P335 = 0,
 # Configuration Via Keypad Menu. 0 - Unrestricted, 1 - Basic settings only, 2 - Constrai nt mode
-P1357 = 2,
+P1357 = 0,
 )
 
    def __init__(self, host, mac, pwd='admin'):
@@ -262,6 +263,12 @@ P1357 = 2,
          phonebook_url=None, syslog_server=None
       '''
 
+      vlan = config.get('gxp.vlan')
+      if vlan:
+         self.params['P51'] = vlan
+      keypad = config.get('gxp.keypad')
+      if keypad in (0, 1, 2):
+         self.params['P1357'] = keypad
       self.params['P2'] = pwd
       self.params['P192'] = firmware_url
       self.params['P237'] = config_url
