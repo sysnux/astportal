@@ -24,7 +24,10 @@ from tg import config, expose, flash, request, redirect
 from tg.controllers import TGController
 from tgext.menu import navbar, sidebar, menu
 
-from repoze.what.predicates import in_group, in_any_group
+try:
+   from tg.predicates import in_group, in_any_group
+except ImportError:
+   from repoze.what.predicates import in_group, in_any_group
 
 from astportal2.model import DBSession, Phone, Record, Queue, User, Group
 from astportal2.lib.app_globals import Globals

@@ -13,7 +13,10 @@ exten => _X.,n(no_outcall),Set(__DYNAMIC_FEATURES=stop_monitor)
 
 from tg import expose, tmpl_context, validate, request, session, flash, redirect
 from tgext.menu import sidebar
-from repoze.what.predicates import in_any_group, not_anonymous
+try:
+   from tg.predicates import not_anonymous, in_any_group
+except ImportError:
+   from repoze.what.predicates import not_anonymous, in_any_group
 from tw.forms import TableForm, TextArea, TextField, Button, CheckBox,\
          SingleSelectField, CalendarDateTimePicker, HiddenField, FileField
 from tw.forms.validators import NotEmpty, Int, DateTimeConverter, \
@@ -179,7 +182,7 @@ def outcall_row(o):
 
 
 class CRM_validate(Schema):
-   def validate_python(self, value, state):
+   def _validate_python(self, value, state):
       if value['result']==0 and (
             value['begin']=='' or value['duration']==-1):
          raise Invalid(

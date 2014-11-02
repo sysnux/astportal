@@ -4,7 +4,7 @@
 from astportal2.config.app_cfg import base_config
 from astportal2.config.environment import load_environment
 
-from repoze.who.config import make_middleware_with_config as make_who_with_config
+#from repoze.who.config import make_middleware_with_config as make_who_with_config
 
 from tg import config
 import logging
@@ -40,12 +40,12 @@ def make_app(global_conf, full_stack=True, **app_conf):
     app = make_base_app(global_conf, full_stack=True, **app_conf)
     
     # Wrap your base TurboGears 2 application with custom middleware here
-    app = make_who_with_config(
-      app,
-      global_conf,
-      app_conf.get('who.config_file', 'who.ini'),
-      app_conf.get('who.log_file', 'stdout'),
-      app_conf.get('who.log_level', 'warning')
-    )
+#    app = make_who_with_config(
+#      app,
+#      global_conf,
+#      app_conf.get('who.config_file', 'who.ini'),
+#      app_conf.get('who.log_file', 'stdout'),
+#      app_conf.get('who.log_level', 'warning')
+#    )
 
     return app

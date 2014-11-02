@@ -6,7 +6,10 @@ from tg import expose, flash, redirect, tmpl_context, validate, config, session
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
-from repoze.what.predicates import in_group
+try:
+   from tg.predicates import in_group
+except ImportError:
+   from repoze.what.predicates import in_group
 
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField

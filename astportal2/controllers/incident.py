@@ -4,7 +4,10 @@
 from tg import expose, flash, redirect, tmpl_context
 from tgext.menu import sidebar
 
-from repoze.what.predicates import in_any_group
+try:
+   from tg.predicates import in_any_group
+except ImportError:
+   from repoze.what.predicates import in_any_group
 
 from tw.forms import TableForm, RadioButtonList
 

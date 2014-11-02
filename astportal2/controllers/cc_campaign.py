@@ -7,7 +7,10 @@ from tg import expose, tmpl_context, validate, request, session, flash, \
    redirect, response
 from tg.controllers import RestController
 from tgext.menu import sidebar
-from repoze.what.predicates import in_any_group, not_anonymous
+try:
+   from tg.predicates import in_group, not_anonymous
+except ImportError:
+   from repoze.what.predicates import in_group, not_anonymous
 from tw.forms import TableForm, TextField, TextArea, CheckBox, \
          SingleSelectField, CalendarDateTimePicker, FileField, HiddenField
 from tw.forms.validators import NotEmpty, Int, DateTimeConverter, \
@@ -197,7 +200,7 @@ def process_file(csv, cmp_id):
 
 
 class Campaign_validate(Schema):
-   def validate_python(self, value, state):
+   def _validate_python(self, value, state):
       # Check name is unique
       try:
          c = DBSession.query(Campaign).filter(Campaign.name==value['name']).one()

@@ -3,8 +3,10 @@
 from tg import expose, flash, redirect, tmpl_context, request, response, validate, session, config
 from tgext.menu import sidebar
 from astportal2.model import DBSession, CDR, Department, Phone, User
-from tg.decorators import allow_only
-from repoze.what.predicates import not_anonymous, in_group, in_any_group
+try:
+   from tg.predicates import in_group, not_anonymous, in_any_group
+except ImportError:
+   from repoze.what.predicates import in_group, not_anonymous, in_any_group
 
 
 from tw.api import WidgetsList

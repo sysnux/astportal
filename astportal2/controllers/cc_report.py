@@ -7,7 +7,10 @@ has been configured accordingly.
 '''
 
 from tg import expose, tmpl_context, validate, request
-from repoze.what.predicates import in_group, not_anonymous
+try:
+   from tg.predicates import not_anonymous, in_group
+except ImportError:
+   from repoze.what.predicates import not_anonymous, in_group
 from tw.forms import TableForm, TextField, SingleSelectField, \
    TextArea, HiddenField, Button
 from tw.forms.validators import NotEmpty, Int, Schema, Invalid
@@ -161,7 +164,7 @@ il souhaite :
 
 
 class Send_validate(Schema):
-   def validate_python(self, value, state):
+   def _validate_python(self, value, state):
       if value['send_or_save']==u'send' and value['manager']==u'null':
          raise Invalid(
             u'Veuillez sélectionner un gestionnaire pour envoyer le message',

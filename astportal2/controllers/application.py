@@ -7,7 +7,10 @@ from tg import expose, flash, redirect, tmpl_context, validate, request, \
 from tg.controllers import RestController
 from tgext.menu import sidebar
 
-from repoze.what.predicates import in_group, not_anonymous
+try:
+   from tg.predicates import in_group, not_anonymous
+except ImportError:
+   from repoze.what.predicates import in_group, not_anonymous
 
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals

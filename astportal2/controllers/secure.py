@@ -3,11 +3,8 @@
 from tg import expose, flash
 from pylons.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what.predicates import has_permission
-#from dbsprockets.dbmechanic.frameworks.tg2 import DBMechanic
-#from dbsprockets.saprovider import SAProvider
 
 from astportal2.lib.base import BaseController
-#from astportal2.model import DBSession, metadata
 
 __all__ = ['SecureController']
 

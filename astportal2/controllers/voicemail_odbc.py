@@ -5,7 +5,10 @@
 from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
 from tgext.menu import sidebar
 
-from repoze.what.predicates import in_group, not_anonymous, in_any_group
+try:
+   from tg.predicates import not_anonymous, in_group, in_any_group
+except ImportError:
+   from repoze.what.predicates import not_anonymous, in_group, in_any_group
 
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, FileField, RadioButtonList

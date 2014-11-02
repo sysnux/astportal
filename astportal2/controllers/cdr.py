@@ -3,9 +3,11 @@
 from tg import expose, flash, redirect, tmpl_context, validate, request, response, config, session
 from tg.controllers import WSGIAppController
 from tgext.menu import sidebar
-import paste.fileapp
-from tg.decorators import allow_only
-from repoze.what.predicates import not_anonymous, in_group, in_any_group
+# XXX import paste.fileapp
+try:
+   from tg.predicates import in_any_group, in_group, not_anonymous
+except ImportError:
+   from repoze.what.predicates import in_any_group, in_group, not_anonymous
 
 from astportal2.model import DBSession, CDR, Phone
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -309,16 +311,16 @@ class Display_CDR(BaseController):
       return dict(page=page, total=total, rows=data)
 
 
-   @expose()
-   def ecoute(self, date=None, file=None):
-      ''' Send recorded file
-      '''
-
-      filename = 'test.ogg'
-      rec = '/usr/share/games/xmoto/Textures/Musics/speeditup.ogg' # XXX
-      f = paste.fileapp.FileApp(rec,
-            **{'Content-Type': 'audio/ogg',
-            'Content-Disposition': 'attachment; filename=' + filename})
-
-      return WSGIAppController(f)._default()
+#   @expose()
+#   def ecoute(self, date=None, file=None):
+#      ''' Send recorded file
+#      '''
+#
+#      filename = 'test.ogg'
+#      rec = '/usr/share/games/xmoto/Textures/Musics/speeditup.ogg' # XXX
+#      f = paste.fileapp.FileApp(rec,
+#            **{'Content-Type': 'audio/ogg',
+#            'Content-Disposition': 'attachment; filename=' + filename})
+#
+#      return WSGIAppController(f)._default()
 
