@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import config, expose
+from tg import config, expose, request
 from tg.controllers import TGController
 from tgext.menu import navbar, sidebar, menu
 
@@ -27,7 +27,8 @@ class Monitor_ctrl(TGController):
    def index(self):
       '''
       '''
-      return dict( title=u'Appels en cours', debug='')
+      return dict( title=u'Appels en cours', debug='',
+         host = request.environ['HTTP_HOST'])
 
 
    @expose('json')

@@ -96,7 +96,7 @@ new_user_form = TableForm(
    fields = admin_form_fields,
    submit_text = u'Valider...',
    action = '/users/create',
-   hover_help = True
+#   hover_help = True
 )
 
 # Edit user form for admin
@@ -108,7 +108,7 @@ admin_edit_user_form = TableForm(
       [HiddenField('_method', validator=None)], # Needed by RestController
    submit_text = u'Valider...',
    action = '/users/',
-   hover_help = True
+#   hover_help = True
 )
 
 # Edit user form for normal user (not admin)
@@ -136,7 +136,7 @@ edit_user_form = TableForm(
    fields = user_fields,
    submit_text = u'Valider...',
    action = '/users/',
-   hover_help = True
+#   hover_help = True
 )
 
 def row(u):

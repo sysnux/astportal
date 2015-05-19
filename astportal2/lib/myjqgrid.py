@@ -13,6 +13,9 @@ class MyJqGrid(JqGrid):
    rowList = [25, 50, 100, 500]
    sortorder = 'asc'
    shrinkToFit = True
+   viewrecords = True
+#   autowidth: true
+#   altrows: true
    altRows = True
    gridview = True # Faster but has limitations
    navbuttons_options = {'view': False, 'edit': False, 'add': False,

@@ -5,9 +5,9 @@ from tg import expose, flash, redirect, tmpl_context, validate, config, response
 from tgext.menu import sidebar
 
 try:
-   from tg.predicates import in_group, in_group
+   from tg.predicates import in_group, in_any_group
 except ImportError:
-   from repoze.what.predicates import in_group, in_group
+   from repoze.what.predicates import in_group, in_any_group
 
 from tw.api import js_callback
 from tw.forms import Form, TableForm, Label, CalendarDatePicker, Spacer, \

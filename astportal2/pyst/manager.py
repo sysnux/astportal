@@ -52,6 +52,10 @@ Not all manager actions are implmented as of yet, feel free to add them
 and submit patches.
 """
 
+#try:
+#    from gevent import monkey; monkey.patch_all()
+#except:
+#    pass
 import sys,os
 import socket
 import threading

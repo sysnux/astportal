@@ -122,7 +122,7 @@ class Voicemail_ctrl(BaseController):
             ],
             submit_text = u'Valider...',
             action = 'custom_messages',
-            hover_help = True
+#            hover_help = True
          )
 
       tmpl_context.form = TableForm(
@@ -138,7 +138,7 @@ class Voicemail_ctrl(BaseController):
          ],
          submit_text = None,
          action = '',
-         hover_help = True
+#         hover_help = True
       )
       return dict( title=u"Messages vocaux", debug='', 
             values={'folder': folder}, values2={'greet': 'Mon nom', 

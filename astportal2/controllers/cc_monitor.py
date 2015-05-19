@@ -66,6 +66,18 @@ class CC_Monitor_ctrl(TGController):
       return dict( title=u'\u00C9tat des groupes d\'appels', debug='', auth=auth)
 
 
+   @expose(template="astportal2.templates.cc_monitor_atn")
+   def atn(self):
+      '''
+      '''
+
+      if Globals.manager is None:
+         flash(u'Vérifier la connexion Asterisk', 'error')
+      else:
+         Globals.manager.send_action({'Action': 'QueueStatus'})
+      return dict( title=u'\u00C9tat des groupes d\'appels', debug='', auth=1)
+
+
    @expose('json')
    def list_exten(self, queue):
       ''' List users for adding members to a queue

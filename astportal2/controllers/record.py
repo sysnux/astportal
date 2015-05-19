@@ -146,7 +146,7 @@ grid = MyJqGrid( id='grid', url='fetch', caption=u"Enregistrements ACD",
             )
 
 class Record_ctrl(BaseController):
-   
+
    @sidebar(u"-- Groupes d'appels || Enregistre- -ments", sortorder=10,
       icon = '/images/media-record.png')
    @expose(template="astportal2.templates.cdr")

@@ -34,6 +34,7 @@ install_requires=[
     'python-dateutil>=1.5,<2.0dev',
     "TurboGears2 >= 2.3.4",
     "Genshi",
+    "Mako",
     "zope.sqlalchemy >= 0.4",
     "sqlalchemy",
     "repoze.who",
@@ -48,6 +49,9 @@ install_requires=[
     'WebHelpers',
     'psycopg2',
     'vobject',
+    'gevent',
+    'ws4py',
+    'wsaccel',
         ]
 
 if sys.version_info[:2] == (2,4):
@@ -81,9 +85,13 @@ setup(
         'paste.app_factory': [
             'main = astportal2.config.middleware:make_app'
         ],
+        'paste.server_runner': [
+            'ws4py = astportal2.lib.server:serve'
+        ],
         'gearbox.plugins': [
             'turbogears-devtools = tg.devtools'
         ]
     },
     zip_safe=False
 )
+

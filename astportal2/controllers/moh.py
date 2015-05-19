@@ -70,14 +70,14 @@ new_sound_form = TableForm(
    fields = new_sound_fields,
    submit_text = u'Valider...',
    action = '/moh/create',
-   hover_help = True
+#   hover_help = True
    )
 
 edit_sound_form = TableForm(
    fields = edit_sound_fields,
    submit_text = u'Valider...',
    action = '/moh/',
-   hover_help = True
+#   hover_help = True
    )
 
 def process_file(filename, filetype, id, type, name, lang):

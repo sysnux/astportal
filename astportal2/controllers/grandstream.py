@@ -78,10 +78,10 @@ def phone_details():
       ''' Try to find phone model and user from request: user agent, or ip
       '''
 
-      if Globals.manager is not None:
-         # Refresh Asterisk peers
-         Globals.manager.sippeers()
-         sleep(2) # Give time to sippeers to return data
+#      if Globals.manager is not None:
+#         # Refresh Asterisk peers
+#         Globals.manager.sippeers()
+#         sleep(2) # Give time to sippeers to return data
 
       mac = model = phone = None
       try:
@@ -134,9 +134,9 @@ class Grandstream_ctrl(BaseController):
 
    @expose(content_type='text/xml; charset=utf-8', 
       custom_format='gxp2120',
-      template='astportal2.templates.2120idle_screen')
+      template='mako:astportal2.templates.2120idle_screen')
    @expose(content_type='text/xml; charset=utf-8', 
-      template='astportal2.templates.1450idle_screen')
+      template='mako:astportal2.templates.1450idle_screen')
    def screen(self):
       ''' XML idle screen
 

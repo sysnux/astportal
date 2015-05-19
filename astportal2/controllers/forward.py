@@ -36,7 +36,7 @@ cf_types = dict(CFIM = u'immédiat',
 
 class SRC_select(SingleSelectField):
    label_text = u'Poste à renvoyer'
-   help_text = u'Sélectionnez le poste interne à renvoyer'
+#   help_text = u'Sélectionnez le poste interne à renvoyer'
 
    def update_params(self,d):
       q = DBSession.query(Phone)
@@ -50,12 +50,12 @@ class SRC_select(SingleSelectField):
  
 class DST_select(SingleSelectField):
    label_text = u'Destination'
-   help_text = u'Sélectionnez le poste interne destination du renvoi'
+#   help_text = u'Sélectionnez le poste interne destination du renvoi'
 
    def update_params(self,d):
       opt_ext = [(p.exten, p.exten) for p in DBSession.query(Phone).order_by(Phone.exten)]
       if in_group('admin'):
-         help_text = u'Sélectionnez le poste interne ou le SVI destination du renvoi'
+#         help_text = u'Sélectionnez le poste interne ou le SVI destination du renvoi'
          opt_ivr = [(a.exten, a.name) for a in DBSession.query(Application).order_by(Application.name)]
          d['options'] = [(u'Postes', opt_ext), (u'SVI', opt_ivr)]
       else:
@@ -67,7 +67,8 @@ common_fields = [
       RadioButtonList('cf_types',
          options = [(k,v) for k,v in cf_types.iteritems()],
          label_text = u'Type de renvoi : ',
-         help_text = u'Cochez le type de renvoi'),
+#         help_text = u'Cochez le type de renvoi'
+      ),
       DST_select('to_intern'),
 #      HiddenField('_method',validator=None), # Needed by RestController
    ]
@@ -78,8 +79,9 @@ external_fields.insert(1,
    Label( text = u'Choisissez la destination du renvoi poste interne ou numéro extérieur (prioritaire)'))
 external_fields.append(
    TextField('to_extern', label_text = u'Numéro extérieur : ',
-      help_text = u'Numéro extérieur'),
-   )
+#      help_text = u'Numéro extérieur'
+   ),
+)
 
 cds_fields = []
 cds_fields.extend(external_fields)
@@ -90,7 +92,7 @@ class Forward_form(TableForm):
    fields = common_fields
    submit_text = u'Valider...'
    action = '/forwards/create_forward'
-   hover_help = True
+#   hover_help = True
 new_forward_form = Forward_form('new_forward_form')
 
 class Forward_external_form(Forward_form):
@@ -153,8 +155,9 @@ class Forward_ctrl(RestController):
       Fetch data
       '''
 
+      log.debug('fetch')
       # Try and use grid preference
-      grid_rows = session.get('grid_rows', None)
+      grid_rows = session.get('grid_rows')
       if rows=='-1': # Default value
          rows = grid_rows if grid_rows is not None else 25
 
@@ -162,6 +165,7 @@ class Forward_ctrl(RestController):
       session['grid_rows'] = rows
       session.save()
       rows = int(rows)
+      log.debug('rows=%d' % rows)
 
       try:
          page = int(page)
@@ -180,7 +184,6 @@ class Forward_ctrl(RestController):
       elif not in_group('admin'):
          u = DBSession.query(User).get(request.identity['user'].user_id)
          q = q.filter(Phone.user_id==u.user_id)
-
 
       sip2ext = dict([(p.sip_id, p.exten) for p in q])
 

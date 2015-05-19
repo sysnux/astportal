@@ -32,15 +32,21 @@ sendfax = config.get('command.sendfax')
 new_fax_form = TableForm(
    fields = [
       TextField('dest', validator=NotEmpty,
-         label_text=u'Numéro(s) destinataire(s)', help_text=u'Liste de destinataires séparés par ";"'),
+         label_text=u'Numéro(s) destinataire(s)', 
+#         help_text=u'Liste de destinataires séparés par ";"'
+         ),
       FileField('file', validator=FieldStorageUploadConverter(not_empty=True),
-         label_text=u'Fichier PDF', help_text=u'Fichier à envoyer'),
+         label_text=u'Fichier PDF',
+#         help_text=u'Fichier à envoyer'
+         ),
       TextField('comment',
-         label_text=u'Commentaires', help_text=u'Description de la télécopie' ),
+         label_text=u'Commentaires', 
+#         help_text=u'Description de la télécopie' 
+         ),
    ],
    submit_text = u'Valider...',
    action = '/fax/create',
-   hover_help = True
+#   hover_help = True
    )
 
 def process_file(upload, id, dest, email):
@@ -223,14 +229,15 @@ class Fax_ctrl(RestController):
       log.info('delete ' + id)
       f = DBSession.query(Fax).get(id)
       # remove uploaded file
-      if f.type==0:
-         pdf = '%s/%d_%s' % (dir_fax, f.fax_id, re.sub(r'[^\w\.]', '_', f.filename))
-      else:
-         pdf = '%s/%s' % (dir_fax, f.filename)
       try:
+         if f.type==0:
+            pdf = '%s/%d_%s' % (dir_fax, f.fax_id, re.sub(r'[^\w\.]', '_', f.filename))
+         else:
+            pdf = '%s/%s' % (dir_fax, f.filename)
          unlink(pdf)
       except:
-         log.error('unlink failed %s' % pdf)
+         # No file since move into fax in database
+         log.warning('unlink failed %s' % id)
       DBSession.delete(f)
       flash(u'Fax supprimé', 'notice')
       redirect('/fax/')

@@ -138,6 +138,7 @@ class Search_CDR(TableForm):
       TextField( 'number',
          attrs = {'size': 20, 'maxlength': 20},
          validator = Int(not_empty=False),
+         help_text = u'Entrez le numéro',
          label_text = u'Numéro'),
       SingleSelectField('in_out',
          label_text = u'Type',
@@ -186,7 +187,7 @@ class Display_CDR(BaseController):
 
    @sidebar(u'Journal des appels',  sortorder = 3,
          icon = '/images/databases_section.png')
-   @expose(template="astportal2.templates.cdr")
+   @expose(template="mako:astportal2.templates.cdr")
    def index(self, **kw):
 
       global filtered_cdrs
@@ -197,7 +198,7 @@ class Display_CDR(BaseController):
 
 
    @validate(search_form, error_handler=index)
-   @expose(template="astportal2.templates.cdr")
+   @expose(template="mako:astportal2.templates.cdr")
    def index2(self, number=None, in_out=None, date=None, hour=None):
 
       cdrs = check_access()

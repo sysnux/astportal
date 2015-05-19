@@ -48,13 +48,14 @@ base_config.renderers.append('json')
 #Enable genshi in expose to have a lingua franca for extensions and pluggable apps
 #you can remove this if you don't plan to use it.
 base_config.renderers.append('genshi')
+base_config.renderers.append('mako')
 
 #Set the default renderer
-base_config.default_renderer = 'genshi'
+base_config.default_renderer = 'mako'
 # if you want raw speed and have installed chameleon.genshi
 # you should try to use this renderer instead.
 # warning: for the moment chameleon does not handle i18n translations
-#base_config.renderers.append('chameleon_genshi')
+# base_config.renderers.append('chameleon_genshi')
 
 
 # Configure the authentication backend
@@ -107,10 +108,11 @@ base_config.sa_auth.post_login_url = '/post_login'
 # You may optionally define a page where you want users to be redirected to
 # on logout:
 base_config.sa_auth.post_logout_url = '/post_logout'
-try:
-    # Enable DebugBar if available, install tgext.debugbar to turn it on
-    from tgext.debugbar import enable_debugbar
-    enable_debugbar(base_config)
-except ImportError:
-    pass
+
+#try:
+#    # Enable DebugBar if available, install tgext.debugbar to turn it on
+#    from tgext.debugbar import enable_debugbar
+#    enable_debugbar(base_config)
+#except ImportError:
+#    pass
 

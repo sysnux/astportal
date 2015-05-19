@@ -37,6 +37,22 @@ folders = dict(INBOX = u'Nouveaux',
 month = dict(Jan=1, Feb=2, Mar=3, Apr=4, May=5, Jun=6,
       Jul=7, Aug=8, Sep=9, Oct=10, Nov=11, Dec=12)
 
+class Folder_form(TableForm):
+         fields = [
+            SingleSelectField('folder',
+               options = [(k,v) for k,v in folders.iteritems()],
+               label_text = u'Dossier : ', 
+#               help_text = u'Choisissez un dossier',
+               attrs = {'onchange': js_callback('change_folder()')}),
+            HiddenField('mb'),
+            HiddenField('id'),
+            HiddenField('to'),
+         ]
+         submit_text = u'Valider...'
+         action = '/voicemail'
+         hover_help = False
+folder_form = Folder_form('folder_form')
+
 
 def row(vm, folder):
    '''Displays a formatted row of the voicemail list
@@ -67,9 +83,8 @@ class Voicemail_ctrl(BaseController):
    
    allow_only = not_anonymous( msg=u'Veuillez vous connecter pour continuer' )
 
-   @sidebar(u"Messagerie vocale", sortorder=3,
-      icon = '/images/message.png')
-   @expose(template="astportal2.templates.grid_voicemail")
+   @sidebar(u"Messagerie vocale", sortorder=3, icon = '/images/message.png')
+   @expose(template="astportal2.templates.XXXgrid_voicemail2")
    def index(self, mb=None, id=None, folder='INBOX', to=None, 
          busy=None, unavail=None, greet=None):
       ''' List messages
@@ -104,34 +119,26 @@ class Voicemail_ctrl(BaseController):
                Label(text = u'Nouveaux messages personnalisés :'),
                FileField('greet', 
                   validator=FieldStorageUploadConverter(not_empty=False),
-                  label_text=u'Nom', help_text=u'Fichier au format WAV'),
+                  label_text=u'Nom', 
+#                  help_text=u'Fichier au format WAV'
+                  ),
                FileField('unavail', 
                   validator=FieldStorageUploadConverter(not_empty=False),
-                  label_text=u'Indisponible', help_text=u'Fichier au format WAV'),
+                  label_text=u'Indisponible',
+#                  help_text=u'Fichier au format WAV'
+                  ),
                FileField('busy', 
                   validator=FieldStorageUploadConverter(not_empty=False),
-                  label_text=u'Occupé', help_text=u'Fichier au format WAV'),
+                  label_text=u'Occupé', 
+#                  help_text=u'Fichier au format WAV'
+                  ),
             ],
             submit_text = u'Valider...',
             action = 'custom_messages',
-            hover_help = True
+#            hover_help = True
          )
 
-      tmpl_context.form = TableForm(
-         'folder_form', name = 'folder_form',
-         fields = [
-            SingleSelectField('folder',
-               options = [(k,v) for k,v in folders.iteritems()],
-               label_text = u'Dossier : ', help_text = u'Choisissez un dossier',
-               attrs = {'onchange': js_callback('change_folder()')}),
-            HiddenField('mb'),
-            HiddenField('id'),
-            HiddenField('to'),
-         ],
-         submit_text = None,
-         action = '',
-         hover_help = True
-      )
+      tmpl_context.form = folder_form
       return dict( title=u"Messages vocaux", debug='', 
             values={'folder': folder}, values2={'greet': 'Mon nom', 
                'unavail': 'Indisponible', 'busy': 'Occupé'})

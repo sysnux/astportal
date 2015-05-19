@@ -28,12 +28,18 @@ def manager_check():
        from astportal2.lib import asterisk
        Globals.asterisk = asterisk.Status()
 
+    man = eval(config.get('asterisk.manager'))
     try:
        man = eval(config.get('asterisk.manager'))
        log.debug(man[0])
        Globals.manager = manager.Manager()
        log.debug('Connect...')
-       Globals.manager.connect(man[0][0])
+       if ':' in man[0][0]:
+          host, port = man[0][0].split(':')
+          port = int(port)
+       else:
+          host, port = man[0][0], 5038
+       Globals.manager.connect(host, port)
        log.debug('Login...')
        Globals.manager.login(man[0][1],man[0][2])
        log.debug('Register events...')
@@ -59,6 +65,7 @@ def manager_check():
        Globals.manager = None
        log.error('Configuration error, manager thread NOT STARTED (check asterisk.manager)')
 
+
 class Globals(object):
    """Container for objects available throughout the life of the application.
 
@@ -67,8 +74,9 @@ class Globals(object):
 
    """
 
-   manager = None
-   asterisk = None
+   asterisk = None # Asterisk objects (channels, queues, peers...)
+   manager = None # AMI object
+   ws_clients = {'channels': [], 'queues': []} # List of WebSocket subscriptions
 
    def __init__(self):
       """Start the scheduler."""
@@ -76,5 +84,4 @@ class Globals(object):
       tgscheduler.start_scheduler()
       tgscheduler.add_interval_task(action=manager_check, 
          taskname='Manager check', interval=20, initialdelay=1)
-
 

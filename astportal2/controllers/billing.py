@@ -145,7 +145,7 @@ class Billing_form(TableForm):
 
    submit_text = u'Valider...'
    action = 'result'
-   hover_help = True
+#   hover_help = True
 new_billing_form = Billing_form('new_billing_form')
 
 
@@ -293,7 +293,7 @@ class Billing_ctrl(BaseController):
 
 
    @sidebar(u'Facturation', sortorder = 4, icon = '/images/ktimetracker.png')
-   @expose('genshi:astportal2.templates.form_new')
+   @expose(template='astportal2.templates.form_new')
    def index(self, **kw):
       '''Formulaire facturation
       '''

@@ -69,13 +69,13 @@ def users():
 ip_form = AjaxForm(
    id = 'ip_form',
    fields = [ 
-      TextField('ip', label_text=u'Adresse IP', 
-         help_text=u'ex. 192.168.123.234'),
-      TextField('mac', label_text=u'Adresse matérielle (MAC)', 
-         help_text=u'ex. 01:23:45:68:89:ab'),
+      TextField('ip', label_text=u'Adresse IP'), 
+#         help_text=u'ex. 192.168.123.234'),
+      TextField('mac', label_text=u'Adresse matérielle (MAC)'),
+#         help_text=u'ex. 01:23:45:68:89:ab'),
       TextField('pwd', label_text=u'Mot de passe', default='admin'),
       ],
-   hover_help = True,
+#   hover_help = True,
    beforeSubmit = js_callback('wait'),
    success = js_callback('phone_ok'),
    action = 'check_phone',
@@ -94,15 +94,15 @@ class New_phone_form(AjaxForm):
    fields = [
       TextField('exten', validator=Int,
          not_empty = False,
-         label_text=u'Poste', help_text=u'Entrez le numéro interne'),
+         label_text=u'Poste'), # help_text=u'Entrez le numéro interne'),
       TextField('dnis', validator=Int,
          not_empty = False,
-         label_text=u'Numéro direct', help_text=u'Entrez le numéro direct (SDA)'),
+         label_text=u'Numéro direct'), # help_text=u'Entrez le numéro direct (SDA)'),
       CheckBoxTable('contexts',  validator=Int,
          options = _contexts,
          not_empty = False,
          default = ('urgent', 'internal', 'services', 'shortcuts'),
-         label_text=u'Droits d\'appels', help_text='Autorisations pour les appels sortants'),
+         label_text=u'Droits d\'appels'), # help_text='Autorisations pour les appels sortants'),
       CheckBoxTable('callgroups', validator=Int,
          options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
          label_text=u'Groupes d\'appels', 
@@ -121,8 +121,8 @@ class New_phone_form(AjaxForm):
          options = [ (False, u'Non'), (True, u'Oui')],
          default = False,
          label_text = u"Cacher de l'annuaire",
-         validator = Bool,
-         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
+         validator = Bool),
+#         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
       HiddenField('mac', 
          not_empty = False,
          validator=Int),
@@ -135,7 +135,7 @@ class New_phone_form(AjaxForm):
       ]
    submit_text = u'Valider...'
    name = 'form_info'
-   hover_help = True
+#   hover_help = True
    beforeSubmit = js_callback('wait2')
    success = js_callback('created')
    action = '/phones/create'
@@ -152,41 +152,41 @@ class Edit_phone_form(TableForm):
    '''
    fields = [
       TextField('exten', #validator=Int,
-         label_text=u'Poste', help_text=u'Entrez le numéro interne'),
+         label_text=u'Poste'), # help_text=u'Entrez le numéro interne'),
       TextField('dnis', #validator=Int,
          not_empty = False,
-         label_text=u'Numéro direct', help_text=u'Entrez le numéro direct (SDA, 6 chiffres)'),
+         label_text=u'Numéro direct'), # help_text=u'Entrez le numéro direct (SDA, 6 chiffres)'),
       CheckBoxList('contexts',
          options = _contexts,
-         label_text=u'Droits d\'appels', help_text='Autorisations pour les appels sortants'),
+         label_text=u'Droits d\'appels'), # help_text='Autorisations pour les appels sortants'),
       CheckBoxList('callgroups', validator=Int,
          options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
-         label_text=u'Groupes d\'appels', 
-         help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
+         label_text=u'Groupes d\'appels'), 
+#         help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
       CheckBoxList('pickupgroups', validator=Int,
          options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
-         label_text=u'Groupes d\'interception', 
-         help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
+         label_text=u'Groupes d\'interception'),
+#         help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
       SingleSelectField('dptm_id',
          options= departments,
-         label_text=u'Service', help_text=u'Service facturé',
+         label_text=u'Service', # help_text=u'Service facturé',
          validator=Int
          ),
       SingleSelectField('user_id',
          options= users,
-         label_text=u'Utilisateur', help_text=u'Utilisateur du téléphone',
+         label_text=u'Utilisateur', # help_text=u'Utilisateur du téléphone',
          validator=Int
          ),
       BooleanRadioButtonList('hide_from_phonebook',
          options = [ (False, u'Non'), (True, u'Oui')],
-         label_text = u"Cacher de l'annuaire",
-         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
+         label_text = u"Cacher de l'annuaire"),
+#         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
       HiddenField('_method', validator=None), # Needed by RestController
       HiddenField('phone_id', validator=Int),
       ]
    submit_text = u'Valider...'
    action = '/phones/'
-   hover_help = True
+#   hover_help = True
 edit_phone_form = Edit_phone_form('edit_form_phone')
 
 
@@ -227,10 +227,16 @@ def row(p):
    '''Displays a formatted row of the phones list
    Parameter: Phone object
    '''
-   dptm = Markup(u'<a href="/departments/%d/edit/">%s</a>' % \
-      (p.department.dptm_id, p.department.comment)) if p.department else None
-   user = Markup(u'<a href="/users/%d/edit/">%s</a>' % \
-      (p.user.user_id, p.user.display_name)) if p.user else None
+   try:
+      dptm = Markup(u'<a href="/departments/%d/edit/">%s</a>' % \
+         (p.department.dptm_id, p.department.comment))
+   except:
+      dptm = None
+   try:
+      user = Markup(u'<a href="/users/%d/edit/">%s</a>' % \
+         (p.user.user_id, p.user.display_name))
+   except:
+      user = None
 
    ip, ua = peer_info(p.sip_id, p.exten)
 
@@ -252,7 +258,7 @@ class Phone_ctrl(RestController):
 
    @sidebar(u'-- Administration || Téléphones', sortorder = 10,
       icon = '/images/internet-telephony.png')
-   @expose('genshi:astportal2.templates.grid_phone')
+   @expose('astportal2.templates.grid_phone')
    def get_all(self):
       ''' List all phones
       '''
@@ -288,8 +294,8 @@ class Phone_ctrl(RestController):
             }],
          )
       tmpl_context.grid = grid
-      tmpl_context.form = None
-      tmpl_context.count = u'Total : %d téléphones' % DBSession.query(Phone).count()
+#      tmpl_context.form = None
+#      tmpl_context.count = u'Total : %d téléphones' % DBSession.query(Phone).count()
       return dict( title=u'Liste des téléphones', debug='')
 
 

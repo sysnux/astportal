@@ -3,7 +3,6 @@
 
 from tg import expose, flash, require, url, request, redirect
 from tgext.menu import sidebar
-
 from tg.exceptions import HTTPFound
 try:
    from tg.predicates import in_group, is_anonymous
@@ -100,15 +99,15 @@ class RootController(BaseController):
    error = ErrorController()
 
    @sidebar(u'Accueil', sortorder = 0, icon = '/images/home-mdk.png')
-   @expose('astportal2.templates.index')
+   @expose('mako:astportal2.templates.index')
    def index(self):
       """Handle the front-page."""
       if is_anonymous(msg=u'Veuiller vous connecter pour continuer'):
          redirect('/login')
 
-      return dict(page='index')
+      return dict(title="Portail Asterisk", page='index')
 
-   @expose('astportal2.templates.login')
+   @expose('mako:astportal2.templates.login')
    def login(self, came_from=url('/'), **kw):
 #      log.debug('login, env=%s' % request.environ)
       """Start the user login."""

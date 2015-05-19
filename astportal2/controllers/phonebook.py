@@ -30,9 +30,6 @@ default_cid = config.get('default_cid')
 import logging
 log = logging.getLogger(__name__)
 
-import re
-re_gs = re.compile('GXP(\d{4}) .* (\w{2})(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})$')
-
 class New_contact_form(TableForm):
    ''' New contact form
    '''
@@ -56,7 +53,7 @@ class New_contact_form(TableForm):
          ]
    submit_text = u'Valider...'
    action = '/phonebook/create'
-   hover_help = True
+#   hover_help = True
 new_contact_form = New_contact_form('new_contact_form')
 
 
@@ -85,7 +82,7 @@ class Edit_contact_form(TableForm):
          ]
    submit_text = u'Valider...'
    action = '/phonebook/'
-   hover_help = True
+#   hover_help = True
 edit_contact_form = Edit_contact_form('edit_contact_form')
 
 
@@ -374,8 +371,8 @@ class Phonebook_ctrl(RestController):
       writer.writerow(['Annuaire téléphonique'])
       writer.writerow(['Date', today.strftime('%d/%m/%Y')])
       writer.writerow([])
-      writer.writerow(['Prénom', 'Nom', 'Société', 'Téléphone 1',
-         'Téléphone 2', 'Téléphone 3', 'email'])
+      writer.writerow(['Prénom', 'Nom', 'Société', '@ email',
+         'Téléphone 1', 'Téléphone 2', 'Téléphone 3'])
 
       # Add data lines
       for b in DBSession.query(View_phonebook). \
