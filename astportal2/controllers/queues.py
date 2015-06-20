@@ -15,7 +15,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int, StringBoolean
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Queue, Sound, Group
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -98,7 +98,7 @@ class New_queue_form(TableForm):
       ] + common_fields
    submit_text = u'Valider...'
    action = '/queues/create'
-   hover_help = True
+#   hover_help = True
 new_queue_form = New_queue_form('new_queue_form')
 
 
@@ -109,7 +109,7 @@ class Edit_queue_form(TableForm):
       HiddenField('_method',validator=None)] # Needed by RestController
    submit_text = u'Valider...'
    action = '/queues/'
-   hover_help = True
+#   hover_help = True
 edit_queue_form = Edit_queue_form('edit_queue_form')
 
 
@@ -135,7 +135,7 @@ class Queue_ctrl(RestController):
 
    @sidebar(u'-- Administration || Groupes ACD',
       icon = '/images/kdf.png', sortorder = 13)
-   @expose("genshi:astportal2.templates.grid")
+   @expose("astportal2.templates.grid")
    def get_all(self):
       ''' List all queues
       '''

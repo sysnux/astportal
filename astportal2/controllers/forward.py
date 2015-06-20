@@ -15,7 +15,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, SingleSelectField, HiddenField, RadioButtonList, TextField, Label
 from tw.forms.validators import NotEmpty, Int
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 import logging
 log = logging.getLogger(__name__)
 import re

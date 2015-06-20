@@ -41,7 +41,7 @@
 
       <DisplayElement>
         <DisplayString font="unifont" color="Black" bgcolor="Light5" height="16" width="48" renew-rate="second">
-          <DisplayStr>$a</DisplayStr>
+          <DisplayStr>${a}</DisplayStr>
           <X>6</X>
           <Y>1</Y>
           <displayCondition>
@@ -50,7 +50,7 @@
         </DisplayString>
 
         <DisplayString font="unifont" width="48" height="16" color="Light2" bgcolor="Light5" shadow-color="White" renew-rate="second">
-          <DisplayStr>$a</DisplayStr>
+          <DisplayStr>${a}</DisplayStr>
           <X>6</X>
           <Y>1</Y>
           <displayCondition negate="true">
@@ -197,31 +197,37 @@
     <DisplayElement>
 	
 	  <!-- COMPANY LOGO -->
-      <DisplayString font = "bold" halign="center" width="105">
-        <DisplayStr>$b</DisplayStr>
-        <X>0</X>
-        <Y>18</Y>
+      <DisplayString font="bold" halign="left" width="105">
+        <DisplayStr>${b}</DisplayStr>
+        <X>2</X>
+        <Y>12</Y>
+      </DisplayString>
+
+      <DisplayString halign="left" width="105" color="Dark3">
+        <DisplayStr>${display_name}</DisplayStr>
+        <X>2</X>
+        <Y>28</Y>
       </DisplayString>
 
       <!-- IP -->
-      <DisplayString font="numberfont" halign="center" width="105" color="Dark3">
+      <!--DisplayString font="numberfont" halign="center" width="105" color="Dark3">
         <DisplayStr>$I</DisplayStr>
         <X>0</X>
         <Y>34</Y>
         <displayCondition negate="true">
           <conditionType>missCall</conditionType>
         </displayCondition>
-      </DisplayString>
+      </DisplayString-->
 
     </DisplayElement>
     <DisplayElement>
 
       <!-- IP Address -->
-      <DisplayString font="unifont" color="Dark3" halign="center" width="105" bgcolor="White">
+      <!--DisplayString font="unifont" color="Dark3" halign="center" width="105" bgcolor="White">
         <DisplayStr>$I</DisplayStr>
         <X>0</X>
         <Y>30</Y>
-      </DisplayString>
+      </DisplayString-->
       <!-- Forward Call Log -->
       <DisplayString font="unifont" color="Dark3" width="105" halign="center" bgcolor="White">
         <DisplayStr>$j</DisplayStr>

@@ -477,9 +477,10 @@ class Billing_ctrl(BaseController):
       # Send response
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
-      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"' % (
+         filename)).encode('utf-8') )
       rh['Pragma'] = 'public' # for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-Control'] = 'max-age=0' #for IE
 
       return csvdata.getvalue()
 

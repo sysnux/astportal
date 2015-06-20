@@ -1,14 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:py="http://genshi.edgewall.org/"
-  xmlns:xi="http://www.w3.org/2001/XInclude">
-
-<xi:include href="master.html"/>
-
-<head>
-   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
-   <title py:content="title">Jquery Grid</title>
+<%inherit file="local:templates.master"/>
 
    <style>
 .l_center {
@@ -159,7 +149,7 @@ function my_submit() {
 </head>
 
 <body>
-   <h1 py:content="title">Customer data</h1>
+   <h1>${title}</h1>
 
       
    <table>
@@ -169,10 +159,10 @@ function my_submit() {
       </tr>
       <tr>
          <td><a href="#" title="Afficher la fiche client" 
-            py:attrs="crm_click" py:content="code">CRM</a>
+            ${crm_click}>${code}</a>
             </td>
          <td><a id="email" title="Envoyer un courrier électronique"
-            py:attrs="email_href" py:content="email">email</a>
+            ${email_href}>${email}</a>
             </td>
       </tr>
       <tr><td colspan="5">&nbsp;</td></tr>
@@ -186,42 +176,40 @@ function my_submit() {
       </tr>
       <tr>
          <td id="phone1"><a href="#" title="Appeler au domicile"
-            py:attrs="ph1_click" py:content="phone1">phone1</a>
+            ${ph1_click}>${phone1}</a>
             </td>
          <td id="phone2"><a href="#" title="Appeler au bureau"
-            py:attrs="ph2_click" py:content="phone2">phone2</a>
+            ${ph2_click}>${phone2}</a>
             </td>
          <td id="phone3"><a href="#" title="Appeler au bureau"
-            py:attrs="ph3_click" py:content="phone3">phone3</a>
+            ${ph3_click}>${phone3}</a>
             </td>
          <td id="phone4"><a href="#" title="Appeler sur vini perso."
-            py:attrs="ph4_click" py:content="phone4">phone4</a>
+            ${ph4_click}>${phone4}</a>
             </td>
          <td id="phone5"><a href="#" title="Appeler au sur vini pro."
-            py:attrs="ph5_click" py:content="phone5">phone5</a>
+            ${ph5_click}>${phone5}</a>
             </td>
       </tr>
    </table>
 
    <div id="data" py:if="tmpl_context.grid" style="display: none">
       <!-- JQgrid -->
-      ${tmpl_context.grid()}
+      ${tmpl_context.grid() | n}
    </div>
 
    <div id="other">
       <div class="l_left">
-      <a href="#" py:attrs="prev_cust">&lt; Client précédent</a>
+      <a href="#" ${prev_cust}>&lt; Client précédent</a>
       </div><div class="l_right">
-      <a href="#" py:attrs="next_cust">Client suivant &gt;</a>
+      <a href="#" ${next_cust}>Client suivant &gt;</a>
       </div><div class="l_center">
-      <a href="#" py:attrs="back_list">Retour à la liste des clients</a>
+      <a href="#" ${back_list}>Retour à la liste des clients</a>
       </div>
    </div>
 
    <span id="span_form" style="display: none;">
       <!-- Form -->
-      ${tmpl_context.form(values)}
+      ${tmpl_context.form(values) | n}
    </span>
 
-</body>
-</html>

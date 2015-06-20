@@ -8,15 +8,15 @@ from tg import expose, tmpl_context, validate, request, session, flash, \
 from tg.controllers import RestController
 from tgext.menu import sidebar
 try:
-   from tg.predicates import in_group, not_anonymous
+   from tg.predicates import in_group, not_anonymous, in_any_group
 except ImportError:
-   from repoze.what.predicates import in_group, not_anonymous
+   from repoze.what.predicates import in_group, not_anonymous, in_any_group
 from tw.forms import TableForm, TextField, TextArea, CheckBox, \
          SingleSelectField, CalendarDateTimePicker, FileField, HiddenField
 from tw.forms.validators import NotEmpty, Int, DateTimeConverter, \
          FieldStorageUploadConverter, Schema, Invalid
 from tw.api import js_callback
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Campaign, Customer, Outcall
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -257,16 +257,16 @@ cc_campaign_form = TableForm(
    validator = Campaign_validate,
    fields = campaign_fields,
    submit_text = u'Valider',
-   action = '/cc_campaign/save',
-   hover_help = True)
+   action = '/cc_campaign/save')
+#   hover_help = True)
 
 cc_campaign_edit_form = TableForm(
    validator = Campaign_validate,
    fields = campaign_fields + [HiddenField('_method', validator=None), 
       HiddenField('cmp_id')],
    submit_text = u'Modifier',
-   action = '/cc_campaign/',
-   hover_help = True)
+   action = '/cc_campaign/')
+#   hover_help = True)
 
 class CC_Campaign_ctrl(RestController):
 
@@ -605,8 +605,9 @@ class CC_Campaign_ctrl(RestController):
 
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
-      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"' % (
+         filename)).encode('utf-8') )
       rh['Pragma'] = 'public' # for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-Control'] = 'max-age=0' #for IE
 
       return csvdata.getvalue()

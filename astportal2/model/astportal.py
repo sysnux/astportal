@@ -68,6 +68,8 @@ class Phone(DeclarativeBase):
    phone_id = Column(Integer, Sequence('phone_seq'), autoincrement=True, primary_key=True)
    sip_id = Column(Unicode(10), nullable=False, unique=True)
    mac = Column(Unicode(17)) # MAC can be null (eg. DECT)
+   vendor = Column(Unicode())
+   model = Column(Unicode())
    password = Column(Unicode(10))
    contexts = Column(Unicode(64))
    callgroups = Column(Unicode(64))
@@ -80,6 +82,10 @@ class Phone(DeclarativeBase):
    department = relation('Department', backref=backref('phones', order_by=exten))
    user = relation('User', backref=backref('phone'))
    hide_from_phonebook = Column(Boolean(), default=False)
+   fax = Column(Boolean(), default=False) # Real fax machine connected via ATA
+   block_cid_in = Column(Boolean(), default=False) # Block incoming caller id
+   block_cid_out = Column(Boolean(), default=False) # Block outgoing caller id
+   priority = Column(Boolean(), default=False) # This phone has priority (kill other calls if needed!)
 
 #   def __init__(self, num, did):
 #      self.exten = num
@@ -435,4 +441,20 @@ class Voicemessages(DeclarativeBase):
    read  = Column(Boolean)
    def __repr__(self):
       return '<Voicemessage %d: user="%s">' % (self.uniqueid, self.mailboxuser)
+
+
+class Shortcut(DeclarativeBase):
+   ''' Definition of shortcuts
+   '''
+   __tablename__ = 'shortcut'
+   shortcut_id = Column(Integer, Sequence('shortcut_seq'), primary_key=True)
+   exten = Column(Unicode(10), nullable=False, unique=True)
+   number = Column(Unicode(30), nullable=False, unique=True)
+   comment = Column(Unicode())
+   created = Column(DateTime, nullable=False, default=datetime.now)
+
+   def __repr__(self):
+      return '<Shortcut: %s -> %s comment="%s">' % (
+            self.exten, self.number, self.comment)
+
 

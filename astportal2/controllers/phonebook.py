@@ -17,7 +17,7 @@ from tw.forms.validators import NotEmpty, Int, Bool
 
 from sqlalchemy import or_, func
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Phonebook, User, Phone, View_phonebook
 from astportal2.lib.app_globals import Globals
@@ -405,7 +405,9 @@ class Phonebook_ctrl(RestController):
       # Send response
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
-      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Content-disposition'] = u'attachment; filename="%s"' % filename
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"' % (
+         filename)).encode('utf-8') )
       rh['Pragma'] = 'public' # for IE
       rh['Cache-control'] = 'max-age=0' #for IE
 

@@ -14,19 +14,20 @@ except ImportError:
 from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, CheckBoxList, CheckBoxTable, BooleanRadioButtonList
 from tw.jquery import AjaxForm
-from tw.forms.validators import NotEmpty, Int, Invalid, Bool
+from tw.forms.validators import NotEmpty, Int, Invalid, Bool, StringBoolean
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Phone, Department, User, Pickup
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.grandstream import Grandstream
-from astportal2.lib.app_globals import Globals
+from astportal2.lib.cisco import Cisco
+from astportal2.lib.app_globals import Globals, fetch_contacts
 from astportal2.lib.asterisk import asterisk_update_phone
 
 from string import letters, digits
 from random import choice
-from os import system, popen, rename
+from os import system, popen, rename, listdir, unlink, rmdir
 import re
 import logging
 log = logging.getLogger(__name__)
@@ -40,11 +41,13 @@ command_fping = config.get('command.fping')
 command_arp = config.get('command.arp')
 directory_tftp = config.get('directory.tftp')
 directory_asterisk = config.get('directory.asterisk')
+sip_type = config.get('asterisk.sip', 'sip')
 
 _vendors = {
    '00:0b:82': 'Grandstream',
    '00:04:f2': 'Polycom',
    '00:90:7a': 'Polycom',
+   '1c:df:0f': 'Cisco',
 }
 
 _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'), 
@@ -52,7 +55,7 @@ _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'),
    ('gsm', u'GSM'), ('international', u'International'))
 
 def departments():
-   a = [('-9999',' - - - ')]
+   a = [] # [('-9999',' - - - ')]
    for d in DBSession.query(Department).order_by(Department.comment):
        a.append((d.dptm_id,d.comment))
    return a
@@ -98,6 +101,12 @@ class New_phone_form(AjaxForm):
       TextField('dnis', validator=Int,
          not_empty = False,
          label_text=u'Numéro direct'), # help_text=u'Entrez le numéro direct (SDA)'),
+      BooleanRadioButtonList('fax',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Télécopieur",
+         validator = Bool),
+#         help_text = u"Cocher pour ATA avec télécopieur "),
       CheckBoxTable('contexts',  validator=Int,
          options = _contexts,
          not_empty = False,
@@ -123,7 +132,27 @@ class New_phone_form(AjaxForm):
          label_text = u"Cacher de l'annuaire",
          validator = Bool),
 #         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
-      HiddenField('mac', 
+#      TextField('timeout', validator=Int,
+#         not_empty = True, default=25,
+#         label_text=u'Durée de sonnerie'), # help_text=u'Attente avant non réponse / messagerie'),
+      BooleanRadioButtonList('block_cid_in',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Bloquer l'affichage du numéro entrant",
+         validator = Bool),
+#         help_text = u"Cocher pour ne pas montrer l'identifiant des appels entrants"),
+      BooleanRadioButtonList('block_cid_out',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Activation numéro secret",
+         validator = Bool),
+      BooleanRadioButtonList('priority',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Appel prioritaire",
+         validator = Bool),
+#         help_text = u"Cocher pour ne pas montrer l'identifiant des appels sortants"),
+      HiddenField('mac',
          not_empty = False,
          validator=Int),
       HiddenField('ip', 
@@ -156,6 +185,12 @@ class Edit_phone_form(TableForm):
       TextField('dnis', #validator=Int,
          not_empty = False,
          label_text=u'Numéro direct'), # help_text=u'Entrez le numéro direct (SDA, 6 chiffres)'),
+      BooleanRadioButtonList('fax',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Télécopieur",
+         validator = StringBoolean),
+#         help_text = u"Cocher pour ATA avec télécopieur "),
       CheckBoxList('contexts',
          options = _contexts,
          label_text=u'Droits d\'appels'), # help_text='Autorisations pour les appels sortants'),
@@ -179,8 +214,29 @@ class Edit_phone_form(TableForm):
          ),
       BooleanRadioButtonList('hide_from_phonebook',
          options = [ (False, u'Non'), (True, u'Oui')],
+         validator = StringBoolean,
          label_text = u"Cacher de l'annuaire"),
 #         help_text = u"Cocher pour ne pas montrer ce poste dans l'annuaire"),
+#      TextField('timeout', validator=Int,
+#         not_empty = True, default=25,
+#         label_text=u'Durée de sonnerie'), # help_text=u'Attente avant non réponse / messagerie'),
+      BooleanRadioButtonList('block_cid_in',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Bloquer l'identifiant d'appelant",
+         validator = StringBoolean),
+#         help_text = u"Cocher pour ne pas montrer l'identifiant des appels entrants"),
+      BooleanRadioButtonList('block_cid_out',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Bloquer l'identifiant d'appel",
+         validator = StringBoolean),
+      BooleanRadioButtonList('priority',
+         options = [ (False, u'Non'), (True, u'Oui')],
+         default = False,
+         label_text = u"Appel prioritaire",
+         validator = StringBoolean),
+#         help_text = u"Cocher pour ne pas montrer l'identifiant des appels sortants"),
       HiddenField('_method', validator=None), # Needed by RestController
       HiddenField('phone_id', validator=Int),
       ]
@@ -194,11 +250,11 @@ def peer_info(sip_id=None, exten=None):
    '''Find peer by id or exten, return ip address and user agent
    '''
 
-   log.debug('Globals.asterisk.peers: %s ' %Globals.asterisk.peers)
-   if sip_id is not None and 'SIP/'+sip_id in Globals.asterisk.peers:
+   tech = 'SIP/' if sip_type=='sip' else 'PJSIP/'
+   if sip_id is not None and tech+sip_id in Globals.asterisk.peers:
       log.debug('peer_info sip_id  %s' % sip_id)
       peer = sip_id
-   elif exten is not None and 'SIP/'+exten in Globals.asterisk.peers:
+   elif exten is not None and tech+exten in Globals.asterisk.peers:
       log.debug('peer_info exten  %s' % exten)
       peer = exten
    else:
@@ -208,17 +264,17 @@ def peer_info(sip_id=None, exten=None):
    ip = ua = None
    if peer:
       # Peer exists, try to find User agent
-      if 'UserAgent' not in Globals.asterisk.peers['SIP/'+peer]:
+      if 'UserAgent' not in Globals.asterisk.peers[tech+peer]:
          res = Globals.manager.sipshowpeer(peer)
          ua = res.get_header('SIP-Useragent')
-         Globals.asterisk.peers['SIP/'+peer]['UserAgent'] = ua
+         Globals.asterisk.peers[tech+peer]['UserAgent'] = ua
 
       else:
-         ua = Globals.asterisk.peers['SIP/'+peer]['UserAgent']
+         ua = Globals.asterisk.peers[tech+peer]['UserAgent']
 
-      if 'Address' in Globals.asterisk.peers['SIP/'+peer] and \
-            Globals.asterisk.peers['SIP/'+peer]['Address'] is not None:
-            ip = (Globals.asterisk.peers['SIP/'+peer]['Address']).split(':')[0]
+      if 'Address' in Globals.asterisk.peers[tech+peer] and \
+            Globals.asterisk.peers[tech+peer]['Address'] is not None:
+            ip = (Globals.asterisk.peers[tech+peer]['Address']).split(':')[0]
 
    return ip, ua
 
@@ -268,7 +324,7 @@ class Phone_ctrl(RestController):
       else:
          # Refresh Asterisk peers
          Globals.manager.sippeers()
-         #Globals.manager.send_action('IAXpeers')
+         Globals.manager.send_action({'Action': 'DeviceStateList'})
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u'Téléphones',
          sortname='exten',
@@ -308,7 +364,7 @@ class Phone_ctrl(RestController):
       if ip == 'None': 
          ip = ''
       else:
-         ip = Markup('''<a href="http://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
+         ip = Markup('''<a href="https://%s/" title="Connexion interface t&eacute;l&eacute;phone" target='_blank'>%s</a>''' % (ip, ip))
       data = [ { 'id'  : p.phone_id, 
          'cell': (p.sip_id, p.password, ip, p.mac) }]
       return dict(page=1, total=1, rows=data)
@@ -321,6 +377,17 @@ class Phone_ctrl(RestController):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
+
+      fetch_contacts()
+      if Globals.manager is not None:
+         # Refresh Asterisk peers
+         Globals.manager.sippeers()
+         Globals.manager.send_action({'Action': 'DeviceStateList'})
+         Globals.manager.send_action({'Action': 'IAXpeers'})
+         resp = Globals.manager.send_action({'Action': 'Command', 'Command': 'pjsip show contacts'})
+         log.debug('PJSIP Contacs returns:\n%s' % resp)
+
+      log.debug('Fetch : Globals.asterisk.peers= %s ' % Globals.asterisk.peers)
 
       # Try and use grid preference
       grid_rows = session.get('grid_rows', None)
@@ -389,7 +456,7 @@ class Phone_ctrl(RestController):
       return dict(page=page, total=total, rows=data)
 
 
-   @expose(template="astportal2.templates.form_new_phone")
+   @expose('astportal2.templates.form_new_phone')
    def new(self, **kw):
       ''' Display new phone form
       '''
@@ -430,7 +497,6 @@ class Phone_ctrl(RestController):
                msg = u'Téléphone existant, voulez-vous le \
                      <a href="/phones/%s/edit">modifier</a>.' % p[0].phone_id)
 
-      global new_phone
       if _vendors[vendor]=='Grandstream':
          new_phone = Grandstream(ip, mac)
          msg = u"Trouvé téléphone Grandstream : "
@@ -439,25 +505,33 @@ class Phone_ctrl(RestController):
          infos = new_phone.infos()
          if not infos:
             return dict(status=6, msg=msg+u'erreur login')
+
+         session['new_phone'] = new_phone
+         session.save()
+
          return dict(status = 0, ip = ip, mac = mac, conf = 'grandstream_configure',
                msg = msg + infos['model'] + ', ' + infos['version'])
+
+      elif _vendors[vendor]=='Cisco':
+         new_phone = Cisco(ip, mac)
+         msg = u"Trouvé téléphone Cisco : "
+         if not new_phone.login(pwd):
+            return dict(status=6, msg=msg+u'erreur login')
+         infos = new_phone.infos()
+         if not infos:
+            return dict(status=6, msg=msg+u'erreur login')
+
+         session['new_phone'] = new_phone
+         session.save()
+
+         return dict(status=0, ip=ip, mac=mac, conf='cisco_configure',
+            msg = msg + infos['model'] + ', ' + infos['version'])
 
       elif _vendors[vendor]=='Polycom':
          return dict(status=0, ip=ip, mac=mac, conf='polycom_configure',
                msg=u"Trouvé téléphone Polycom")
 
 
-#   @expose('json')
-#   def grandstream_configure(self, ip, mac):
-#      gs = Grandstream(ip, mac)
-#      if not gs.login():
-#         return dict(status=1, msg=u'Erreur login')
-#      infos = gs.infos()
-#      gs.pre_configure(server_sip, server_firmware, server_config,
-#            server_config + ':8080/phonebook/gs_phonebook_xml', server_ntp)
-#      return dict(status=0, model=infos['model'], version=infos['version'])
-
- 
 #   class user_form_valid(object):
 #      def validate(self, params, state):
 #         f = admin_edit_user_form if in_group('admin') else edit_user_form
@@ -512,7 +586,7 @@ class Phone_ctrl(RestController):
       mwi_subscribe = 0
       if kw['user_id']!='-9999':
          u = DBSession.query(User).get(kw['user_id'])
-         sip_display_name = u.display_name
+         sip_display_name = u.ascii_name
          if u.email_address:
             mwi_subscribe = 1
             need_voicemail_update = True
@@ -521,7 +595,12 @@ class Phone_ctrl(RestController):
       log.debug('Save to database ' +  kw['mac'])
       p = Phone()
       p.sip_id = sip_id
-      p.mac = kw['mac']
+      new_phone = None
+      if kw['mac']:
+         new_phone = session['new_phone']
+         p.mac = kw['mac']
+         p.vendor = new_phone.vendor
+         p.model = new_phone.model
       p.password = pwd
       if kw['exten']: p.exten = exten
       if kw['dnis']: p.dnis = dnis
@@ -533,20 +612,27 @@ class Phone_ctrl(RestController):
          p.pickupgroups = ','.join([str(x) for x in kw['pickupgroups']])
       if 'contexts' in kw:
          p.contexts = ','.join([str(x) for x in kw['contexts']])
-      p.hide_from_phonebook = kw['hide_from_phonebook']
+      p.hide_from_phonebook = True if kw['hide_from_phonebook']==u'True' else False
+      p.fax = True if kw['fax']==u'True' else False
+      p.block_cid_in = True if kw['block_cid_in']==u'True' else False
+      p.block_cid_out = True if kw['block_cid_out']==u'True' else False
+      p.priority = True if kw['priority']==u'True' else False
       DBSession.add(p)
 
       asterisk_update_phone(p)
 
-      if kw['mac']:
+      if new_phone:
          # Create provisionning file if MAC exists
-         global new_phone
+
          log.debug('Configure ' +  kw['mac'])
          new_phone.configure( pwd, directory_tftp,
             server_firmware + '/phones/firmware', 
-            server_config + '/phones/config', server_syslog,
-            server_config + '/phonebook/gs_phonebook_xml', '', '', '',
-            sip_server, sip_id, '', mwi_subscribe)
+            server_config + '/phones/config', server_ntp,
+            server_config, '', '', '',
+            sip_server, sip_id, sip_display_name, mwi_subscribe,
+            screen_url = server_config, exten=p.exten)
+           
+         session.save()
 
       flash(u'Nouveau téléphone "%s" créé' % (kw['exten']))
       return {'status': 'created'}
@@ -558,8 +644,9 @@ class Phone_ctrl(RestController):
       ''' Display edit phone form
       '''
       ident = ''
-      log.debug('Edit')
       p = DBSession.query(Phone).get(id) if id else DBSession.query(Phone).get(phone_id)
+      log.debug('Edit fax=%s, hide_from_phonebook=%s' % \
+         (p.fax, p.hide_from_phonebook))
       v = {'phone_id': p.phone_id,
          'exten': p.exten,
          'dnis': p.dnis,
@@ -569,6 +656,10 @@ class Phone_ctrl(RestController):
          'dptm_id': p.department_id,
          'user_id': p.user_id,
          'hide_from_phonebook': p.hide_from_phonebook,
+         'fax': p.fax,
+         'block_cid_in': p.block_cid_in,
+         'block_cid_out': p.block_cid_out,
+         'priority': p.priority,
          '_method': 'PUT'}
       if p.exten: ident = p.exten
       elif p.mac: ident = p.mac
@@ -593,7 +684,8 @@ class Phone_ctrl(RestController):
    @validate(edit_form_valid(), error_handler=edit)
    @expose()
    def put(self, phone_id, dptm_id, user_id, exten, dnis, contexts,
-         hide_from_phonebook, callgroups=None, pickupgroups=None):
+         hide_from_phonebook, fax, block_cid_in, block_cid_out, priority,
+         callgroups=None, pickupgroups=None):
       ''' Update phone 
 
       User and exten information is independant from phone, there is no need
@@ -608,6 +700,10 @@ class Phone_ctrl(RestController):
       log.debug('Contexts %s' % contexts)
       log.debug('Callgroups %s' % callgroups)
       log.debug('Pickupgroups %s' % pickupgroups)
+      log.debug('Hide from phonebook %s' % hide_from_phonebook)
+      log.debug('Fax %s' % fax)
+      log.debug('Block cid in %s' % block_cid_in)
+      log.debug('Block cid out %s' % block_cid_out)
 
       p = DBSession.query(Phone).get(phone_id)
       old_exten = p.exten
@@ -655,6 +751,10 @@ class Phone_ctrl(RestController):
          p.pickupgroups = x
 
       p.hide_from_phonebook = hide_from_phonebook
+      p.fax = fax
+      p.block_cid_in = block_cid_in
+      p.block_cid_out = block_cid_out
+      p.priority = priority
 
       asterisk_update_phone(p, old_exten, old_dnis)
 
@@ -684,12 +784,15 @@ class Phone_ctrl(RestController):
          # Delete context, hint...
          actions = [ ('DelCat', p.sip_id),
                ('Delete', 'hints', 'exten', None, 
-               '%s,hint,SIP/%s' % (p.exten, p.sip_id))]
+               '%s,hint,%s/%s' % (
+                   p.exten,
+                   'SIP' if sip_type=='sip' else 'PJSIP', 
+                   p.sip_id))]
 
          # ... and DNIS
          if p.dnis is not None:
             actions.append(('Delete', 'dnis', 'exten', None, 
-               '%s,1,Gosub(stdexten,%s,1)' % (p.dnis[2:], p.exten)))
+               '%s,1,Gosub(stdexten,%s,1)' % (p.dnis[-4:], p.exten)))
 
          res = Globals.manager.update_config(
             directory_asterisk  + 'extensions.conf', 
@@ -698,23 +801,39 @@ class Phone_ctrl(RestController):
 
          # Delete voicemail entry
          res = Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
-            'app_voicemail_plain', [ ('Delete', 'astportal', p.exten) ])
+            'app_voicemail', [ ('Delete', 'astportal', p.exten) ])
          log.debug('Delete entry from voicemail.conf returns %s' % res)
 
       # Delete SIP entry
       actions = [ ('DelCat', p.sip_id) ]
-      res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
-         'chan_sip', actions)
-      log.debug('Delete entry from sip.conf returns %s' % res)
+      if sip_type=='sip':
+         res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
+            'chan_sip', actions)
+      else:
+         res = Globals.manager.update_config(directory_asterisk  + 'pjsip_wizard.conf', 
+            'res_pjsip', actions)
+      log.debug('Delete entry from SIP returns %s' % res)
+
+      mac = p.mac.replace(':', '') if p.mac is not None else ''
+
+      if p.vendor=='Grandstream':
+         # Remove private firmware directory
+         tftp = directory_tftp + 'phones/firmware'
+         try:
+            for f in listdir('%s/%s' % (tftp, mac)):
+               unlink('%s/%s/%s' % (tftp, mac, f))
+            rmdir('%s/%s' % (tftp, mac))
+         except:
+            log.error('rmdir error %s/%s' % (tftp, mac))
 
       # Backup phone configuration
       try:
-         config = directory_tftp + 'phones/config/cfg%s' % p.mac.replace(':','')
+         config = directory_tftp + 'phones/config/cfg%s' % mac
          rename(config, config + '.BAK')
          rename(config + '.txt', config + '.txt.BAK')
-         log.warning('%s Config files saved' % p.mac)
+         log.warning('%s Config files saved' % mac)
       except:
-         log.error('%s Config files save (%s)' % (p.mac, config))
+         log.error('%s Config files save (%s)' % (mac, config))
 
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')

@@ -16,7 +16,7 @@ from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
    FileField, RadioButtonList, CheckBox
 from tw.forms.validators import NotEmpty, Int, FieldStorageUploadConverter
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 from os import system, unlink, rename
 import logging
 log = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ from astportal2.lib.app_globals import Globals
 dir_tmp = config.get('directory.tmp')
 dir_moh = config.get('directory.moh')
 dir_sounds = config.get('directory.sounds')
+sip_type = 'SIP' if config.get('asterisk.sip', 'sip')=='sip' else 'PJSIP'
 
 # Language can be set via Asterisk dialplan: Set(CHANNEL(language)=en)
 # Directory structure:
@@ -381,7 +382,7 @@ class MOH_ctrl(RestController):
 
       sip = phones[0].sip_id
       res = Globals.manager.originate(
-            'SIP/' + sip, # Channel
+            sip_type + '/' + sip, # Channel
             sip, # Extension
             application = 'Playback',
             data = fn[:-1],
@@ -416,11 +417,11 @@ class MOH_ctrl(RestController):
       rh = response.headers
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
-      rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-Control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
+      rh['Cache-Control'] = 'max-age=0' #for IE
       rh['Content-Type'] = 'audio/wav'
-      rh['Content-disposition'] = u'attachment; filename="%s.%s"; size=%d;' % (
-         s.name, form, st.st_size)
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s.%s"; size=%d;' % (
+         s.name, form, st.st_size)).encode('utf-8') )
       rh['Content-Transfer-Encoding'] = 'binary'
       return f.read()
 
@@ -435,7 +436,7 @@ class MOH_ctrl(RestController):
       chan = uphones[0].sip_id.encode('iso-8859-1')
       log.debug('Record file from extension %s' % (chan))
       res = Globals.manager.originate(
-            'SIP/' + chan, # Channel
+            sip_type + '/' + chan, # Channel
             's', # Extension
             context = 'record',
             priority='1',

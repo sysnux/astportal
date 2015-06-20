@@ -62,7 +62,7 @@ class Incident_ctrl(BaseController):
             ],
          submit_text = u'Valider...',
          action = 'modify',
-         hover_help = True,
+#         hover_help = True,
          )
 
       return dict(title='Incidents', debug='',

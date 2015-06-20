@@ -83,11 +83,10 @@ function menu_toggle() {
 
    <!-- Pied -->
    <div id="footer">
-      <p>Copyright &#169; 2007-2014 <a href="http://www.sysnux.pf">SysNux</a>, powered by:</p>
+      <p>Copyright &#169; 2007-2015 <a href="http://www.sysnux.pf">SysNux</a>, powered by:</p>
       <img src="${tg.url('/images/under_the_hood_blue.png')}" alt="TurboGears under the hood" />
    </div>
 
 </body>
 
-<%def name="my_title()">  </%def>
 </html>

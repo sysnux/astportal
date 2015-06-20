@@ -11,6 +11,43 @@ log = logging.getLogger(__name__)
 from tg import config
 from astportal2.pyst import manager
 
+from time import time
+import re
+import json
+re_uri = re.compile('sip:(\w+)@([\w\.]+):?(\d+$)?')
+# key  : /registrar/contact/6Ewwh7Jl;@sip:6Ewwh7Jl@172.22.6.17:5060
+#re_contact_key = re.compile('key\s*:\s*/registrar/contact/(\w+);@sip:\w+@.+:\d+$')
+# value: {"uri":"sip:6Ewwh7Jl@172.22.6.17:5060","qualify_timeout":"3000","outbound_proxy":"","expiration_time":"1432150792","qualify_frequency":"60","path":"","user_agent":"Grandstream GXP2140 1.0.4.23"}
+re_contact_value = re.compile('value\s*:\s*({.*})')
+
+
+def Markup(s):
+    return s
+
+
+def fetch_contacts():
+    # Leave the following line here!
+    sip_type = 'SIP' if config.get('asterisk.sip', 'sip').lower()=='sip' \
+       else 'PJSIP'
+
+    # Fetch contacts from AstDB
+    log.debug('Fetching contacts from AstDB (%s):' % sip_type)
+    man = Globals.manager.command(
+       '''database query "select key, value from astdb where key like '/registrar/contact/%'"''')
+    for i, r in enumerate(man.response):
+#       log.debug(' . %d: %s' % (i, r))
+       m = re_contact_value.search(r)
+       if m:
+          d = json.loads(m.groups()[0])
+          name, ip, port = re_uri.match(d['uri']).groups()
+          log.info('Contact %s @ %s is a "%s"' % (name, ip, d['user_agent']))
+          name = '%s/%s' % (sip_type, name)
+          if name in Globals.asterisk.peers:
+             Globals.asterisk.peers[name]['Address'] = ip
+             Globals.asterisk.peers[name]['UserAgent'] = d['user_agent']
+          else:
+             Globals.asterisk.peers[name] = {'Address': ip, 'UserAgent': d['user_agent']}
+ 
 
 def manager_check():
     '''Check manager connection and try to reconnect if needed
@@ -18,7 +55,7 @@ def manager_check():
     Function called by tgscheduler
     '''
 
-    from astportal2.lib.app_globals import Globals
+    from astportal2.lib.app_globals import Globals # Leave me here!
 
     # Start Asterisk manager thread(s)
     if Globals.manager is not None and Globals.manager.connected():
@@ -28,7 +65,7 @@ def manager_check():
        from astportal2.lib import asterisk
        Globals.asterisk = asterisk.Status()
 
-    man = eval(config.get('asterisk.manager'))
+    # Connect to manager
     try:
        man = eval(config.get('asterisk.manager'))
        log.debug(man[0])
@@ -65,6 +102,8 @@ def manager_check():
        Globals.manager = None
        log.error('Configuration error, manager thread NOT STARTED (check asterisk.manager)')
 
+    fetch_contacts()
+
 
 class Globals(object):
    """Container for objects available throughout the life of the application.
@@ -82,6 +121,15 @@ class Globals(object):
       """Start the scheduler."""
         
       tgscheduler.start_scheduler()
-      tgscheduler.add_interval_task(action=manager_check, 
+
+      tgscheduler.add_interval_task(action=manager_check,
          taskname='Manager check', interval=20, initialdelay=1)
+
+#      from astportal2.controllers.websocket import update
+#      tgscheduler.add_interval_task(action=update,
+#         taskname='WebSocket ping', interval=1, initialdelay=10)
+
+      from astportal2.controllers.callback import do
+      tgscheduler.add_interval_task(action=do, 
+         taskname='Callback do', interval=33, initialdelay=60)
 

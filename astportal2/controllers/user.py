@@ -16,7 +16,7 @@ from tw.forms import TableForm, LabelHiddenField, TextField, CheckBoxList, \
    PasswordField, HiddenField, TextArea, Label, BooleanRadioButtonList
 from tw.forms.validators import Schema, NotEmpty, Email, Int, Regex, FieldsMatch, Bool, StringBoolean
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, User, Phone, Group, Department
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -31,6 +31,14 @@ log = logging.getLogger(__name__)
 
 dir_ast = config.get('directory.asterisk')
 dir_vm = config.get('directory.voicemail')
+
+sip_type = config.get('asterisk.sip', 'sip')
+if sip_type=='pjsip':
+   sip_file = dir_ast + 'pjsip_wizard.conf'
+   sip_chan = 'chan_pjsip'
+else:
+   sip_file = dir_ast + 'sip.conf'
+   sip_chan = 'chan_sip'
 
 # Common fields for user form, used by admin or not
 common_fields = [
@@ -68,6 +76,12 @@ admin_form_fields = [
    TextField('email_address', validator=Email,
       label_text=u'Adresse email',
       help_text=u'Entrez l\'adresse email de l\'utisateur'),
+   BooleanRadioButtonList('fax',
+      options = [ (False, u'Non'), (True, u'Oui')],
+      default = True,
+      label_text = u"Réception fax",
+      validator = StringBoolean,
+      help_text = u"Recevoir des fax sur votre numéro"),
    BooleanRadioButtonList('voicemail',
       options = [ (False, u'Non'), (True, u'Oui')],
       default = True,
@@ -122,6 +136,7 @@ user_fields = [
    LabelHiddenField('email_address', suppress_label=False,
       label_text=u'Adresse email',
       help_text=u'Entrez l\'adresse email de l\'utisateur'),
+   LabelHiddenField('fax'),
    LabelHiddenField('voicemail'),
    LabelHiddenField('email_voicemail'),
    LabelHiddenField( 'groups',
@@ -298,24 +313,30 @@ class User_ctrl(RestController):
    def create(self, pwd1, pwd2, **kw):
       ''' Add new user to DB
       '''
+      if DBSession.query(User).filter(User.user_name==kw['user_name']).all():
+         flash(u'Ce compte existe déjà, utilisateur pas créé', 'error')
+         redirect('/users/')
+
       log.info('new ' + kw['user_name'])
       u = User()
       u.user_name = kw['user_name']
       u.firstname = kw['firstname']
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
+      u.fax = kw['fax']
       u.voicemail = kw['voicemail']
       u.email_voicemail = kw['email_voicemail']
       u.password = pwd1
       u.display_name = u.lastname + ' ' + u.firstname
       u.ascii_name = asterisk_string(u.display_name)
 
-      #u.phone = [DBSession.query(Phone).get(kw['phone_id'])]
       if 'groups' in kw.keys():
          u.groups = DBSession.query(Group).\
                filter(Group.group_id.in_(kw['groups'])).all()
+
       DBSession.add(u)
       flash(u'Nouvel utilisateur "%s" créé' % (kw['user_name']))
+
       redirect('/users/')
 
 
@@ -324,6 +345,7 @@ class User_ctrl(RestController):
    def edit(self, id=None, **kw):
       ''' Display edit user form
       '''
+
       if not id: 
          if 'user_id' in kw:
             id = kw['user_id']
@@ -358,6 +380,7 @@ class User_ctrl(RestController):
             'firstname': fn,
             'lastname': ln,
             'email_address': u.email_address,
+            'fax': u.fax,
             'voicemail': u.voicemail,
             'email_voicemail': u.email_voicemail,
             'pwd1': u.password,
@@ -383,21 +406,32 @@ class User_ctrl(RestController):
       if not in_group('admin') and request.identity['user'].user_id != kw['user_id']:
          flash(u'Accès interdit !', 'error')
          redirect('/')
+
       uid = int(kw['user_id'])
-      log.info('update %d (voicemail=%s, email_voicemail=%s)' % (uid, kw['voicemail'], kw['email_voicemail']))
+      log.info('update user %d (voicemail=%s, email_voicemail=%s)' % (uid, kw['voicemail'], kw['email_voicemail']))
       u = DBSession.query(User).get(uid)
       u.firstname = kw['firstname']
       u.lastname = kw['lastname']
       u.email_address = kw['email_address']
+      u.fax = kw['fax']
       u.voicemail = kw['voicemail']
       u.email_voicemail = kw['email_voicemail']
       u.password = kw['pwd1'] 
       u.display_name = u.lastname + ' ' + u.firstname
       u.ascii_name = asterisk_string(u.display_name)
 
-      # Update voicemail
-      if u.voicemail:
-         for p in u.phone:
+      for p in u.phone:
+
+         # Update fax_reject
+         if u.fax:
+            Globals.manager.send_action({'Action': 'DBdel',
+               'Family': 'fax_reject', 'Key': p.exten})
+         else:
+            Globals.manager.send_action({'Action': 'DBput',
+               'Family': 'fax_reject', 'Key': p.exten, 'Val': 1})
+
+         # Update voicemail
+         if u.voicemail:
             vm = u'>%s,%s,%s' \
                % (u.password, u.ascii_name, u.email_address if u.email_voicemail else '')
             actions = [
@@ -417,20 +451,17 @@ class User_ctrl(RestController):
                'command': 'voicemail reload'})
 
             res = Globals.manager.update_config(
-               dir_ast  + 'sip.conf', 
-               'app_voicemail_plain', actions)
+               sip_file, 'app_voicemail', actions)
 
             actions = [('Delete', p.sip_id, 'mailbox')]
             res = Globals.manager.update_config(
-               dir_ast  + 'sip.conf', 
-               'chan_sip', actions)
-            log.debug('Update sip.conf (delete) returns %s' % res)
+               sip_file, sip_chan, actions)
+            log.debug('Update SIP (delete) returns %s' % res)
 
             actions = [('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten)]
             res = Globals.manager.update_config(
-               dir_ast  + 'sip.conf', 
-               'chan_sip', actions)
-            log.debug('Update sip.conf (append) returns %s' % res)
+               sip_file, sip_chan, actions)
+            log.debug('Update SIP (append) returns %s' % res)
 
             Globals.manager.send_action({'Action': 'Command',
                'command': 'sip reload'})
@@ -439,6 +470,7 @@ class User_ctrl(RestController):
          u.user_name = kw['user_name']
          u.groups = DBSession.query(Group). \
                filter(Group.group_id.in_(kw['groups'])).all()
+
       flash(u'Utilisateur modifié')
       redirect('/users/%d/edit' % uid)
 

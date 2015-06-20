@@ -15,7 +15,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Department, Phone
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -35,7 +35,7 @@ class New_dtpm_form(TableForm):
          ]
    submit_text = u'Valider...'
    action = '/departments/create'
-   hover_help = True
+#   hover_help = True
 new_dptm_form = New_dtpm_form('new_dptm_form')
 
 
@@ -50,7 +50,7 @@ class Edit_dptm_form(TableForm):
          ]
    submit_text = u'Valider...'
    action = '/departments/'
-   hover_help = True
+#   hover_help = True
 edit_dptm_form = Edit_dptm_form('edit_dptm_form')
 
 
@@ -80,7 +80,7 @@ class Dptm_ctrl(RestController):
 
    @sidebar(u'-- Administration || Services',
       icon = '/images/view-catalog.png', sortorder = 13)
-   @expose("genshi:astportal2.templates.grid")
+   @expose("astportal2.templates.grid")
    def get_all(self):
       ''' List all departments
       '''

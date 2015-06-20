@@ -14,7 +14,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, TextField, HiddenField, CalendarDatePicker
 from tw.forms.validators import NotEmpty, Int, DateTimeConverter
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Holiday
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -85,7 +85,7 @@ class Holiday_form(TableForm):
       HiddenField('holiday_id',validator=Int),
    ]
    submit_text = u'Valider...'
-   hover_help = True
+#   hover_help = True
 
 
 class New_holiday_form(Holiday_form):
@@ -130,7 +130,7 @@ class Holiday_ctrl(RestController):
 
    @sidebar(u'-- Administration || Jours fériés',
       icon = '/images/view-calendar-journal.png', sortorder = 16)
-   @expose("genshi:astportal2.templates.grid")
+   @expose("astportal2.templates.grid")
    def get_all(self):
       ''' List all holidays
       '''

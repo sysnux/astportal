@@ -1,14 +1,5 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:py="http://genshi.edgewall.org/"
-  xmlns:xi="http://www.w3.org/2001/XInclude">
+<%inherit file="local:templates.master"/>
 
-<xi:include href="master.html"/>
-
-<head>
-   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
-   <title py:content="title">Title</title>
    <link type="text/css" href="/toscawidgets/resources/tw.jquery.base/static/css/ui.all.css" rel="stylesheet" />
    <script type="text/javascript"
       src="/toscawidgets/resources/tw.jquery.base/static/javascript/ui/minified/jquery-ui.min.js"></script>
@@ -24,7 +15,7 @@ tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
    </style>
 
    <script type="text/javascript">
-<![CDATA[
+//<![CDATA[
 
 var last=0, // last_update
     my_name = null, // Current user name
@@ -380,12 +371,15 @@ function min_sec(sec) {
    return min + ':' + sec;
 }
 
-]]>
+//]]>
    </script>
-</head>
-<body>
-   <h1 py:content="title">Title</h1>
-   <span py:replace="debug" /><br />
+
+		<h1>${title}</h1>
+
+% if debug :
+		${debug}<br/>
+% endif
+
 
       <div id="add_form">
          <table>
@@ -398,5 +392,3 @@ function min_sec(sec) {
 
       <div id="queues_list"><i>Loading. . .</i></div>
 
-   </body>
-</html>

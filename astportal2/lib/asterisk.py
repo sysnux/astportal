@@ -15,6 +15,8 @@ from tg import config
 directory_asterisk = config.get('directory.asterisk')
 default_dnis = config.get('default_dnis')
 utils_dir = config.get('directory.utils')
+sip_type = config.get('asterisk.sip', 'sip')
+log.info('Asterisk SIP variant: %s' % sip_type)
 
 
 def asterisk_string(u, no_space=False):
@@ -57,8 +59,16 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
    Files updated (if needed): sip.conf, voicemail.conf, extensions.conf
    '''
 
-   # SIP.conf
-   actions = [
+   if p.user_id:
+      user = DBSession.query(User).get(p.user_id)
+      cidname = user.ascii_name
+   else:
+      user = None
+      cidname = ''
+
+   if sip_type=='sip':
+      # SIP.conf
+      actions = [
             ('NewCat', p.sip_id),
             ('Append', p.sip_id, 'secret', p.password),
             ('Append', p.sip_id, 'type', 'friend'),
@@ -67,37 +77,101 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'allow', 'g722'),
             ('Append', p.sip_id, 'allow', 'alaw'),
             ]
-   if p.callgroups:
-      actions.append(('Append', p.sip_id, 'callgroup', p.callgroups))
-   if p.pickupgroups:
-      actions.append(('Append', p.sip_id, 'pickupgroup', p.pickupgroups))
-   if p.user_id:
-      u = DBSession.query(User).get(p.user_id)
-      cidname = unicodedata.normalize('NFKD', u.display_name).encode('ascii','ignore')
-   else:
-      cidname = ''
-   cidnum = p.dnis if p.dnis else default_dnis
-   if cidname or cidnum:
-      actions.append(('Append', p.sip_id, 'callerid', '%s <%s>' % (cidname,cidnum) ))
-   if p.user_id and u.email_address and p.exten:
-      actions.append(('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten))
-   # ... then really update (delete + add)
-   Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
+      if p.callgroups:
+         actions.append(('Append', p.sip_id, 'callgroup', p.callgroups))
+      if p.pickupgroups:
+         actions.append(('Append', p.sip_id, 'pickupgroup', p.pickupgroups))
+      cidnum = p.dnis if p.dnis else default_dnis
+      if cidname or cidnum:
+         actions.append(('Append', p.sip_id, 'callerid', '%s <%s>' % (cidname,cidnum) ))
+      if p.user_id and user.email_address and p.exten:
+         actions.append(('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten))
+      # ... then really update (delete + add)
+      Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
          None, [('DelCat', p.sip_id)])
-   res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
+      res = Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
          'chan_sip', actions)
-   log.debug('Update sip.conf returns %s' % res)
+      log.debug('Update sip.conf returns %s' % res)
+
+   else:
+      # PJSIP wizard
+      log.debug('Update pjsip %s' % p)
+      actions = [
+            ('NewCat', p.sip_id),
+            ('Append', p.sip_id, 'type', 'wizard'),
+            ('Append', p.sip_id, 'transport', 'udp'),
+            ('Append', p.sip_id, 'accepts_auth', 'yes'),
+            ('Append', p.sip_id, 'accepts_registrations', 'yes'),
+            ('Append', p.sip_id, 'has_phoneprov', 'no'),
+            ('Append', p.sip_id, 'inbound_auth/username', p.sip_id),
+            ('Append', p.sip_id, 'inbound_auth/password', p.password),
+            ('Append', p.sip_id, 'endpoint/context', p.sip_id),
+            ('Append', p.sip_id, 'endpoint/language', 'fr'),
+            ('Append', p.sip_id, 'endpoint/direct_media', 'no'),
+            ('Append', p.sip_id, 'endpoint/aggregate_mwi', 'yes'),
+            ('Append', p.sip_id, 'endpoint/device_state_busy_at', '1'),
+            ('Append', p.sip_id, 'endpoint/allow_subscribe', 'yes'),
+            ('Append', p.sip_id, 'endpoint/sub_min_expiry', '30'),
+            ('Append', p.sip_id, 'aor/max_contacts', '1'),
+            ('Append', p.sip_id, 'aor/qualify_frequency', '60'),
+            ]
+
+      if p.fax:
+         actions.append(('Append', p.sip_id, 'endpoint/allow', 'alaw'))
+         actions.append(('Append', p.sip_id, 'endpoint/t38_udptl', 'yes'))
+         actions.append(('Append', p.sip_id, 'endpoint/t38_udptl_ec', 'fec'))
+         actions.append(('Append', p.sip_id, 'endpoint/t38_udptl_maxdatagram', 400))
+      else:
+         actions.append(('Append', p.sip_id, 'endpoint/allow', 'g722'))
+         actions.append(('Append', p.sip_id, 'endpoint/allow', 'alaw'))
+
+      if p.callgroups:
+         actions.append(('Append', p.sip_id, 'endpoint/call_group', p.callgroups))
+
+      if p.pickupgroups:
+         actions.append(('Append', p.sip_id, 'endpoint/pickup_group', p.pickupgroups))
+      cidnum = p.dnis if p.dnis else default_dnis
+      if not p.block_cid_out and (cidname or cidnum):
+         actions.append(('Append', p.sip_id, 
+            'endpoint/callerid', '%s <%s>' % (cidname,cidnum) ))
+      if p.user_id and user.email_address and p.exten:
+         actions.append(('Append', p.sip_id, 
+            'aor/mailboxes', '%s@astportal' % p.exten))
+         actions.append(('Append', p.sip_id, 
+            'endpoint/mwi_from_user', p.sip_id))
+
+      # ... then really update (delete + add)
+      Globals.manager.update_config(directory_asterisk  + 'pjsip_wizard.conf', 
+         None, [('DelCat', p.sip_id)])
+      res = Globals.manager.update_config(directory_asterisk  + 'pjsip_wizard.conf', 
+         'res_pjsip', actions)
+      log.debug('Update pjsip_wizard.conf returns %s' % res)
 
    # Update Asterisk exten database: Phone number <=> SIP user
    Globals.manager.send_action({'Action': 'DBdel',
          'Family': 'exten', 'Key': old_exten})
    Globals.manager.send_action({'Action': 'DBdel',
          'Family': 'netxe', 'Key': p.sip_id})
+   Globals.manager.send_action({'Action': 'DBdel',
+         'Family': 'block_cid_in', 'Key': p.exten})
+   Globals.manager.send_action({'Action': 'DBdel',
+         'Family': 'priority', 'Key': p.exten})
+   Globals.manager.send_action({'Action': 'DBdel',
+         'Family': 'fax_reject', 'Key': p.exten})
    if p.exten is not None:
       Globals.manager.send_action({'Action': 'DBput',
          'Family': 'exten', 'Key': p.exten, 'Val': p.sip_id})
       Globals.manager.send_action({'Action': 'DBput',
          'Family': 'netxe', 'Key': p.sip_id, 'Val': p.exten})
+   if p.block_cid_in:
+      Globals.manager.send_action({'Action': 'DBput',
+         'Family': 'block_cid_in', 'Key': p.exten, 'Val': 1})
+   if p.priority:
+      Globals.manager.send_action({'Action': 'DBput',
+         'Family': 'priority', 'Key': p.exten, 'Val': 1})
+   if user is not None and not user.fax:
+      Globals.manager.send_action({'Action': 'DBput',
+         'Family': 'fax_reject', 'Key': p.exten, 'Val': 1})
 
    # Voicemail.conf: allways delete old_exten (don't care if doesn't exists)
    if old_exten is None:
@@ -105,15 +179,15 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
    Globals.manager.update_config(
       directory_asterisk  + 'voicemail.conf', 
       None, [('Delete', 'astportal', old_exten)])
-   if p.user_id and u.email_address is not None:
+   if user is not None and user.email_address is not None:
       vm = u'>%s,%s,%s' \
-            % (u.password, cidname, u.email_address)
+            % (user.password, cidname, user.email_address)
       actions = [
          ('Append', 'astportal', p.exten, vm),
          ]
       res = Globals.manager.update_config(
          directory_asterisk  + 'voicemail.conf', 
-         'app_voicemail_plain', actions)
+         'app_voicemail', actions)
       log.debug('Update voicemail.conf returns %s' % res)
 
       Globals.manager.send_action({'Action': 'Command',
@@ -128,8 +202,9 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       log.debug('Contexts %s' % p.contexts)
       actions = [
          ('NewCat', p.sip_id),
+         ('Append', p.sip_id, 'include', '>parkedcalls'),
+         ('Append', p.sip_id, 'include', '>hints'),
          ('Append', p.sip_id, 'include', '>SVI_internal'),
-         ('Append', p.sip_id, 'include', '>hints')
          ]
       for c in p.contexts.split(','):
          actions.append(('Append', p.sip_id, 'include', '>%s' % c))
@@ -160,15 +235,17 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Delete', 'hints', 'exten', None, 
-            '%s,hint,SIP/%s' % (old_exten, p.sip_id))])
-      log.debug('Delete <%s,hint,SIP/%s> returns %s' % (old_exten, p.sip_id,res))
+            '%s,hint,%s/%s' % \
+               (old_exten, 'SIP' if sip_type=='sip' else 'PJSIP', p.sip_id))])
+      log.debug('Delete <%s,hint,xxSIP/%s> returns %s' % (old_exten, p.sip_id,res))
 
    if p.exten is not None:
       # Create new hint (extensions.conf)
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Append', 'hints', 'exten', 
-            '>%s,hint,SIP/%s' % (p.exten,p.sip_id))])
+            '>%s,hint,%s/%s' % \
+               (p.exten, 'SIP' if sip_type=='sip' else 'PJSIP', p.sip_id))])
       log.debug('Update hints extensions.conf returns %s' % res)
 
    # Allways reload dialplan
@@ -256,6 +333,7 @@ class Status(object):
       self.last_queue_update = time()
       self.peers = {}
       self.channels = {}
+      self.bridges = {} # List of bridged channels
       self.astp_vars = {}
       self.queues = {}
       self.members = {}
@@ -290,24 +368,20 @@ class Status(object):
       previous_update = self.last_update
       e = event.headers['Event']
 
-      if e not in ('CEL', 'WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
-            'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
-            'DTMF', 'RTCPReceived', 'RTCPSent', 'VarSet', 'PeerStatus', 'PeerEntry',
-            'QueueParams', 'QueueMember'):
-         log.debug('Received event %s: %s' % (
-            e, event.headers))
-
       if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
             'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
             'DTMF', 'RTCPReceived', 'RTCPSent', 'ExtensionStatus', 'Dial', 
             'MessageWaiting', 'Shutdown', 'Reload', 'JabberEvent', 'JabberStatus', 
-            'Registry', 'NewAccountCode', 'NewCallerid', 'Transfer', 'CEL'
+            'Registry', 'NewAccountCode', 'NewCallerid', 'Transfer', 'CEL',
             'OriginateResponse', 'Status', 'Masquerade', 'HangupRequest',
+            'DialEnd', 'NewConnectedLine',
             'SoftHangupRequest', 'ChannelUpdate', 'LocalBridge', 'QueueCallerAbandon',
+            'ChallengeSent', 'SuccessfulAuth', 'DeviceStateListComplete',
             'AOC-E', 'DAHDIChannel', 'JitterBufStats', 'ChannelReload'):
 #         log.debug(' * * * IGNORED %s' % str(event.headers))
          # Ignored 
          return
+
       if e=='Newexten':
          self._Newexten(event.headers)
       elif e=='VarSet':
@@ -316,14 +390,26 @@ class Status(object):
          self._handle_Newchannel(event.headers)
       elif e in ('Newcallerid', 'Newstate', 'MeetmeJoin', 'MeetmeLeave'):
          self._updateChannels(event.headers)
+      elif e=='DialBegin':
+         self._handle_DialBegin(event.headers)
       elif e=='Hangup':
          self._handle_Hangup(event.headers)
       elif e in ('Link', 'Bridge'):
          self._handle_Link(event.headers)
       elif e=='Unlink':
          self._handle_Unlink(event.headers)
+      elif e=='BridgeCreate':
+         self._handle_BridgeCreate(event.headers)
+      elif e=='BridgeDestroy':
+         self._handle_BridgeDestroy(event.headers)
+      elif e=='BridgeEnter':
+         self._handle_BridgeEnter(event.headers)
+      elif e=='BridgeLeave':
+         self._handle_BridgeLeave(event.headers)
       elif e=='Rename':
          self._handle_Rename(event.headers)
+      elif e=='DeviceStateChange':
+         self._handle_DeviceStateChange(event.headers)
       elif e=='PeerStatus':
          self._handle_PeerStatus(event.headers)
       elif e=='PeerEntry':
@@ -340,12 +426,24 @@ class Status(object):
          self._handle_QueueMemberRemoved(event.headers)
       elif e=='QueueEntry':
          self._handle_QueueEntry(event.headers)
+      elif e=='QueueCallerJoin':
+         self._handle_QueueCallerJoin(event.headers)
       elif e=='Join':
          self._handle_Join(event.headers)
       elif e=='Leave':
          self._handle_Leave(event.headers)
       elif e == 'UserEvent':
          self._handle_UserEvent(event.headers)
+      elif e=='ParkedCall':
+         self._handle_ParkedCall(event.headers)
+      elif e=='UnParkedCall':
+         self._handle_UnParkedCall(event.headers)
+      elif e=='ParkedCallTimeOut':
+         self._handle_ParkedCallTimeOut(event.headers)
+      elif e=='ParkedCallGiveUp':
+         self._handle_ParkedCallGiveUp(event.headers)
+      elif e == 'RequestBadFormat':
+         log.error('%s: %s' % (e, event.headers))
       else:
          log.warning('Event not handled "%s"' % e)
 
@@ -353,38 +451,52 @@ class Status(object):
          # State has changed
          log.debug('--- BEGIN STATE DUMP --------------')
          for c in self.channels:
-            log.debug('CHANNEL %s: %s' % (c, str(self.channels[c])))
+            log.debug('CHANNEL %s, outgoing %s, context %s, prio %s, link %s, park %s' % \
+               (c, self.channels[c]['Outgoing'],
+               self.channels[c]['Context'],
+               self.channels[c]['Priority'],
+               self.channels[c]['Link'],
+               self.channels[c].get('Park') ))
+         for b in self.bridges:
+            log.debug('BRIDGE %s, channels: %s' % (b, self.bridges[b]))
 #        for p in self.peers:
 #           log.debug('PEER %s: %s' % (p, self.peers[p]))
          log.debug('--- END STATE DUMP --------------')
          log.debug('')
          log.debug('')
 
-         if Globals.asterisk.last_update > previous_update: # +1 ? XXX
-            for c in Globals.ws_clients['channels']:
-                log.warning(u'WS client')
-                log.warning(u'Sending channels update')
-                c.send(json.dumps(dict(
-                     last_update=Globals.asterisk.last_update,
-                     time=time(),
-                     channels=Globals.asterisk.channels)))
+# XXX         ws_update() # Send update WS clients
 
       return True
 
-   def _handle_PeerStatus(self,dict):
+   def _handle_DialBegin(self, data):
+      src = data.get('Channel')
+      dst = data['DestChannel']
+      log.debug('Dial %s -> %s' % (src, dst))
+      if src in self.channels:
+         self.channels[src]['Outgoing'] = True
+         self.channels[src]['LastUpdate'] = self.last_update = time()
+         self.channels[dst]['From'] = src
+      if dst in self.channels:
+         self.channels[dst]['Outgoing'] = False
+         self.channels[dst]['LastUpdate'] = self.last_update = time()
+
+
+   def _handle_PeerStatus(self,data):
       
-      peer = dict['Peer']
+      peer = data['Peer']
+      log.debug('Peerstatus %s' % data)
       if peer in self.peers:
          log.debug('Update peer status %s' % peer)
-         self.peers[peer]['PeerStatus'] = dict['PeerStatus']
+         self.peers[peer]['PeerStatus'] = data['PeerStatus']
          self.peers[peer]['LastUpdate'] = time()
       else:
-         log.debug('New peer status %s: %s' % (peer, dict))
-         self.peers[peer] = {'PeerStatus': dict['PeerStatus'],
+         log.debug('New peer status %s: %s' % (peer, data))
+         self.peers[peer] = {'PeerStatus': data['PeerStatus'],
             'LastUpdate': time()}
 
-      if 'Address' in dict:
-         self.peers[peer]['Address'] = dict['Address']
+      if 'Address' in data:
+         self.peers[peer]['Address'] = data['Address']
 
 #      if self.peers[peer]['PeerStatus']=='Registered':
 #         res = Globals.manager.sipshowpeer(peer[4:])
@@ -393,13 +505,13 @@ class Status(object):
 #      self.last_update = time()
 
 
-   def _handle_PeerEntry(self,dict):
+   def _handle_PeerEntry(self,data):
       '''
       '''
-      log.debug(dict)
-      peer = dict['Channeltype'] + '/' + dict['ObjectName']
-      status = 'Registered' if dict['Status'].startswith('OK ') else dict['Status']
-      addr = None if dict['IPaddress']=='-none-' else dict['IPaddress']
+      log.debug(data)
+      peer = data['Channeltype'] + '/' + data['ObjectName']
+      status = 'Registered' if data['Status'].startswith('OK ') else data['Status']
+      addr = None if data['IPaddress']=='-none-' else data['IPaddress']
       if peer in self.peers:
          log.debug('Update peer entry %s' % peer)
          self.peers[peer]['PeerStatus'] = status
@@ -415,18 +527,32 @@ class Status(object):
 
 #      self.last_update = time()
 
-   def _updateQueues(self, dict):
+
+   def _handle_DeviceStateChange(self,data):
+      peer = data['Device']
+      log.debug('DeviceStateChange %s' % data)
+      if peer in self.peers:
+         log.debug('Update peer state %s' % peer)
+         self.peers[peer]['State'] = data['State']
+         self.peers[peer]['LastUpdate'] = time()
+      else:
+         log.debug('New peer state %s: %s' % (peer, data))
+         self.peers[peer] = {'State': data['State'],
+            'LastUpdate': time()}
+
+
+   def _updateQueues(self, data):
       pass
 
-   def _handle_QueueParams(self, dict):
+   def _handle_QueueParams(self, data):
       # Wait{Uniqueid] = (time, CallerIDName, CallerIDNum)
-      self.queues[dict['Queue']] = {
-         'ServicelevelPerf': dict['ServicelevelPerf'], 
-         'Abandoned': int(dict['Abandoned']),
-         'Calls': int(dict['Calls']), 
-         'Max': int(dict['Max']), 'Completed': int(dict['Completed']), 
-         'ServiceLevel': dict['ServiceLevel'], 'Strategy': dict['Strategy'], 
-         'Weight': dict['Weight'], 'Holdtime': dict['Holdtime'], 
+      self.queues[data['Queue']] = {
+         'ServicelevelPerf': data['ServicelevelPerf'], 
+         'Abandoned': int(data['Abandoned']),
+         'Calls': int(data['Calls']), 
+         'Max': int(data['Max']), 'Completed': int(data['Completed']), 
+         'ServiceLevel': data['ServiceLevel'], 'Strategy': data['Strategy'], 
+         'Weight': data['Weight'], 'Holdtime': data['Holdtime'], 
          'Members': [], 'Wait': {}, 'LastUpdate': time()}
       self.last_queue_update = time()
 
@@ -440,14 +566,27 @@ class Status(object):
 # Device is ringing #define AST_DEVICE_RINGING	6
 # Device is ringing *and* in use #define AST_DEVICE_RINGINUSE	7
 # Device is on hold #define AST_DEVICE_ONHOLD	8
-   def _handle_QueueMember(self, dict):
-      q = dict['Queue']
-      if 'Name' in dict:
-         m = self.normalize_member(dict['Name'])
-      elif 'MemberName' in dict:
-         m = self.normalize_member(dict['MemberName'])
+#Event: QueueMemberAdded
+#Privilege: agent,all
+#Queue: test
+#Membership: dynamic
+#MemberName: Girard Michael
+#LastCall: 0
+#Paused: 0
+#Status: 4
+#Interface: SIP/igHJ9CNh
+#StateInterface: SIP/igHJ9CNh
+#Penalty: 0
+#CallsTaken: 0
+#Ringinuse: 0
+   def _handle_QueueMember(self, data):
+      q = data['Queue']
+      if 'Name' in data:
+         m = self.normalize_member(data['Name'])
+      elif 'MemberName' in data:
+         m = self.normalize_member(data['MemberName'])
       else:
-         log.error('QueueMember without name %s' % dict)
+         log.error('QueueMember without name %s' % data)
          return
       if q not in self.queues:
          log.error('Queue does not exist %s' % q)
@@ -456,14 +595,21 @@ class Status(object):
       self.queues[q]['Members'].append(m)
 
       if m in self.members: # Known member, update his info
+         log.debug('Update member "%s"' % m)
          self.members[m]['Queues'][q] = {
-               'CallsTaken': int(dict['CallsTaken']),
-               'InBegin': time(), 'InTotal': 0, 'Penalty': dict['Penalty']}
+               'CallsTaken': int(data['CallsTaken']),
+               'InBegin': time(), 'InTotal': 0, 'Penalty': data['Penalty']}
 
       else: # New member
-         self.members[m] = {'Status': dict['Status'],
-            'Membership': dict['Membership'], 'Location': dict['Location'],
-            'LastCall': dict['LastCall'], 'Paused': dict['Paused'],
+         log.debug('New member "%s"' % m)
+#         log.debug('New member data="%s"' % data)
+         loc = data['Location'] if 'Location' in data else data['Interface']
+#         log.debug('New member loc="%s"' % loc)
+#         log.debug('New member Status="%s"' % data['Status'])
+#         log.debug('New member Membership="%s"' % data['Membership'])
+         self.members[m] = {'Status': data['Status'],
+            'Membership': data['Membership'], 'Location': loc,
+            'LastCall': data['LastCall'], 'Paused': data['Paused'],
             'LastUpdate': time(),# 'Queues': [q,],
             'ConnBegin': time(), # Connection time
             # Counters for outgoing calls
@@ -471,55 +617,63 @@ class Status(object):
             # Counters for incoming calls
             'InBegin': time(), 'InTotal': 0,
             'Spied': False, 'Recorded': False}
+#         log.debug('New member 3')
          if 'Queues' not in self.members[m].keys():
             self.members[m]['Queues'] = {}
+#         log.debug('New member 4')
          self.members[m]['Queues'][q] = {
-               'CallsTaken': int(dict['CallsTaken']),
-               'InBegin': time(), 'InTotal': 0, 'Penalty': dict['Penalty']}
+               'CallsTaken': int(data['CallsTaken']),
+               'InBegin': time(), 'InTotal': 0, 'Penalty': data['Penalty']}
+         log.debug('New member 5')
 
+      log.debug('handle_QueueMember => %s' % self.members)
       self.last_queue_update = time()
 
-   def _handle_AgentConnect(self, dict):
-      q = dict['Queue']
-      m = self.normalize_member(dict['MemberName'])
+   def _handle_AgentConnect(self, data):
+      q = data['Queue']
+      m = self.normalize_member(data['MemberName'])
       self.members[m]['ConnBegin'] = time()
-      self.members[m]['Queue'] = dict['Queue']
-      self.members[m]['Channel'] = dict['Channel']
-      self.members[m]['BridgedChannel'] = dict['BridgedChannel']
-      self.members[m]['MemberName'] = dict['MemberName']
-      self.members[m]['Holdtime'] = dict['Holdtime']
-      self.members[m]['Uniqueid'] = dict['Uniqueid']
+      self.members[m]['Queue'] = data['Queue']
+      self.members[m]['Channel'] = data['Channel']
+#      self.members[m]['BridgedChannel'] = data['BridgedChannel']
+      self.members[m]['MemberName'] = data['MemberName']
+      if 'Holdtime' in data:
+         self.members[m]['Holdtime'] = data['Holdtime']
+      else: # Asterisk-13
+         self.members[m]['Holdtime'] = data['HoldTime']
+      self.members[m]['Uniqueid'] = data['Uniqueid']
       self.members[m]['LastUpdate'] = self.last_queue_update = time()
 
-   def _handle_QueueMemberStatus(self, dict):
-      m = self.normalize_member(dict['MemberName'])
+   def _handle_QueueMemberStatus(self, data):
+      m = self.normalize_member(data['MemberName'])
       if m not in self.members.keys():
          log.error('Member "%s" does not exist ?' % m)
          return
-      s = dict['Status']
-      log.debug('QueueMemberStatus %s -> %s\n%s' %(m, s, dict))
-      if s == '2': #AST_DEVICE_INUSE
+      s = data['Status']
+      log.debug('QueueMemberStatus %s -> %s' % (m, s))
+      if s == '2': # AST_DEVICE_INUSE
          self.members[m]['InBegin'] = time()
       elif s in ('6','7'): # AST_DEVICE_RINGING	AST_DEVICE_RINGINUSE
          self.members[m]['Outgoing'] = False
       self.members[m]['Status'] = s
-      self.members[m]['Queues'][dict['Queue']]['CallsTaken'] = int(dict['CallsTaken'])
-      self.members[m]['LastCall'] = dict['LastCall']
-      self.members[m]['Paused'] = dict['Paused']
+      self.members[m]['Queues'][data['Queue']]['CallsTaken'] = int(data['CallsTaken'])
+      self.members[m]['LastCall'] = data['LastCall']
+      self.members[m]['Paused'] = data['Paused']
       self.members[m]['LastUpdate'] = time()
+#      log.debug('handle_QueueMemberStatus => %s' % self.members)
       self.last_queue_update = time()
 
-   def _handle_QueueMemberRemoved(self, dict):
-      if dict['Queue'] not in self.queues:
-         log.error('Queue "%s not found' % dict['Queue'])
+   def _handle_QueueMemberRemoved(self, data):
+      if data['Queue'] not in self.queues:
+         log.error('Queue "%s not found' % data['Queue'])
          return
-      q = dict['Queue']
-      if 'Member' in dict:
-         m = self.normalize_member(dict['Member'])
-      elif 'MemberName' in dict:
-         m = self.normalize_member(dict['MemberName'])
+      q = data['Queue']
+      if 'Member' in data:
+         m = self.normalize_member(data['Member'])
+      elif 'MemberName' in data:
+         m = self.normalize_member(data['MemberName'])
       else:
-         log.error('QueueMemberRemoved %s' % dict)
+         log.error('QueueMemberRemoved %s' % data)
          return
       self.queues[q]['Members'].remove(m) # Remove from this queue
       for q,v in self.queues.iteritems(): # Check if member belongs to other queue
@@ -527,39 +681,69 @@ class Status(object):
             break
       else:
          del self.members[m] # ...else remove member
+      log.debug('handle_QueueMemberRemoved => %s' % self.members)
       self.last_queue_update = time()
 
-   def _handle_QueueEntry(self, dict):
-      log.debug('QueueEntry %s' % dict)
-      if dict['Queue'] not in self.queues:
-         log.error('Queue "%s not found' % dict['Queue'])
+   def _handle_QueueCallerJoin(self, data):
+      '''
+Event: QueueCallerJoin
+Privilege: agent,all
+Channel: PJSIP/DyQmiIIi-0000005f
+ChannelState: 4
+ChannelStateDesc: Ring
+CallerIDNum: DyQmiIIi
+CallerIDName: SysNux
+ConnectedLineNum: <unknown>
+ConnectedLineName: <unknown>
+Language: fr
+AccountCode: 2
+Context: App_2_Entrant
+Exten: s
+Priority: 4
+Uniqueid: 1433865700.163
+Queue: test
+Position: 1
+Count: 1
+      '''
+      log.debug('QueueCallerJoin %s' % data)
+      if data['Queue'] not in self.queues:
+         log.error('Queue "%s not found' % data['Queue'])
          return
-      self.queues[dict['Queue']]['Wait'][dict['Uniqueid']] = (time() - float(dict['Wait']),
-         dict['CallerIDName'], dict['CallerIDNum'])
+      self.queues[data['Queue']]['Wait'][data['Uniqueid']] = (
+         time(), data['CallerIDName'], data['CallerIDNum'], data['Position'], data['Count'])
       self.last_queue_update = time()
 
-   def _handle_Join(self, dict):
-      log.debug('Join %s' % dict)
-      if dict['Queue'] not in self.queues:
-         log.error('Queue "%s not found' % dict['Queue'])
+   def _handle_QueueEntry(self, data):
+      log.debug('QueueEntry %s' % data)
+      if data['Queue'] not in self.queues:
+         log.error('Queue "%s not found' % data['Queue'])
          return
-      self.queues[dict['Queue']]['Calls'] += 1
-      self.queues[dict['Queue']]['Wait'][dict['Uniqueid']] = (time(),
-         dict['CallerIDName'], dict['CallerIDNum'])
+      self.queues[data['Queue']]['Wait'][data['Uniqueid']] = (time() - float(data['Wait']),
+         data['CallerIDName'], data['CallerIDNum'])
+      self.last_queue_update = time()
+
+   def _handle_Join(self, data):
+      log.debug('Join %s' % data)
+      if data['Queue'] not in self.queues:
+         log.error('Queue "%s not found' % data['Queue'])
+         return
+      self.queues[data['Queue']]['Calls'] += 1
+      self.queues[data['Queue']]['Wait'][data['Uniqueid']] = (time(),
+         data['CallerIDName'], data['CallerIDNum'])
       self.last_queue_update = time()
 
 
-   def _handle_Leave(self, dict):
-      if dict['Queue'] not in self.queues:
-         log.error('Queue "%s not found' % dict['Queue'])
+   def _handle_Leave(self, data):
+      if data['Queue'] not in self.queues:
+         log.error('Queue "%s not found' % data['Queue'])
          return
-      self.queues[dict['Queue']]['Calls'] = int(dict['Count'])
+      self.queues[data['Queue']]['Calls'] = int(data['Count'])
       pos = -999
       try:
-         del self.queues[dict['Queue']]['Wait'][dict['Uniqueid']]
+         del self.queues[data['Queue']]['Wait'][data['Uniqueid']]
       except:
          log.warning('Leave, Position %d does not exist in queue %s?' % (
-            dict['Uniqueid'], self.queues[dict['Queue']]) )
+            data['Uniqueid'], self.queues[data['Queue']]) )
 
       self.last_queue_update = time()
 #-----------------------------------------------------
@@ -570,20 +754,20 @@ class Status(object):
       '''
       return c if c[-2]!=';' else c[:-2]
 
-   def _Newexten(self, dict):
+   def _Newexten(self, data):
       # There are tons of Newexten events, this should be fast!
-      c = self.normalize_channel(dict['Channel'])
+      c = self.normalize_channel(data['Channel'])
       if c not in self.channels: return
-      self.channels[c]['AppData'] = dict.get('AppData')
-      self.channels[c]['Context'] = dict['Context']
-      self.channels[c]['Extension'] = dict['Extension']
-      self.channels[c]['Priority'] = dict['Priority']
-      self.channels[c]['Application'] = dict.get('Application')
+      self.channels[c]['AppData'] = data.get('AppData')
+      self.channels[c]['Context'] = data['Context']
+      self.channels[c]['Extension'] = data['Extension']
+      self.channels[c]['Priority'] = data['Priority']
+      self.channels[c]['Application'] = data.get('Application')
       self.channels[c]['LastUpdate'] = self.last_update = time()
 
 
-   def _updateChannels(self, dict):
-      c = self.normalize_channel(dict['Channel'])
+   def _updateChannels(self, data):
+      c = self.normalize_channel(data['Channel'])
       if c not in self.channels: return
       self.channels[c]['LastUpdate'] = time()
       # Keys eventually received from event:
@@ -593,49 +777,54 @@ class Status(object):
       for k in ('Application', 'AppData', 'Begin', 'Uniqueid',
          'CallerIDName', 'CallerIDNum',
          'Context', 'Extension', 'Priority', 'LastUpdate'):
-         if k in dict:
-            self.channels[c][k] = dict[k]
+         if k in data:
+            self.channels[c][k] = data[k]
 
       new_state = None
-      if 'State' in dict:
+      if 'State' in data:
          # manager_version=='1.0':
-         new_state = dict['State']
-      elif 'ChannelStateDesc' in dict:
+         new_state = data['State']
+      elif 'ChannelStateDesc' in data:
          # manager_version=='1.1':
-         new_state = dict['ChannelStateDesc']
+         new_state = data['ChannelStateDesc']
 
       if new_state and self.channels[c]['State'] != new_state:
          self.channels[c]['State'] = new_state
          if new_state=='Up':
             self.channels[c]['Begin'] = time()
 
-         new_state = dict.get('ChannelState')
-         if new_state == '4':
-            self.channels[c]['Outgoing'] = False
-         elif new_state == '5':
-            self.channels[c]['Outgoing'] = True
+         new_state = data.get('ChannelState')
+# 20150613        if new_state == '4':
+#            self.channels[c]['Outgoing'] = False
+#         elif new_state == '5':
+#            self.channels[c]['Outgoing'] = True
 
       self.last_update = time()
 
-   def _handle_Newchannel(self,dict):
+   def _handle_Newchannel(self,data):
       
-      if 'State' in dict:
-         state = dict['State']
-      elif 'ChannelStateDesc' in dict:
-         state = dict['ChannelStateDesc']
+      if 'State' in data:
+         state = data['State']
+      elif 'ChannelStateDesc' in data:
+         state = data['ChannelStateDesc']
       else:
          state = 'Down'
 
-      c = self.normalize_channel(dict['Channel'])
+      c = self.normalize_channel(data['Channel'])
 
-      self.channels[c] = {'CallerIDNum': dict['CallerIDNum'], 
-            'CallerIDName': dict['CallerIDName'], 'Uniqueid': dict['Uniqueid'],
-            'State': state, 'Begin': time()}
+      self.channels[c] = {'CallerIDNum': data['CallerIDNum'], 
+            'CallerIDName': data['CallerIDName'], 'Uniqueid': data['Uniqueid'],
+            'Context': None, 'Priority': None,
+            'State': state, 'Begin': time(), 'Link': None}
+      if data['ChannelState'] == '4': # Ring
+         self.channels[c]['Outgoing'] = True
+      else:
+         self.channels[c]['Outgoing'] = False
       # Check if channel belongs to a queue member
-      loc = dict['Channel'][:dict['Channel'].find('-')] # SIP/100-000000a6 -> SIP/100
+      loc = data['Channel'][:data['Channel'].find('-')] # SIP/100-000000a6 -> SIP/100
       for m in self.members:
          if self.members[m]['Location'] == loc:
-            self.members[m]['Outgoing'] = True
+            self.members[m]['Outgoing'] = self.channels[c]['Outgoing']
             self.members[m]['OutBegin'] = time()
             self.last_queue_update = time()
             break
@@ -643,8 +832,8 @@ class Status(object):
       self.last_update = time()
 
 
-   def _handle_Hangup(self, dict):
-      c = self.normalize_channel(dict['Channel'])
+   def _handle_Hangup(self, data):
+      c = self.normalize_channel(data['Channel'])
 
       if c not in self.channels:
          if c[-8:] == '<ZOMBIE>' and c[:-8] in self.channels:
@@ -687,30 +876,80 @@ class Status(object):
       del self.channels[c]
       self.last_update = time()
 
+   def _handle_BridgeCreate(self, data):
+      self.bridges[data['BridgeUniqueid']] = []
 
-   def _handle_Link(self, dict):
-      # Event: Link
-      # Channel1: SIP/dnarotam-3533
-      # Channel2: SIP/Doorphone-5180
-      # Uniqueid1: 1091803550.81
-      # Uniqueid2: 1091803550.82
-      #Event: Bridge
-      #Privilege: call,all
-      #Bridgestate: Link
-      #Bridgetype: core
-      #Channel1: SIP/5t6JPBw8-00000237
-      #Channel2: SIP/100-00000238
-      #Uniqueid1: 1310601378.784
-      #Uniqueid2: 1310601378.785
-      #CallerID1: '501040'
-      #CallerID2: 100
+   def _handle_BridgeDestroy(self, data):
+      log.debug('BridgeDestroy %s' % data['BridgeUniqueid'])
+      if data['BridgeUniqueid'] in self.bridges:
+         del self.bridges[data['BridgeUniqueid']]
+      else:
+         log.warning('BridgeDestroy %s does not exist' % data['BridgeUniqueid'])
 
-      if dict['Bridgestate'] == 'Unlink':
-         self._handle_Unlink(dict)
+
+   def _handle_BridgeEnter(self, data):
+
+      b = data['BridgeUniqueid']
+      if b not in self.bridges:
+         # We may have missed BridgeCreate event: for example parking bridges are
+         # permanent, so if we restart astportal without restarting asterisk, there
+         # is no BridgeCreate event.
+         log.warning('BridgeEnter: bridge %s does not exist, creating now.' % b)
+         self.bridges[b] = []
+
+      c = self.normalize_channel(data['Channel'])
+      log.debug('Channel %s enters bridge %s (%s users)' % (c, b, self.bridges[b]))
+      self.bridges[b].append(c)
+      if len(self.bridges[b])==2:
+         c1 = self.normalize_channel(self.bridges[b][0])
+         c2 = self.normalize_channel(self.bridges[b][1])
+         try:
+            self.channels[c1]['Link'] = c2
+            self.channels[c1]['LastUpdate'] = time()
+         except:
+            log.warning('Link: channel "%s" doesn\'t exist ?' % c1)
+         try:
+            self.channels[c2]['Link'] = c1
+            self.channels[c2]['LastUpdate'] = time()
+         except:
+            log.warning('Link: channel "%s" doesn\'t exist ?' % c2)
+
+         # Check if channel belongs to a queue member
+         loc = c2[:c2.find('-')] # SIP/100-000000a6 -> SIP/100
+         for m in self.members:
+            if self.members[m]['Location'] == loc:
+               log.debug('Link member "%s" to channel "%s" (%s)' % (m,
+                  data['Channel'], data['Uniqueid']))
+               self.members[m]['Uniqueid'] = data['Uniqueid']
+               self.members[m]['PeerChannel'] = data['Channel']
+               self.last_queue_update = time()
+               break
+
+      self.last_update = time()
+
+   def _handle_BridgeLeave(self, data):
+
+      c = self.normalize_channel(data['Channel'])
+      bid = data['BridgeUniqueid']
+      log.debug('Channel %s leaves bridge %s' % (c, bid))
+      try:
+         self.channels[data['Channel']]['Link'] = None
+         self.channels[c]['LastUpdate'] = time()
+         self.bridges[bid].remove(c)
+      except KeyError:
+         # This can happen when we start while Asterisk has connections
+         pass
+
+      self.last_update = time()
+
+   def _handle_Link(self, data):
+
+      if data['Bridgestate'] == 'Unlink':
+         self._handle_Unlink(data)
          return
 
-      c1 = self.normalize_channel(dict['Channel1'])
-      c2 = self.normalize_channel(dict['Channel2'])
+      c1 = self.normalize_channel(data['Channel1'])
+      c2 = self.normalize_channel(data['Channel2'])
       try:
          self.channels[c1]['Link'] = c2
          self.channels[c1]['Outgoing'] = False
@@ -726,27 +965,27 @@ class Status(object):
       for m in self.members:
          if self.members[m]['Location'] == loc:
             log.debug('Link member "%s" to channel "%s" (%s)' % (m,
-               dict['Channel1'], dict['Uniqueid1']))
-            self.members[m]['Uniqueid'] = dict['Uniqueid1']
-            self.members[m]['PeerChannel'] = dict['Channel1']
+               data['Channel1'], data['Uniqueid1']))
+            self.members[m]['Uniqueid'] = data['Uniqueid1']
+            self.members[m]['PeerChannel'] = data['Channel1']
             self.last_queue_update = time()
             break
 
       self.last_update = time()
 
 
-   def _handle_Unlink(self, dict):
+   def _handle_Unlink(self, data):
       # Event: Unlink
       # Channel1: SIP/dnarotam-3533
       # Channel2: SIP/Doorphone-5180
       # Uniqueid1: 1091803550.81
       # Uniqueid2: 1091803550.82
 
-      c1 = self.normalize_channel(dict['Channel1'])
-      c2 = self.normalize_channel(dict['Channel2'])
+      c1 = self.normalize_channel(data['Channel1'])
+      c2 = self.normalize_channel(data['Channel2'])
       try:
-         del self.channels[dict['Channel1']]['Link']
-         del self.channels[dict['Channel2']]['Link']
+         del self.channels[data['Channel1']]['Link']
+         del self.channels[data['Channel2']]['Link']
          self.channels[c1]['LastUpdate'] = time()
          self.channels[c2]['LastUpdate'] = time()
       except KeyError:
@@ -755,15 +994,15 @@ class Status(object):
       self.last_update = time()
 
 
-   def _handle_Rename(self, dict):
+   def _handle_Rename(self, data):
       #  Event: Rename
       #  Oldname: SIP/Doorphone-985e
       #  Newname: SIP/Doorphone-985e<MASQ>
 
-      if 'Oldname' not in dict.keys():
+      if 'Oldname' not in data.keys():
          return
-      old = dict['Oldname']
-      new = dict['Newname']
+      old = data['Oldname']
+      new = data['Newname']
       self.channels[old]['LastUpdate'] = time()
 
       # We can't rename, so we have to do an add/delete operation
@@ -779,32 +1018,48 @@ class Status(object):
          pass
       self.last_update = time()
 
-   def _handle_VarSet(self, dict):
-      if not dict['Variable'].startswith('ASTP_'):
+   def _handle_VarSet(self, data):
+      if not data['Variable'].startswith('ASTP_'):
          return
-      if dict['Channel'] not in self.astp_vars.keys():
-      	self.astp_vars[dict['Channel']] = {}
-      self.astp_vars[dict['Channel']][dict['Variable']] = dict['Value']
+      if data['Channel'] not in self.astp_vars.keys():
+      	self.astp_vars[data['Channel']] = {}
+      self.astp_vars[data['Channel']][data['Variable']] = data['Value']
       log.debug('New astp_vars %s' % self.astp_vars)
       self.last_update = time() # XXX nécessaire ou non ?
       self.last_queue_update = time()
 
-   def _handle_UserEvent(self, dict):
-      if dict['UserEvent']=='AgentWillConnect':
-         if dict['Agent'] not in self.members:
+   def _handle_UserEvent(self, data):
+      if data['UserEvent']=='AgentWillConnect':
+         if data['Agent'] not in self.members:
             # Happens when agent logged off before receiving call
-            log.error('_handle_UserEvent: agent "%s" does not exist' % dict['Agent'])
+            log.error('_handle_UserEvent: agent "%s" does not exist' % data['Agent'])
             return
          log.debug('Agent "%s" will connect to channel "%s" (%s)' % \
-            (dict['Agent'], dict['PeerChannel'], dict['PeerUniqueid']))
-         self.members[dict['Agent']]['PeerChannel'] = dict['PeerChannel']
-         self.members[dict['Agent']]['PeerCallerid'] = dict['PeerCallerid']
-         self.members[dict['Agent']]['HoldTime'] = dict['HoldTime']
-         self.members[dict['Agent']]['Uniqueid'] = dict['PeerUniqueid']
-         self.members[dict['Agent']]['ConnectURL'] = dict.get('ConnectURL', '')
-         self.members[dict['Agent']]['HangupURL'] = dict.get('HangupURL', '')
-         self.members[dict['Agent']]['Custom1'] = dict.get('Custom1', '')
-         self.members[dict['Agent']]['Custom2'] = dict.get('Custom2', '')
+            (data['Agent'], data['PeerChannel'], data['PeerUniqueid']))
+         self.members[data['Agent']]['PeerChannel'] = data['PeerChannel']
+         self.members[data['Agent']]['PeerCallerid'] = data['PeerCallerid']
+         self.members[data['Agent']]['HoldTime'] = data['HoldTime']
+         self.members[data['Agent']]['Uniqueid'] = data['PeerUniqueid']
+         self.members[data['Agent']]['ConnectURL'] = data.get('ConnectURL', '')
+         self.members[data['Agent']]['HangupURL'] = data.get('HangupURL', '')
+         self.members[data['Agent']]['Custom1'] = data.get('Custom1', '')
+         self.members[data['Agent']]['Custom2'] = data.get('Custom2', '')
          #self.last_update = time() # XXX nécessaire ou non ?
          self.last_queue_update = time()
+
+   def _handle_ParkedCall(self, data):
+      log.debug('ParkedCall %s' % data)
+      self.channels[data['ParkeeChannel']]['Park'] = data['ParkingSpace']
+
+   def _handle_UnParkedCall(self, data):
+      log.debug('UnParkedCall %s' % data)
+      self.channels[data['ParkeeChannel']]['Park'] = None
+
+   def _handle_ParkedCallTimeOut(self, data):
+      log.debug('ParkedCallTimeOut %s' % data)
+      self.channels[data['ParkeeChannel']]['Park'] = None
+
+   def _handle_ParkedCallGiveUp(self, data):
+      log.debug('ParkedCallGiveUp %s' % data)
+      self.channels[data['ParkeeChannel']]['Park'] = None
 

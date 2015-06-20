@@ -39,6 +39,7 @@ import unicodedata
 import logging
 log = logging.getLogger(__name__)
 
+sip_type = 'SIP/' if config.get('asterisk.sip', 'sip')=='sip' else 'PJSIP/'
 
 class CC_Monitor_ctrl(TGController):
  
@@ -114,9 +115,9 @@ class CC_Monitor_ctrl(TGController):
       log.debug('Member phone %s' % (p))
 
       if p.sip_id is not None:
-         if 'SIP/'+p.sip_id not in Globals.asterisk.peers and \
+         if sip_type  + p.sip_id not in Globals.asterisk.peers and \
             p.exten is not None and \
-            'SIP/'+p.exten in Globals.asterisk.peers:
+            sip_type + p.exten in Globals.asterisk.peers:
             iface = p.exten
          else:
             iface = p.sip_id
@@ -125,7 +126,7 @@ class CC_Monitor_ctrl(TGController):
          return dict(res='ko')
 
       user = p.user.ascii_name if p.user else p.exten
-      iface = 'SIP/%s' % iface
+      iface = '%s%s' % (sip_type, iface)
 
       Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': queue, 
          'Interface': iface, 'Penalty': penality,
@@ -194,6 +195,8 @@ class CC_Monitor_ctrl(TGController):
                key=lambda x: int(queues[x]['Weight']), 
                reverse=True)
          ]
+#      log.debug('Q %s' % Globals.asterisk.queues)
+#      log.debug('M %s' % Globals.asterisk.members)
       return dict(last=last_update, change=True, # XXX
             queues=qq, members=Globals.asterisk.members, admin=admin,
             my_name=u.ascii_name, my_phone=phone,
@@ -252,7 +255,7 @@ data: SIP/Xx83G1ZQ
       log.debug('ChanSpy from user %s (%s) to %s' % (
          request.identity['user'], sip, channel))
       res = Globals.manager.originate(
-            'SIP/' + sip, # Channel
+            sip_type + sip, # Channel
             sip, # Extension
             application = 'ChanSpy',
             data = channel,

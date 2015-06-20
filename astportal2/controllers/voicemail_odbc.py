@@ -14,7 +14,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, FileField, RadioButtonList
 from tw.forms.validators import NotEmpty, Int, FieldStorageUploadConverter
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 from os import unlink, rename, chdir, listdir, stat
 import logging
 log = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ from astportal2.lib.app_globals import Globals
 
 dir_vm = config.get('directory.voicemail')
 utc_delta = timedelta(hours=float(config.get('server.utc_diff')))
+sip_type = 'PJSIP' if config.get('asterisk.sip').lower()=='pjsip' else 'SIP'
 
 folders = dict(INBOX = u'Nouveaux',
       Old = u'Anciens',
@@ -280,16 +281,16 @@ class Voicemail_ctrl(BaseController):
 
       msg = DBSession.query(Voicemessages).get(id)
       log.debug('message = %s' % msg)
+      fn = '/tmp/msg-%d.WAV' % (msg.uniqueid)
 
       import psycopg2
       conn = psycopg2.connect('dbname=astportal2 user=postgres')
       lo = conn.lobject(int(msg.recording), 'rb')
-      f = open( '/tmp/msg-%d.gsm' % msg.uniqueid, 'w')
+      f = open( fn, 'w')
       f.write(lo.read())
       f.close()
       conn.close()
 
-      fn = '/tmp/msg-%d.gsm' % (msg.uniqueid)
       try:
          st = stat(fn)
          f = open(fn)
@@ -306,7 +307,7 @@ class Voicemail_ctrl(BaseController):
 
       sip = phones[0].sip_id
       res = Globals.manager.originate(
-            'SIP/' + sip, # Channel
+            sip_type + '/' + sip, # Channel
             sip, # Extension
             application = 'Playback',
             data = fn[:-4],
@@ -354,11 +355,10 @@ class Voicemail_ctrl(BaseController):
       rh = response.headers
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
-      rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-Control'] = 'max-age=0' #for IE
       rh['Content-Type'] = 'audio/x-gsm'
-      rh['Content-disposition'] = u'attachment; filename="%s"; size=%d;' % (
-         name, st.st_size)
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"; size=%d;' % (
+         name, st.st_size)).encode('utf-8') )
       rh['Content-Transfer-Encoding'] = 'binary'
 
       # Move to "Old" folder and reload voicemail to clear MWI

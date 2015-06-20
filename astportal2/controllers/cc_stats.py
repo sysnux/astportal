@@ -15,7 +15,7 @@ from tw.forms import Form, TableForm, Label, CalendarDatePicker, Spacer, \
 from tw.forms.validators import NotEmpty, Int, DateTimeConverter
 from tw.jquery import FlotWidget
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Queue_log, Queue_event, Phone, User, CDR
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -732,7 +732,7 @@ class Stats_form(TableForm):
             ]),
    ]
    submit_text = u'Valider...'
-   hover_help = True
+#   hover_help = True
    action = 'do_stat'
 stats_form = Stats_form('stats_form')
 
@@ -890,7 +890,7 @@ class CC_Stats_ctrl(BaseController):
       tmpl_context.form = Form(
          name = 'stats_form',
          submit_text = None,
-         hover_help = True,
+#         hover_help = True,
          fields = [
             HiddenField(name='period',default=period),
             HiddenField(name='begin',default=begin),
@@ -1092,8 +1092,9 @@ stat=%s
 
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
-      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"' % (
+         filename)).encode('utf-8') )
       rh['Pragma'] = 'public' # for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-Control'] = 'max-age=0' #for IE
 
       return csvdata.getvalue()

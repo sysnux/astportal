@@ -1,16 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:py="http://genshi.edgewall.org/"
-  xmlns:xi="http://www.w3.org/2001/XInclude">
-
-<xi:include href="master.html"/>
-
-<head>
-   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
-   <title py:content="title">Jquery FlexiGrid</title>
-   
-   <!--[if IE]><script language="javascript" type="text/javascript" src="excanvas.js"></script><![endif]-->
+<%inherit file="local:templates.master"/>
 
    <script type="text/javascript">
 //<![CDATA[
@@ -140,11 +128,10 @@ function csv() {
 
 //]]>
    </script>
-</head>
 
-<body>
-      <h1 py:content="title">Paginate Data Grid</h1>
-      
+
+		<h1>${title}</h1>
+
       <div id="tabs">
          <ul>
             <li><a href="#calls">Appels</a></li>
@@ -153,28 +140,26 @@ function csv() {
 
          <div id="calls">
             <!-- Form -->
-            ${tmpl_context.form(values)}
+            ${tmpl_context.form(values) | n}
             Export <a href="#" onclick="csv();">CSV</a>
 
             <!-- Flot -->
             <div id='data_flot_div' style="margin:10px auto; width:600px;" py:if="tmpl_context.data_flot">
-               ${tmpl_context.data_flot()}
+               ${tmpl_context.data_flot() | n}
             </div>
 
             <!-- JqGrid -->
-            ${tmpl_context.data_grid()}
+            ${tmpl_context.data_grid() | n}
          </div>
 
          <div id="hourly">
             <!-- Flot -->
             <div id='hourly_flot_div' style="margin:10px auto; width:600px;" py:if="tmpl_context.data_flot">
-               ${tmpl_context.hourly_flot()}
+               ${tmpl_context.hourly_flot() | n}
             </div>
 
             <!-- JqGrid -->
-            ${tmpl_context.hourly_grid()}
+            ${tmpl_context.hourly_grid() | n}
          </div>
       </div>
 
-   </body>
-</html>

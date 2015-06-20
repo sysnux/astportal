@@ -19,7 +19,7 @@ from astportal2.model import DBSession, CDR, User
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.base import BaseController
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 import datetime
 from calendar import monthrange
@@ -57,7 +57,7 @@ class Stats_ctrl(BaseController):
    @sidebar(u"-- Administration || Statistiques globales", sortorder=19,
       icon = '/images/office-chart-area-stacked.png',
       permission = in_any_group('admin', 'STATS'))
-   @expose(template="astportal2.templates.stats")
+   @expose('astportal2.templates.stats')
    def index(self, selected=None, daily=None):
 
       if not in_any_group('admin','STATS'):
@@ -348,7 +348,8 @@ class Stats_ctrl(BaseController):
 
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
-      rh['Content-disposition'] = 'attachment; filename="%s"' % filename
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"' % (
+         filename)).encode('utf-8') )
       rh['Pragma'] = 'public' # for IE
       rh['Cache-control'] = 'max-age=0' #for IE
 

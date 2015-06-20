@@ -7,6 +7,7 @@ from os import system, popen #, rename
 import cookielib, urllib, urllib2, json
 from BeautifulSoup import BeautifulSoup
 from struct import pack, unpack
+import os
 
 from tg import config
 default_company = config.get('company')
@@ -22,7 +23,7 @@ P2 = 'admin',
 #P51 = 1601,
 
 # No Key Entry Timeout. Default - 4 seconds.
-P85 = 3,
+P85 = 2,
 # Use # as Dial Key. 0 - no, 1 - yes
 P72 = 1,
 # Local RTP port (1024-65535, default 5004)
@@ -31,6 +32,10 @@ P39 = 5004,
 P78 = 0,
 # Keep-alive interval (in seconds. default 20 seconds)
 P84 = 20,
+#Use RFC3581 Symmetric Routing
+P131 = 1,
+# Account 1 Ring Tone: 0=system ring tone, N=custom ring tone N
+P104 = 1,
 # Firmware Upgrade. 0 - TFTP Upgrade,  1 - HTTP Upgrade,  2 - HTTPS Upgrade.
 P212 = 2,
 # Firmware Server Path
@@ -85,14 +90,35 @@ P208 = 3,
 # NTP Server
 P30 = '',
 # LCD Backlight Brightness. (0-8, where 0 is off and 8 is brightest) Active
+#P334 = 100, # GXP21xx
 P334 = 8,
 # LCD Backlight Brightness. (0-8, where 0 is off and 8 is brightest) Idle
+#P335 = 50, # GXP21xx
 P335 = 0,
 # Configuration Via Keypad Menu. 0 - Unrestricted, 1 - Basic settings only, 2 - Constrai nt mode
 P1357 = 0,
+# Idle Screen XML Download HTTPS
+P340=3,
+# Idle Screen XML Server Path
+# P341=172.20.6.1/grandstream/screen,
+# Download Screen XML at Boot-up Yes
+P1349=1,
+# Web Access Mode. 0 - HTTPS, 1 - HTTP. Default is 1
+P1650 = 0,
+# Enable Call Features.  0 - No, 1 - Yes. Default is 1
+P191 = 0,
+# Off-hook Auto Dial
+#P71
+# Disable SSH. 0 - No, 1 - Yes. Default is 0
+P276 = 1,
+# Dial Plan 0 - Disabled, 1 Enabled
+P2382 = 0,
 )
 
+
    def __init__(self, host, mac, pwd='admin'):
+      self.vendor = 'Grandstream'
+      self.model = None
       self.host = host
       self.mac = mac
       self.pwd = pwd
@@ -205,7 +231,18 @@ P1357 = 0,
                model = (content('tr')[5])('td')[1].text.strip()
                soft = (content('tr')[11])('td')[1].text.strip()
             except:
-               return None
+               pass
+         if (model == '' or soft == '') \
+               and 'DP715' in (html('table')[1])('tr')[3].text:
+            model = 'DP715'
+            soft = (html('table')[1])('tr')[3].text.split('\n')[8].strip()
+         if (model == '' or soft == '') \
+               and 'HT701' in (html('table')[1])('tr')[3].text:
+            model = 'HT701'
+            soft = (html('table')[1])('tr')[3].text.split('\n')[7].strip()
+         if model == '' or soft == '':
+            log.error('GXP type 2 not recognized, html=\n%s\n' % (html))
+            return None
 
       elif self.type == 3: # GXP-14XX 21XX new firmware
          resp = self.get('cgi-bin/api.values.get', {'request': 'phone_model:68'})
@@ -213,8 +250,14 @@ P1357 = 0,
          model = data['body']['phone_model']
          soft = data['body']['68']
 
+      self.model = model
+
       log.debug(u'Model <%s>'% model)
       log.debug(u'Version <%s>'% soft)
+
+      if model.startswith('GXP21'):
+         self.params['P334'] = 100
+         self.params['P335'] = 50
 
       return {'model': model.strip(), 'version': soft.strip()}
 
@@ -258,24 +301,34 @@ P1357 = 0,
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
-         mwi_subscribe=False, reboot=True):
+         mwi_subscribe=False, reboot=True, screen_url=None, exten=None):
       '''Parameters: firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None
       '''
 
+      mac = self.mac.replace(':','')
+      tftp = config.get('directory.tftp') + 'phones/firmware'
       vlan = config.get('gxp.vlan')
       if vlan:
          self.params['P51'] = vlan
       keypad = config.get('gxp.keypad')
-      if keypad in (0, 1, 2):
+      if keypad in ('0', '1', '2'):
          self.params['P1357'] = keypad
       self.params['P2'] = pwd
-      self.params['P192'] = firmware_url
+      if not os.path.isdir('%s/%s' % (tftp, mac)):
+         os.mkdir('%s/%s' % (tftp, mac))
+      for f in os.listdir(tftp):
+         if os.path.isdir('%s/%s' % (tftp, f)): continue
+         try:
+            os.symlink('../%s' % f, '%s/%s/%s' % (tftp, mac, f))
+         except:
+            pass # XXX OSError: [Errno 17] Le fichier existe
+      self.params['P192'] = '%s/%s' % (firmware_url, mac)
       self.params['P237'] = config_url
-      self.params['P331'] = phonebook_url
+      self.params['P331'] = phonebook_url + '/grandstream/phonebook'
+      self.params['P341'] = screen_url + '/grandstream/screen'
       self.params['P30'] = ntp_server
       self.params['P64'] = 120
-      self.params['P207'] = syslog_server
       self.params['P207'] = syslog_server
       if dns1:
          (self.params['P21'], self.params['P22'], self.params['P23'],
@@ -320,10 +373,10 @@ P1357 = 0,
       self.params['P73'] = 1
       self.params['P1347'] = '**' # BLF Call-pickup Prefix
       self.params['P57'] = 8
+      self.params['P102'] = 2 # dd-mm-yyyy
+      self.params['P122'] = 1 # 24 hours
 
       if self.type in (2, 3): # Newer GXP
-         self.params['P102'] = 2 # dd-mm-yyyy
-         self.params['P122'] = 1 # 24 hours
          self.params['P64'] = 'HAW10' # GMT-10
          self.params['P143'] = 0 # No DHCP option 2
          self.params['P1379'] = 'c' # celsius degrees
@@ -334,6 +387,11 @@ P1357 = 0,
          # Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
          self.params['P342'] = 3
          self.params['P399'] = 'french'
+         self.params['P330'] = 1 # HTTP phonebook download
+         self.params['P331'] = phonebook_url + ':8888/grandtream'
+         self.params['P341'] = screen_url + ':8888/grandstream'
+         self.params['P340'] = 1 # HTTP Idle Screen XML Download
+         self.params['P212'] = 0 # HTTP Firmware Upgrade
 
       # Generate conf files (text and binary)
       name = tftp_dir + '/phones/config/cfg%s' % self.mac.replace(':','')

@@ -16,7 +16,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Pickup, Phone
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -36,7 +36,7 @@ class Pickup_form(TableForm):
       HiddenField('pickup_id',validator=Int),
    ]
    submit_text = u'Valider...'
-   hover_help = True
+#   hover_help = True
 
 
 class New_pickup_form(Pickup_form):
@@ -74,7 +74,7 @@ class Pickup_ctrl(RestController):
 
    @sidebar(u'-- Administration || Groupes d\'interception',
       icon = '/images/kdf.png', sortorder = 16)
-   @expose("genshi:astportal2.templates.grid")
+   @expose("astportal2.templates.grid")
    def get_all(self):
       ''' List all pickups
       '''
@@ -140,6 +140,7 @@ class Pickup_ctrl(RestController):
                   callgroups[int(g)].append(f.exten)
             except:
                callgroups[int(g)].append(f.exten)
+         if f.pickupgroups:
             try:
               for g in f.pickupgroups.split(','):
                   pickupgroups[int(g)].append(f.exten)

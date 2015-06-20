@@ -25,7 +25,7 @@ from tw.jquery.ui import ui_tabs_js
 import sqlalchemy
 db_engine = DBSession.connection().engine.name
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 from os import path
 
 dir_monitor = config.get('directory.monitor')
@@ -310,18 +310,4 @@ class Display_CDR(BaseController):
          })
 
       return dict(page=page, total=total, rows=data)
-
-
-#   @expose()
-#   def ecoute(self, date=None, file=None):
-#      ''' Send recorded file
-#      '''
-#
-#      filename = 'test.ogg'
-#      rec = '/usr/share/games/xmoto/Textures/Musics/speeditup.ogg' # XXX
-#      f = paste.fileapp.FileApp(rec,
-#            **{'Content-Type': 'audio/ogg',
-#            'Content-Disposition': 'attachment; filename=' + filename})
-#
-#      return WSGIAppController(f)._default()
 

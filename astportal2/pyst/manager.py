@@ -541,7 +541,16 @@ class Manager(object):
         if context:   cdict['Context']  = context
         if extra_channel: cdict['ExtraChannel'] = extra_channel
         response = self.send_action(cdict)
-        
+
+        return response
+
+    def park(self, channel):
+        """Park a channel"""
+ 
+        cdict = {'Action':'Park'}
+        cdict['Channel'] = channel
+        response = self.send_action(cdict)
+
         return response
 
     def originate(self, channel, exten='', application='', data='', context='', priority='', timeout='', caller_id='', async=False, account='', variables={}):

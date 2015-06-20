@@ -22,7 +22,7 @@ from tw.forms import TableForm, TextArea, TextField, Button, CheckBox,\
 from tw.forms.validators import NotEmpty, Int, DateTimeConverter, \
          FieldStorageUploadConverter, Schema, Invalid
 from tw.api import js_callback
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Campaign, Customer, User, Outcall, CDR, Phonebook
 from astportal2.lib.base import BaseController
@@ -256,7 +256,7 @@ crm_form = TableForm(
       ],
    submit_text = None,
    action = 'result',
-   hover_help = True,
+#   hover_help = True,
 )
 
 
@@ -652,25 +652,25 @@ class CC_Outcall_ctrl(BaseController):
       phone3 = c.phone3
       phone4 = c.phone4
       phone5 = c.phone5
-      ph1_click = {'onclick': 'originate("%s",%d)' % (c.phone1, cust_id)}
-      ph2_click = {'onclick': 'originate("%s",%d)' % (c.phone2, cust_id)}
-      ph3_click = {'onclick': 'originate("%s",%d)' % (c.phone3, cust_id)}
-      ph4_click = {'onclick': 'originate("%s",%d)' % (c.phone4, cust_id)}
-      ph5_click = {'onclick': 'originate("%s",%d)' % (c.phone5, cust_id)}
-      email_href = {'href': 'mailto:%s' % c.email}
+      ph1_click = '''onclick="originate('%s',%d)"''' % (c.phone1, cust_id)
+      ph2_click = '''onclick="originate('%s',%d)"''' % (c.phone2, cust_id)
+      ph3_click = '''onclick="originate('%s',%d)"''' % (c.phone3, cust_id)
+      ph4_click = '''onclick="originate('%s',%d)"''' % (c.phone4, cust_id)
+      ph5_click = '''onclick="originate('%s',%d)"''' % (c.phone5, cust_id)
+      email_href = 'href=mailto:%s' % c.email
       if config.get('crm_url') != '':
          crm_url = config.get('crm_url') % c.code
-         crm_click = {'onclick': '''crm('%s')''' % crm_url}
+         crm_click = '''onclick="crm('%s')"''' % crm_url
       else:
-         crm_click = {'onclick': '''alert('CRM URL not configured!')'''}
+         crm_click = '''onclick="alert('CRM URL not configured!')"'''
       cal = {}
-      back_list = {
-         'onclick': '''postdata('list',{cmp_id:%d,cmp_name:'%s'})''' % (
-         c.campaign.cmp_id, c.campaign.name)}
-      next_cust = {
-         'onclick': '''postdata('crm',{cust_id:%d,next:true})''' % cust_id}
-      prev_cust = {
-         'onclick': '''postdata('crm',{cust_id:%d,prev:true})''' % cust_id}
+      back_list = \
+         '''onclick="postdata('list',{cmp_id:%d,cmp_name:'%s'})"''' % (
+         c.campaign.cmp_id, c.campaign.name)
+      next_cust = \
+         '''onclick="postdata('crm',{cust_id:%d,next:true})"''' % cust_id
+      prev_cust = \
+         '''onclick="postdata('crm',{cust_id:%d,prev:true})"''' % cust_id
       title = u'%s : %s' % (c.campaign.name, capwords(c.display_name))
 
       tmpl_context.grid = MyJqGrid( 

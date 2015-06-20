@@ -47,11 +47,12 @@ function display() {
    var table = '', time = (new Date()).getTime(), tot_chan=0, tot_calls=0;
    for (p in channels) {
       var c = channels[p];
+console.log('channel', c);
       if (c['State']=='Down')
          continue; // Don't display down channels
       tot_chan++;
-      if (c['Link']!=undefined && c['Outgoing']) {
-         // Don't display outgoing linked channel
+      if (c['Link']!=undefined && !c['Outgoing']) {
+         // Don't display receiving linked channel
          tot_calls++;
          continue
       }
@@ -63,7 +64,7 @@ function display() {
 		duree = min_sec(time-begins[p]);
 		table += '<tr class="' + ((tot_chan%2) ? 'even':'odd') + '">';
       if (c['Link']==undefined) { // Channel not linked
-         if (!c['Outgoing']) {
+         if (c['Outgoing']) {
        		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';
             table += '<td>&nbsp;</td>';
          } else {

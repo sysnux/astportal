@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tg import expose, request
+from tg import expose, request, redirect
 from tg.decorators import use_custom_format
 
 from sqlalchemy import or_
@@ -17,6 +17,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from time import sleep
+default_company = config.get('company')
 
 import re
 re_model = re.compile('GXP(\d{4})(.*)$')
@@ -41,6 +42,7 @@ def check_call_forwards(phone):
 
       man = Globals.manager.command('database show CFIM')
       for i,r in enumerate(man.response[3:-2]):
+         log.debug(u'[%d] %s' % (i, r))
          match = re_db.search(r)
          if match:
             k, v = match.groups()
@@ -92,7 +94,7 @@ def phone_details():
             mac = ':'.join(m.groups()) if m is not None else None
 
       except:
-         log.error(u'gs_phonebook_xml: could not parse UA from env="%s"' % request.environ)
+         log.error(u'Could not parse UA from env="%s"' % request.environ)
 
       if mac is not None:
          try:
@@ -127,8 +129,17 @@ class Grandstream_ctrl(BaseController):
 
    @expose()
    def _default(self, *args):
-      log.error(u'Grandstream default: request=%s' % request.environ)
-      log.error(args)
+
+      if request.environ['PATH_INFO'].startswith('/grandstream/phonebook/'):
+         redirect('/grandstream/gs_phonebook')
+
+      elif request.environ['PATH_INFO'].startswith('/grandstream/screen/'):
+         redirect('/grandstream/gs_screen')
+
+      else:
+         log.error(u'_default: request=%s' % request.environ)
+         log.error(args)
+
       return ''
 
 
@@ -136,8 +147,15 @@ class Grandstream_ctrl(BaseController):
       custom_format='gxp2120',
       template='mako:astportal2.templates.2120idle_screen')
    @expose(content_type='text/xml; charset=utf-8', 
+      custom_format='gxp1450',
       template='mako:astportal2.templates.1450idle_screen')
-   def screen(self):
+   @expose(content_type='text/xml; charset=utf-8', 
+      custom_format='gxp116x',
+      template='mako:astportal2.templates.116xidle_screen')
+   @expose(content_type='text/xml; charset=utf-8', 
+      custom_format='gxp2000',
+      template='mako:astportal2.templates.2000idle_screen')
+   def gs_screen(self):
       ''' XML idle screen
 
       Generate custom XML idle screen for GXP phones.
@@ -149,30 +167,54 @@ class Grandstream_ctrl(BaseController):
       '''
 
       phone, model = phone_details()
+      if model is None:
+         log.error(u'Grandstream screen: not a Grandstream phone?')
+         return ''
+
       log.debug('Grandstream screen: model "%s", phone "%s"' % (model, phone))
 
       if model == '2120':
-         use_custom_format(self.screen, 'gxp2120')
+         use_custom_format(self.gs_screen, 'gxp2120')
 
-      elif model !='1450':
+      if model == '2000':
+         use_custom_format(self.gs_screen, 'gxp2000')
+
+      elif model =='1450':
+         use_custom_format(self.gs_screen, 'gxp1450')
+
+      elif model.startswith('116'):
+         use_custom_format(self.gs_screen, 'gxp116x')
+
+      else:
          log.error(u'Grandstream screen: unknown model "%s"' % (model))
+         return ''
 
       if phone is not None:
          exten = phone.exten if phone.exten is not None else '?'
-         name = phone.user.display_name if phone.user is not None else u'Inconnu'
+         if phone.user is not None:
+            ascii_name = phone.user.ascii_name
+            display_name = phone.user.display_name
+         else:
+            ascii_name = display_name = ''
          cfs_out, cfs_in = check_call_forwards(phone)
          if cfs_out:
             log.debug('Call forward out: %s' % cfs_out)
             exten += ' > ' + ', '.join([x[1] for x in cfs_out])
+         else:
+            cfs_out = u''
+
          if cfs_in:
             phones_in = DBSession.query(Phone). \
-               filter(Phone.sip_id.in_([x[1] for x in cfs_in]))
+               filter(Phone.sip_id.in_([x[1] for x in cfs_in])).all()
             log.debug('Call forward in: %s' % phones_in)
-            if phones_in.count() > 1:
-               cfs_in = u'Renvoyés : '
-            else:
-               cfs_in = u'Renvoyé : '
+            cfs_in = u' < '
+#            if phones_in.count() > 1:
+#               cfs_in = u'Renvoyés : '
+#            else:
+#               cfs_in = u'Renvoyé : '
             cfs_in += u', '.join([p.exten for p in phones_in])
+         else:
+            cfs_in = u''
 
       else:
          exten = name = '?'
@@ -183,10 +225,10 @@ class Grandstream_ctrl(BaseController):
          a=exten, # Compte
          A='$A', # Key labels
          f='$f', T='$T', # Date / time
-         b='Air Tahiti', # default_company, 
+         b='%s %s%s' % (default_company, exten, cfs_in),
          CFS_IN = cfs_in,
-         I=name,
-         NAME=name,
+         I = display_name, ascii_name = ascii_name, display_name = display_name,
+         exten=exten,
          c='$c', # missed calls
          G='GGG', Stock='SSS', Currency='CCC',
          j='JJJ', v='vvv', L='LLL', S='SSS', g='ggg', w='www', x='xxx' )
@@ -195,7 +237,7 @@ class Grandstream_ctrl(BaseController):
 
 
    @expose(content_type='text/xml; charset=utf-8')
-   def phonebook(self):
+   def gs_phonebook(self):
       ''' Export phonebook to Grandstream XML phonebook format
       '''
 
@@ -265,9 +307,11 @@ class Grandstream_ctrl(BaseController):
 
       # ...then add users
       list = DBSession.query(User).\
-         filter(User.phone!=None).\
-         filter(User.display_name!='')
-      list = list.order_by(User.display_name)
+         filter(User.phone!=None)
+      list = list.order_by(User.lastname)
+#         filter(User.phone!=None).\
+#         filter(User.display_name!='')
+#      list = list.order_by(User.display_name)
 
       for e in list:
          if e.phone[0].hide_from_phonebook:

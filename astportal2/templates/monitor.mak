@@ -15,7 +15,7 @@ $(document).ready(function() {
 
 function ws_connect() {
    // Create WebSocket
-   ws = new WebSocket('ws://${host}/ws/');
+   ws = new WebSocket('${ws_url}');
    ws.onopen = function(evt) {
 		if (ws_reconnect) clearInterval(ws_reconnect);
 		ws_reconnect = null;
@@ -46,9 +46,9 @@ function ws_send_message(msg) {
 }
 
 function ws_closed() {
-		ws_status('Déconnecté', 'red');
-		ws = null;
-		ws_reconnect = setTimeout(ws_connect, 1000);
+   ws_status('Déconnecté', 'red');
+   ws = null;
+   ws_reconnect = setTimeout(ws_connect, 1000);
 }
 
 function list_channels(data) {
@@ -57,46 +57,52 @@ function list_channels(data) {
       channels = data['channels'];
       last = data['last_update'];
       server_time = data['time'];
-	}
+   }
 }
 
 function display() {
    var table = '', time = (new Date()).getTime(), tot_chan=0, tot_calls=0;
    for (p in channels) {
       var c = channels[p];
+
       if (c['State']=='Down')
          continue; // Don't display down channels
       tot_chan++;
-      if (c['Link']!=undefined && c['Outgoing']) {
-         // Don't display outgoing linked channel
+      if (c['Link']!=undefined && !c['Outgoing']) {
+         /* Don't display called linked channels, they will be displayed with
+			calling channel */
          tot_calls++;
          continue
       }
+
 		if (!begins[p])
          /* We should use c['Begin'], but time offset between client 
             and server is a problem, so keep a local copy of begin.
             Javascript time is millisec, server time is sec  */
 			begins[p] = time - 1000 * (server_time - c['Begin']);
+
 		duree = min_sec(time-begins[p]);
 		table += '<tr class="' + ((tot_chan%2) ? 'even':'odd') + '">';
       if (c['Link']==undefined) { // Channel not linked
-         if (!c['Outgoing']) {
-       		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';
-            table += '<td>&nbsp;</td>';
+         if (c['Outgoing']) {
+       		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>' +
+            	'<td>&nbsp;</td>';
          } else {
-            table += '<td>&nbsp;</td>';
-       		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';
+            table += '<td>&nbsp;</td>' +
+       			'<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';
          }
-      } else { // Channel is linked to another
+      } else { // Channel is linked to another: display both on same row
        	table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';
          if (channels[c['Link']]!=undefined) {
-   		   table += '<td>' + channels[c['Link']]['CallerIDName'] + ' ' + channels[c['Link']]['CallerIDNum']  + '</td>';
+   		   table += '<td>' + channels[c['Link']]['CallerIDName'] + ' ' + 
+					channels[c['Link']]['CallerIDNum']  + '</td>';
          } else {
             table += '<td>&nbsp;</td>';
          }
       }
-		table += '<td>' + duree + '</td>';
-		table += '<td>' + c['State'] + '</td>';
+
+		table += '<td>' + duree + '</td>' +
+			'<td>' + c['State'] + '</td>';
       var x = '';
       if (c['Application']!=undefined)
          x = c['Application'] + ((c['AppData']!=undefined) ? '(' + c['AppData'] + ')' : '');
@@ -104,17 +110,17 @@ function display() {
       x = '';
       if (c['Context']!=undefined)
          x = c['Context'] + ((c['Priority']!=undefined) ? '(' + c['Priority'] + ')' : '');
-      table += '<td>' + x + '</td>';
-		table += '</tr>';
+      table += '<td>' + x + '</td>' +
+			'</tr>';
    }
 
    if (tot_chan) {
-      table = '<table><tr><th>Appelant</th><th>Appelé</th><th>Durée</th><th>&Eacute;tat</th><th>Application</th><th>Contexte</th></tr>' + table;
-      table += '<tr>';
-      table += '<th>Total :</th>';
-      table += '<th colspan="6">' + tot_calls + ' appel' + ((tot_calls>1) ? 's':'');
-      table += ' (' + tot_chan + ' can' + ((tot_chan>1) ? 'aux':'al') + ')</th>';
-      table += '</tr></table>';
+      table = '<table><tr><th>Appelant</th><th>Appelé</th><th>Durée</th><th>&Eacute;tat</th><th>Application</th><th>Contexte</th></tr>' + table +
+      	'<tr>' +
+      	'<th>Total :</th>' +
+   		'<th colspan="6">' + tot_calls + ' appel' + ((tot_calls>1) ? 's':'') +
+      	' (' + tot_chan + ' can' + ((tot_chan>1) ? 'aux':'al') + ')</th>' +
+      	'</tr></table>';
    } else
       table = '<i>Aucun appel en cours</i>';
 

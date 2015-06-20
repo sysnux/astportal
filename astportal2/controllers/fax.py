@@ -15,7 +15,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, FileField, RadioButtonList
 from tw.forms.validators import NotEmpty, Int, FieldStorageUploadConverter
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 from os import system, unlink
 import logging
 log = logging.getLogger(__name__)
@@ -91,7 +91,8 @@ def row(f):
    Parameter: Fax object
    '''
 
-   action = u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (str(f.fax_id), u"Suppression de la télécopie %s" % f.filename)
+   action = u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (
+      str(f.fax_id), u"Suppression de la télécopie %s" % f.filename.replace("'", ''))
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
 
    download = u'''<a href="download?id=%s"><img src="/images/emblem-downloads.png" title="Télécharger"></a>''' % f.fax_id
@@ -248,6 +249,7 @@ class Fax_ctrl(RestController):
       ''' Download fax
       '''
       f = DBSession.query(Fax).get(id)
+      log.debug('Download fax id %d (%d bytes)' % (f.fax_id, len(f.pdf)))
 
       if f.pdf is None:
          flash(u'Fichier PDF non disponible', 'error')
@@ -274,11 +276,10 @@ class Fax_ctrl(RestController):
       rh = response.headers
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
-      rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-Control'] = 'max-age=0' #for IE
       rh['Content-Type'] = 'application/pdf'
-      rh['Content-disposition'] = u'attachment; filename="%s"; size=%d;' % (
-         name, st.st_size)
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s.%s"; size=%d;' % (
+         name, st.st_size)).encode('utf-8') )
       rh['Content-Transfer-Encoding'] = 'binary'
       return fd.read()
 

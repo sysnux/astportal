@@ -20,7 +20,7 @@ from tw.forms import TableForm, Label, SingleSelectField, TextField, \
    HiddenField, CheckBox, CalendarDateTimePicker, TextArea
 from tw.forms.validators import NotEmpty, Int, DateConverter, DateTimeConverter
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Application, User, Group, Action, \
    Scenario, Sound, User, Queue, Queue_event
@@ -76,28 +76,34 @@ class SVI_user_select_field(SingleSelectField):
 # Common fields for application form
 common_fields = [
    TextField('exten', not_empty=False, #validator=None,
-      label_text=u'Numéro interne', help_text=u'Choisissez l\'extension'),
+      label_text=u'Numéro interne'),
+# help_text=u'Choisissez l\'extension'),
    TextField('dnis', not_empty=False, #validator=None,
-      label_text=u'Numéro extérieur', help_text=u'Choisissez le numéro RNIS'),
+      label_text=u'Numéro extérieur'),
+# help_text=u'Choisissez le numéro RNIS'),
    TextField('exten', not_empty=False, #validator=None,
-      label_text=u'Numéro interne', help_text=u'Choisissez le numéro interne'),
+      label_text=u'Numéro interne'),
+# help_text=u'Choisissez le numéro interne'),
    CheckBox('active', 
-      label_text=u'Active', default=True,
-      help_text=u'Application active'),
+      label_text=u'Active', default=True),
+#      help_text=u'Application active'),
    CalendarDateTimePicker('app_begin',
-      label_text=u'Début', help_text=u'Date de début',
+      label_text=u'Début',
+#      help_text=u'Date de début',
       date_format =  '%d/%m/%y %Hh%mm',
       not_empty = False, picker_shows_time = True,
       validator = DateTimeConverter(format='%d/%m/%y %Hh%Mm',
          messages = {'badFormat': 'Format date / heure invalide'})),
    CalendarDateTimePicker('app_end',
-      label_text=u'Fin', help_text=u'Date de fin',
+      label_text=u'Fin',
+# help_text=u'Date de fin',
       date_format =  '%d/%m/%y %Hh%mm',
       not_empty = False, picker_shows_time = True,
       validator = DateTimeConverter(format='%d/%m/%y %Hh%Mm',
          messages = {'badFormat': 'Format date / heure invalide'})),
    TextArea('comment',
-      label_text=u'Commentaires', help_text=u"Description de l'application"),
+      label_text=u'Commentaires'),
+# help_text=u"Description de l'application"),
 #         HiddenField('_method', validator=None), # Needed by RestController
    HiddenField('app_id', validator=Int),
          ]
@@ -106,13 +112,14 @@ common_fields = [
 new_fields = common_fields[:]
 new_fields[0:1] = [
    TextField('name', validator=NotEmpty,
-      label_text=u'Nom', help_text=u"Entrez le nom de l'application"),
+      label_text=u'Nom'),
+# help_text=u"Entrez le nom de l'application"),
 ]
 new_application_form = TableForm(
    fields = new_fields,
    submit_text = u'Valider...',
    action = '/applications/create',
-   hover_help = True
+#   hover_help = True
    )
 
 # Edit application form
@@ -124,7 +131,7 @@ edit_application_form = TableForm(
    fields = edit_fields,
    submit_text = u'Valider...',
    action = '/applications/',
-   hover_help = True
+#   hover_help = True
    )
 
 def row(a):
@@ -515,8 +522,8 @@ class Application_ctrl(RestController):
       rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
       rh['Cache-control'] = 'max-age=0' # for IE
       rh['Content-Type'] = 'application/pdf'
-      rh['Content-disposition'] = u'attachment; filename="%s.pdf"; size=%d;' % (
-         asterisk_string(app.name), st.st_size)
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s.pdf"; size=%d;' % (
+         app.name, st.st_size)).encode('utf-8') )
       rh['Content-Transfer-Encoding'] = 'binary'
       return f.read()
 
@@ -563,7 +570,7 @@ def generate_dialplan():
       else:
          svi_out.write(u'%s,n(test_end),Noop(No end)\n' % dnis)
       svi_out.write(u'%s,n(ok),Wait(1)\n' % dnis)
-      svi_out.write(u'%s,n,Set(CDR(accountcode)=%s)\n' % (dnis, app_id))
+      svi_out.write(u'%s,n,Set(CHANNEL(accountcode)=%s)\n' % (dnis, app_id))
       svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
@@ -597,7 +604,7 @@ def generate_dialplan():
       else:
          svi_out.write(u'%s,n(test_end),Noop(No end)\n' % dnis)
       svi_out.write(u'%s,n(ok),Wait(1)\n' % dnis)
-      svi_out.write(u'%s,n,Set(CDR(accountcode)=%s)\n' % (dnis, app_id))
+      svi_out.write(u'%s,n,Set(CHANNEL(accountcode)=%s)\n' % (dnis, app_id))
       svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
@@ -876,7 +883,7 @@ def generate_dialplan():
          continue
 
       elif action==17: # Store variable to database
-         svi_out.write(u"exten => s,%d,Set(SVI_DATA()=%s\\,'%s'\\,'${%s}')\n" % 
+         svi_out.write(u"exten => s,%d,Set(SVI_DATA()=%s,%s,${%s})\n" % 
                (prio, app_id, parameters, parameters) )
          prio += 1
          continue

@@ -1,14 +1,5 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:py="http://genshi.edgewall.org/"
-  xmlns:xi="http://www.w3.org/2001/XInclude">
+<%inherit file="local:templates.master"/>
 
-<xi:include href="master.html"/>
-
-<head>
-   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
-   <title py:content="title">Title</title>
    <link type="text/css" href="/toscawidgets/resources/tw.jquery.base/static/css/ui.all.css" rel="stylesheet" />
    <!--[if IE]><script type="text/javascript" src="../excanvas.compiled.js"></script><![endif]-->
    <script type="text/javascript"
@@ -1188,8 +1179,7 @@ function update_canvas() {
 </head>
 
 <body>
-   <h1 py:content="title">Titre</h1>
-   <span py:replace="debug"/><br />
+		<h1>${title}</h1>
       N'oubliez pas de
       <span style="font-weight: bold;"><a href="#" onclick="submit();">valider</a></span> 
       après modification du scénario. 

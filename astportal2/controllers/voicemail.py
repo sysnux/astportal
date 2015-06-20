@@ -11,7 +11,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField, FileField, RadioButtonList
 from tw.forms.validators import NotEmpty, Int, FieldStorageUploadConverter
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 from os import unlink, rename, chdir, listdir, stat
 import logging
 log = logging.getLogger(__name__)
@@ -348,11 +348,10 @@ class Voicemail_ctrl(BaseController):
       rh = response.headers
       rh['Pragma'] = 'public' # for IE
       rh['Expires'] = '0'
-      rh['Cache-control'] = 'must-revalidate, post-check=0, pre-check=0' #for IE
-      rh['Cache-control'] = 'max-age=0' #for IE
+      rh['Cache-Control'] = 'max-age=0' #for IE
       rh['Content-Type'] = 'audio/wav'
-      rh['Content-disposition'] = u'attachment; filename="%s"; size=%d;' % (
-         name, st.st_size)
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"; size=%d;' % (
+         name, st.st_size)).encode('utf-8') )
       rh['Content-Transfer-Encoding'] = 'binary'
       return f.read()
 

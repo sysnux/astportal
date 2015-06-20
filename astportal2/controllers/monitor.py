@@ -27,8 +27,16 @@ class Monitor_ctrl(TGController):
    def index(self):
       '''
       '''
+      try:
+         proto = request.environ['HTTP_X_FORWARDED_PROTO'].lower()
+      except:
+         proto = 'http'
+      host = request.environ['HTTP_HOST']
+      log.debug('request: %s://%s/' % (proto, host))
+      ws_url = 'wss' if proto == 'https' else 'ws'
+      ws_url += '://%s/ws/' % host
       return dict( title=u'Appels en cours', debug='',
-         host = request.environ['HTTP_HOST'])
+         ws_url = ws_url)
 
 
    @expose('json')
@@ -80,5 +88,14 @@ class Monitor_ctrl(TGController):
       status = 0 if res=='Success' else 1
       return dict(status=status)
 
+   @expose('json')
+   def park(self, channel):
+      '''
+      '''
+      log.debug('Park %s' % (channel))
+      res = Globals.manager.park(channel.encode('iso-8859-1'))
+      log.debug(res)
+      status = 0 if res=='Success' else 1
+      return dict(status=status)
 
 

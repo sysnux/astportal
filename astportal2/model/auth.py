@@ -111,15 +111,16 @@ class User(DeclarativeBase):
     ascii_name = Column(Unicode(161)) # ASCII representation of 'firstname lastname', needed by Asterisk
     voicemail = Column(Boolean(), default=True) # Voicemail active
     email_voicemail = Column(Boolean(), default=True) # Email voicemail
+    fax = Column(Boolean(), default=True) # Receive fax via Hylafax
 
     #{ Special methods
 
     def __repr__(self):
         return '<User: email="%s", display name="%s">' % (
-                self.email_address, self.display_name)
+                self.email_address, self.user_name)
 
     def __unicode__(self):
-        return self.display_name or self.user_name
+        return self.user_name
     
     #{ Getters and setters
 

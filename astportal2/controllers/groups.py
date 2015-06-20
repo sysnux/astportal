@@ -16,7 +16,7 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, SingleSelectField, TextField, HiddenField
 from tw.forms.validators import NotEmpty, Int
 
-from genshi import Markup
+from astportal2.lib.app_globals import Markup
 
 from astportal2.model import DBSession, Group, User
 from astportal2.lib.myjqgrid import MyJqGrid
@@ -98,7 +98,7 @@ class Group_ctrl(RestController):
                { 'name': 'display_name', 'width': 160 },
                { 'name': 'users', 'sortable': False, 'search': False, 'width': 160 } ],
             sortname = 'group_name',
-            navbuttons_options = {'view': False, 'edit': False, 'add': True,
+            navbuttons_options = {'view': False, 'edit': False, 'add': False,
                'del': False, 'search': True, 'refresh': True, 
                'addfunc': js_callback('add'),
                }
