@@ -153,12 +153,12 @@ class RichTextPushButton(QtGui.QPushButton):
 if __name__ == "__main__":
     import sys
     app = QtGui.QApplication(sys.argv)
+
     rtb = RichTextPushButton()
     rtb.setHtml("Do not press <font color=red><b>THIS</b></font> button!")
     rtb.setIcon(QtGui.QIcon("/usr/share/icons/oxygen/32x32/actions/draw-brush.png"))
     rtb.setIconSize(QtCore.QSize(32, 32))
     rtb.show()
-    rtb.resize(rtb.size())
-    rtb.clicked.connect(rtb.close)
+
     sys.exit(app.exec_())
 

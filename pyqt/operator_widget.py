@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-
+#
+# Asterisk Operator Panel: GUI app that displays extensions, allow to pickup 
+# when ringing, or transfer.
+# 
+# Author: Jean-Denis Girard <jd.girard@sysnux.pf>
+#
 # Form implementation generated from reading ui file 'operator_widget.ui'
 #
 # Created: Sun Dec  1 08:34:38 2013
@@ -27,50 +32,46 @@ except AttributeError:
 
 class DragDropButton(RichTextPushButton):
 
-    def __init__(self, parent, device, exten, name, img, x, y, w, h):
+    def __init__(self, parent, variant, device, exten, name, img, x, y, w, h):
         super(DragDropButton, self).__init__(parent)
+        self.setFocusPolicy(QtCore.Qt.NoFocus) # No focus!
         self.device = device
         self.channel = None
         self.exten = exten
         self.name = name
-        self.state = 'Down'
+        self.bstate = 'Down'
+        self.variant = variant
         self.setAcceptDrops(True)
-        self.setHtml(u'''
+        html = u'''\
 <table>
-<tr><td>
-<img src="%s" width="20" height="20" style="margin-top: 10px;"/>
-</td>
+<tr><td><img src="%s"/></td>
 <td><font size="+1">%s</font><br/><b>%s</b></td></tr>
 </table>
-''' % (img, exten, name))
+''' % (img, exten, name)
+        self.setHtml(html)
         self.setStyleSheet("background-color: rgb(0, 192, 0); font-weight: bold;")
         self.setGeometry(QtCore.QRect(x, y, w, h))
         QtCore.QObject.connect(
             self, QtCore.SIGNAL('clicked()'), self.blf_clicked)
-        act_transfer = QtGui.QAction(u"&Transférer vers...", self,
-         triggered=self.transfer)
-        self.addAction(act_transfer)
-        self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+        self.act_transfer = QtGui.QAction(u"&Transférer vers...", self,
+                triggered=self.transfer)
+        self.addAction(self.act_transfer)
+        self.act_transfer.setEnabled(False)
+        self.setContextMenuPolicy( QtCore.Qt.ActionsContextMenu )
 
     def __repr__(self):
        return u'<DragDropButton: %s, %s, %s, %s>' %  (
-           self.device, self.exten, self.name, self.state)
+           self.device, self.exten, self.name, self.bstate)
 
     def transfer(self):
         if self.channel is not None:
-           print u'Transfert libre de %s' % self
            self.emit(QtCore.SIGNAL("menu_transfer"), self)
-        else:
-           print u'Transfert libre de %s : pas actif !' % self
 
     def mouseMoveEvent(self, e):
-
         mimeData = QtCore.QMimeData()
-
         drag = QtGui.QDrag(self)
         drag.setMimeData(mimeData)
         drag.setHotSpot(e.pos() - self.rect().topLeft())
-
         dropAction = drag.start(QtCore.Qt.MoveAction)
 
     def dragEnterEvent(self, e):
@@ -81,20 +82,47 @@ class DragDropButton(RichTextPushButton):
 
     def dropEvent(self, e):       
         source = e.source()
-        print 'Drop: %s -> %s' % (source, self)
-        self.emit(QtCore.SIGNAL("dropped"), source, self)
+        self.emit(QtCore.SIGNAL('dropped'), source, self)
 
     def blf_clicked(self):
-        print 'Clicked: %s' % (self)
+        pass
+
+
+    def set_button_state(self, state):
+
+         self.bstate = state
+
+         if self.bstate=='Down':
+             self.setStyleSheet("background-color: rgb(0, 192, 0);")
+             self.act_transfer.setEnabled(False)
+         elif self.bstate=='Up':
+             self.setStyleSheet("background-color: rgb(192, 0, 0);")
+             self.act_transfer.setEnabled(True)
+         elif self.bstate=='Ring':
+             self.setStyleSheet("background-color: rgb(192, 192, 0);")
+         elif self.bstate=='Ringing':
+             self.setStyleSheet("background-color: rgb(0, 192, 192);")
+         else:
+             print u'Button %s, unknown state %s' % (self, state)
 
 class Ui_AsteriskOperatorPanel(object):
 
-    def setupUi(self, AsteriskOperatorPanel, blf):
+    def setupUI(self, AsteriskOperatorPanel, operator, blf):
+
+        num = len(blf)
+        h = (40+5) * num
+        l = 160
+        from math import ceil
+        cols = int(ceil(h/l/3.0))
+        rows = int(ceil(float(num)/cols))
+        AsteriskOperatorPanel.debug(
+            '%d buttons total height %d px (width %d px) %s cols %s rows' % \
+            (num, h, l, cols, rows))
 
         AsteriskOperatorPanel.setObjectName(_fromUtf8("AsteriskOperatorPanel"))
-        AsteriskOperatorPanel.resize(280, len(blf)*45+15)
-#        AsteriskOperatorPanel.resize(200, len(blf)*45+15)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
+        AsteriskOperatorPanel.resize(120+(160+15)*cols, rows*45+15)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, \
+            QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(AsteriskOperatorPanel.sizePolicy().hasHeightForWidth())
@@ -102,31 +130,52 @@ class Ui_AsteriskOperatorPanel(object):
 
         # BLF buttons
         self.blf_button = {}
+        col = row = 0
         for i, b in enumerate(blf):
            if ',' in b[1]:
               ext, name = b[1].split(',')
+              ext = ext.strip()
+              name = name.strip()
            else:
-              ext = name = b[1]
+              ext = name = b[1].strip()
+#           print 'button %s (col %s, row %s)' % (i, col, row)
            self.blf_button[b[0]] = DragDropButton(
                AsteriskOperatorPanel, # Parent
+               'phone',
                b[0], # Object name
                ext, # First line (extension)
                name, # Second line (name)
-               'airtahiti.png',
-#               20, 10 + (40+5)*i, 160, 40 # x,y, w, h
-               110, 10 + (40+5)*i, 160, 40 # x,y, w, h
+               'phone_inactive.png',
+               130 + (160+15)*col, 10 + (40+5)*row, 160, 40 # x,y, w, h
             )
+           row += 1
+           if row >= rows:
+              col += 1 
+              row = 0
 
-        # Line buttons
-        self.line_button = []
-        for i in range(4):
-            self.line_button.append(DragDropButton( 
+        # Operator button
+        self.op_button = []
+        self.op_button.append(DragDropButton( 
                AsteriskOperatorPanel, # Parent
-               'line_%d' % i, # Object name
+               'operator',
+               operator, # Object name
                '',
-               'Ligne %d' % i, # Button text
-               'opt.png',
-               10, 10 + (40+5)*i, 100, 40 # x,y, w, h
+               'Standard', # Button text
+               'headphone.png',
+               10, 10, 110, 40 # x,y, w, h
+            ))
+
+        # Parking buttons
+        self.park_button = []
+        for i in range(4):
+            self.park_button.append(DragDropButton( 
+               AsteriskOperatorPanel, # Parent
+               'parking',
+               'park%d' % i, # Object name
+               '', # '70%d' % (i + 1), # Exten
+               'Attente %d' % i, # Button text
+               'parking.png',
+               10, 100 + (40+5)*i, 110, 40 # x,y, w, h
             ))
 
         self.retranslateUi(AsteriskOperatorPanel)
