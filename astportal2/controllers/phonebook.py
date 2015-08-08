@@ -328,7 +328,7 @@ class Phonebook_ctrl(RestController):
       chan = uphones[0].sip_id
       log.debug('Call from extension %s to %s' % (chan, exten))
       res = Globals.manager.originate(
-            'SIP/' + chan.encode('iso-8859-1'), # Channel
+            'PJSIP/' + chan.encode('iso-8859-1'), # Channel
             exten.encode('iso-8859-1'), # Extension
             context=chan.encode('iso-8859-1'),
             priority='1',

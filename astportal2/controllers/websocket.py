@@ -23,7 +23,9 @@ def update():
    . new data is available, or
    . new clients has connected, or
    . it is needed to keep connection open through nginwx proxy
+   Running in thread started from class below
    '''
+
    last_update = last_queue_update = last_clients = last_queue_clients = \
       ping = ping_queue = 0
    wait = .5

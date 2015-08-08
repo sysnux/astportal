@@ -356,11 +356,11 @@ class Billing_ctrl(BaseController):
       elif phones:
             if type(phones)!=type([]):
                users = [u.user_id for u in \
-                  DBSession.query(Phone.user).filter(Phone.exten==phones)]
+                  DBSession.query(Phone).filter(Phone.exten==phones)]
                crit.append(u'téléphone='+phones)
             else:
                users = [u.user_id for u in \
-                  DBSession.query(Phone.user).filter(Phone.exten.in_(phones))]
+                  DBSession.query(Phone).filter(Phone.exten.in_(phones))]
                crit.append(u'téléphones='+', '.join(phones))
             cdrs = cdrs.filter(CDR.user.in_(users))
 

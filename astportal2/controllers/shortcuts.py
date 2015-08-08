@@ -11,17 +11,25 @@ except ImportError:
    from repoze.what.predicates import in_group
 
 from tw.api import js_callback
-from tw.forms import TableForm, Label, TextField, HiddenField
+from tw.forms import TableForm, Label, TextField, HiddenField, SingleSelectField
 from tw.forms.validators import NotEmpty, Int
 
 from astportal2.lib.app_globals import Markup
 
-from astportal2.model import DBSession, Shortcut
+from astportal2.model import DBSession, Shortcut, Phone
 from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
 log = logging.getLogger(__name__)
 
+def phones():
+   phones_list = [(None, u'Raccourci global')]
+   for p in DBSession.query(Phone).order_by(Phone.exten):
+      label = p.exten
+      if p.user is not None:
+         label += ' (%s)' % p.user.display_name
+      phones_list.append((p.sip_id, label))
+   return phones_list
 
 class Shortcut_form(TableForm):
    ''' Shortcut form
@@ -34,6 +42,8 @@ class Shortcut_form(TableForm):
       TextField('comment', validator=NotEmpty,
          label_text=u'Descriptif'), # help_text=u'Entrez un descriptif'),
       HiddenField('shortcut_id',validator=Int),
+      SingleSelectField('phone', options = phones,
+         label_text=u'téléphone')
    ]
    submit_text = u'Valider...'
 #   hover_help = True
@@ -152,12 +162,28 @@ class Shortcut_ctrl(RestController):
       ''' Add new shortcut to DB
       '''
 
+      if DBSession.query(Shortcut).filter(Shortcut.exten==kw['exten']).all() or \
+         DBSession.query(Shortcut).filter(Shortcut.number==kw['number']).all():
+         flash(u'Erreur : raccourci %s ou numéro %s existe déjà' % (
+            kw['exten'], kw['number']), 'error')
+         redirect('/shortcuts/')
+
       s = Shortcut()
       s.exten = kw['exten']
       s.number = kw['number']
       s.comment = kw['comment']
+      s.phone = kw['phone']
       DBSession.add(s)
       flash(u'Nouveau raccourci "%s -> %s" créé' % (s.exten, s.number))
+
+      if p.exten is not None:
+         # Create new hint (extensions.conf)
+         res = Globals.manager.update_config(
+            directory_asterisk  + 'extensions.conf', 
+            None, [('Append', 'shortcuts', 'exten', 
+               '>%s,1,%s/%s' % \
+                  (p.exten, 'SIP' if sip_type=='sip' else 'PJSIP', p.sip_id))])
+         log.debug('Update hints extensions.conf returns %s' % res)
 
       redirect('/shortcuts/')
 
@@ -169,7 +195,8 @@ class Shortcut_ctrl(RestController):
       if not id: id = kw['shortcut_id']
       s = DBSession.query(Shortcut).get(id)
       v = {'shortcut_id': s.shortcut_id, 'exten': s.exten, 
-            'number': s.number, 'comment': s.comment, '_method': 'PUT'}
+            'number': s.number, 'comment': s.comment, 
+            'phone': s.phone, '_method': 'PUT'}
       tmpl_context.form = edit_shortcut_form
       return dict(title = u'Modification raccourci ' + s.exten, 
          debug='', values=v)
@@ -185,6 +212,7 @@ class Shortcut_ctrl(RestController):
       s.exten = kw['exten']
       s.number = kw['number']
       s.comment = kw['comment']
+      s.phone = kw['phone']
       flash(u'Raccourci modifié')
 
       redirect('/shortcuts/%d/edit' % shortcut_id)

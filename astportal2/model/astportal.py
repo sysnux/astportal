@@ -451,6 +451,7 @@ class Shortcut(DeclarativeBase):
    exten = Column(Unicode(10), nullable=False, unique=True)
    number = Column(Unicode(30), nullable=False, unique=True)
    comment = Column(Unicode())
+   phone = Column(Unicode()) # null if global, else sip_id
    created = Column(DateTime, nullable=False, default=datetime.now)
 
    def __repr__(self):

@@ -26,6 +26,10 @@ def Markup(s):
 
 
 def fetch_contacts():
+    ''' Fetch phone information from Asterisk database
+    Needed for PJSIP phones, else we don't have model and IP address
+    '''
+
     # Leave the following line here!
     sip_type = 'SIP' if config.get('asterisk.sip', 'sip').lower()=='sip' \
        else 'PJSIP'
@@ -35,7 +39,7 @@ def fetch_contacts():
     man = Globals.manager.command(
        '''database query "select key, value from astdb where key like '/registrar/contact/%'"''')
     for i, r in enumerate(man.response):
-#       log.debug(' . %d: %s' % (i, r))
+       log.debug(' . %d: %s' % (i, r))
        m = re_contact_value.search(r)
        if m:
           d = json.loads(m.groups()[0])
@@ -131,5 +135,5 @@ class Globals(object):
 
       from astportal2.controllers.callback import do
       tgscheduler.add_interval_task(action=do, 
-         taskname='Callback do', interval=33, initialdelay=60)
+         taskname='Callback do', interval=13, initialdelay=30)
 

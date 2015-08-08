@@ -261,8 +261,9 @@ def peer_info(sip_id=None, exten=None):
       log.warning('%s:%s not registered ?' % (sip_id, exten))
       peer = None
 
-   ip = ua = None
+   ip = ua = state = None
    if peer:
+      log.debug('Peer status: %s' %Globals.asterisk.peers[tech+peer])
       # Peer exists, try to find User agent
       if 'UserAgent' not in Globals.asterisk.peers[tech+peer]:
          res = Globals.manager.sipshowpeer(peer)
@@ -276,7 +277,11 @@ def peer_info(sip_id=None, exten=None):
             Globals.asterisk.peers[tech+peer]['Address'] is not None:
             ip = (Globals.asterisk.peers[tech+peer]['Address']).split(':')[0]
 
-   return ip, ua
+      if 'State' in Globals.asterisk.peers[tech+peer] and \
+            Globals.asterisk.peers[tech+peer]['State'] is not None:
+         state = Globals.asterisk.peers[tech+peer]['State']
+      
+   return ip, ua, state
 
 
 def row(p):
@@ -294,7 +299,7 @@ def row(p):
    except:
       user = None
 
-   ip, ua = peer_info(p.sip_id, p.exten)
+   ip, ua, st = peer_info(p.sip_id, p.exten)
 
    action =  u'<a href="'+ str(p.phone_id) + u'/edit" title="Modifier">'
    action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
@@ -302,13 +307,20 @@ def row(p):
    action += u'<a href="#" onclick="del(\''+ str(p.phone_id) + \
          u'\',\'Suppression du téléphone ' + str(p.exten) + u'\')" title="Supprimer">'
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+   if st == 'UNAVAILABLE':
+      ua = '<span style="color: red;">%s</span>' % ua
+   elif st == 'BUSY':
+      ua = '<span style="color: orange;">%s</span>' % ua
+   elif st == 'NOT_INUSE':
+      ua = '<span style="color: green;">%s</span>' % ua
+   else:
+      log.warning('Unknown phone state "%s"' % st)
 
-   return [Markup(action), ua, p.exten, p.dnis, user , dptm]
+   return [Markup(action), Markup(ua), p.exten, p.dnis, user , dptm]
 
 
 class Phone_ctrl(RestController):
  
-   new_phone = ''
    allow_only = in_group('admin', 
       msg=u'Vous devez appartenir au groupe "admin" pour gérer les téléphones')
 
@@ -360,7 +372,7 @@ class Phone_ctrl(RestController):
       log.debug('fetch_detail')
       log.debug(kw)
       p = DBSession.query(Phone).get(kw['id'])
-      ip, ua = peer_info(p.sip_id, p.exten)
+      ip, ua, st = peer_info(p.sip_id, p.exten)
       if ip == 'None': 
          ip = ''
       else:
@@ -631,7 +643,7 @@ class Phone_ctrl(RestController):
             server_config, '', '', '',
             sip_server, sip_id, sip_display_name, mwi_subscribe,
             screen_url = server_config, exten=p.exten)
-           
+
          session.save()
 
       flash(u'Nouveau téléphone "%s" créé' % (kw['exten']))

@@ -188,6 +188,10 @@ class Dptm_ctrl(RestController):
    def create(self, **kw):
       ''' Add new department to DB
       '''
+      if DBSession.query(Department).filter(Department.name==kw['name']).all():
+         flash(u'Ce service existe déjà, pas créé', 'error')
+         redirect('/departments/')
+
       d = Department()
       d.name = kw['name']
       d.comment = kw['comment']

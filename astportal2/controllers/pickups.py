@@ -167,6 +167,10 @@ class Pickup_ctrl(RestController):
       ''' Add new pickup to DB
       '''
 
+      if DBSession.query(Pickup).filter(Pickup.name==kw['name']).all():
+         flash(u'Ce groupe existe déjà, pas créé', 'error')
+         redirect('/pickups/')
+
       # Find new pickup group (0-63)
       i = 0
       for p in DBSession.query(Pickup).order_by(Pickup.pickup_id):

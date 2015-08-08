@@ -75,7 +75,6 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'host', 'dynamic'),
             ('Append', p.sip_id, 'context', p.sip_id),
             ('Append', p.sip_id, 'allow', 'g722'),
-            ('Append', p.sip_id, 'allow', 'alaw'),
             ]
       if p.callgroups:
          actions.append(('Append', p.sip_id, 'callgroup', p.callgroups))
@@ -374,9 +373,9 @@ class Status(object):
             'MessageWaiting', 'Shutdown', 'Reload', 'JabberEvent', 'JabberStatus', 
             'Registry', 'NewAccountCode', 'NewCallerid', 'Transfer', 'CEL',
             'OriginateResponse', 'Status', 'Masquerade', 'HangupRequest',
-            'DialEnd', 'NewConnectedLine',
+            'DialEnd', 'NewConnectedLine', 'DeviceStateListComplete',
             'SoftHangupRequest', 'ChannelUpdate', 'LocalBridge', 'QueueCallerAbandon',
-            'ChallengeSent', 'SuccessfulAuth', 'DeviceStateListComplete',
+            'ChallengeSent', 'SuccessfulAuth', 'ChallengeResponseFailed', 'InvalidAccountID',
             'AOC-E', 'DAHDIChannel', 'JitterBufStats', 'ChannelReload'):
 #         log.debug(' * * * IGNORED %s' % str(event.headers))
          # Ignored 
@@ -526,7 +525,6 @@ class Status(object):
             }
 
 #      self.last_update = time()
-
 
    def _handle_DeviceStateChange(self,data):
       peer = data['Device']
