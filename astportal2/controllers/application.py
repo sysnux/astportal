@@ -761,25 +761,44 @@ def generate_dialplan():
          param = u'%s,5,%s,%s' % (file, dur, opts)
 
       elif action==7: # Transfer
+# From Asterisk doc:
+#DIALSTATUS - This is the status of the call
+#    CHANUNAVAIL
+#    CONGESTION
+#    NOANSWER
+#    BUSY
+#    ANSWER
+#    CANCEL
+#    DONTCALL - For the Privacy and Screening Modes. Will be set if the called party chooses to send the calling party to the 'Go Away' script.
+#    TORTURE - For the Privacy and Screening Modes. Will be set if the called party chooses to send the calling party to the 'torture' script.
+#    INVALIDARGS
+
          (tel, timeout, noanswer, busy, error) = parameters.split('::')
          svi_out.write(u'exten => s,%d,Dial(local/%s@sviout/nj,%s,g)\n' % (prio, tel, timeout))
          prio += 1
          tag = prio
-         svi_out.write(u'exten => s,%d,Goto(s-%d-${DIALSTATUS},1)\n' % (tag,prio))
+         svi_out.write(u'exten => s,%d,Goto(s_%d_${DIALSTATUS},1)\n' % (tag,prio))
          prio += 1
          if noanswer!='-2':
-            svi_out.write(u'exten => s-%d-NOANSWER,1,Goto(%s,s,1)\n' % (tag,noanswer))
+            svi_out.write(u'exten => s_%d_NOANSWER,1,Goto(App_%d_%s,s,1)\n' % \
+               (tag, app_id, noanswer[2:]))
          else:
-            svi_out.write(u'exten => s-%d-NOANSWER,1,Goto(s,%d)\n' % (tag,prio))
+            svi_out.write(u'exten => s_%d_NOANSWER,1,Goto(s,%d)\n' % (tag,prio))
          if busy!='-2':
-            svi_out.write(u'exten => s-%d-BUSY,1,Goto(%s,s,1)\n' % (tag,busy))
+            svi_out.write(u'exten => s_%d_BUSY,1,Goto(App_%d_%s,s,1)\n' % \
+               (tag, app_id, busy[2:]))
+            svi_out.write(u'exten => s_%d_CONGESTION,1,Goto(App_%d_%s,s,1)\n' % \
+               (tag, app_id, busy[2:]))
          else:
-            svi_out.write(u'exten => s-%d-BUSY,1,Goto(s,%d)\n' % (tag,prio))
+            svi_out.write(u'exten => s_%d_BUSY,1,Goto(s,%d)\n' % (tag,prio))
          if error!='-2':
-            svi_out.write(u'exten => s-%d-ERROR,1,Goto(%s,s,1)\n' % (tag,error))
+            svi_out.write(u'exten => s_%d_CHANUNAVAIL,1,Goto(App_%d_%s,s,1)\n' % \
+               (tag, app_id, error[2:]))
+            svi_out.write(u'exten => s_%d_INVALIDARGS,1,Goto(App_%d_%s,s,1)\n' % \
+               (tag, app_id, error[2:]))
          else:
-            svi_out.write(u'exten => s-%d-ERROR,1,Goto(s,%d)\n' % (tag,prio))
-         svi_out.write(u'exten => _s-%d-.,1,Goto(s,%d)\n' % (tag,prio))
+            svi_out.write(u'exten => s_%d_ERROR,1,Goto(s,%d)\n' % (tag,prio))
+#         svi_out.write(u'exten => _s_%d_.,1,Goto(s,%d)\n' % (tag,prio))
          continue
 
       elif action==8: # Web service

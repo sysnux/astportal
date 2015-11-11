@@ -1142,6 +1142,34 @@ function update_canvas() {
                   $('#'+a[0].substr(2)) );
             break;
 
+         case 11: // Time based test
+            var a = scenario[r].parameters.split('::');
+            var if_true=a[5], if_false=a[6];
+            if (if_true!=-2 && if_true!=-1)
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
+                     $('#'+if_true.substr(2)) );
+            if (if_false!=-2 && if_true!=-1)
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
+                     $('#'+if_false.substr(2)) );
+            break;
+
+         case 7: // Transfer
+               var a = scenario[r].parameters.split('::');
+               var number=a[0], timeout=a[1], noanswer=a[2], busy=a[3], error=a[4];
+               if (noanswer!=-2) {
+                  canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
+                  $('#'+a[2].substr(2)) );
+               }
+               if (error!=-2) {
+                  canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
+                  $('#'+a[3].substr(2)) );
+               }
+               if (busy!=-2) {
+                  canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
+                  $('#'+a[4].substr(2)) );
+               }
+            break;
+
          case 14: // Goto
             switch (scenario[r].parameters.substr(0,1)) {
                case 'c':

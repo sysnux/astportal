@@ -563,7 +563,7 @@ function display(redraw) {
             if (p[2]=='true') par += ', bip';
             break;
 
-         case 7: // Transfert
+         case 7: // Transfer
             var a = scenario[r].parameters.split('::');
             var number=a[0], timeout=a[1], noanswer=a[2], busy=a[3], error=a[4];
             if (noanswer==-2) noanswer = 'continuer';
@@ -1143,6 +1143,23 @@ function update_canvas() {
             if (if_false!=-2 && if_true!=-1)
                canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
                      $('#'+if_false.substr(2)) );
+            break;
+
+         case 7: // Transfer
+               var a = scenario[r].parameters.split('::');
+               var number=a[0], timeout=a[1], noanswer=a[2], busy=a[3], error=a[4];
+               if (noanswer!=-2) {
+                  canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
+                  $('#'+a[2].substr(2)) );
+               }
+               if (error!=-2) {
+                  canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
+                  $('#'+a[3].substr(2)) );
+               }
+               if (busy!=-2) {
+                  canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
+                  $('#'+a[4].substr(2)) );
+               }
             break;
 
          case 9: // Loop
