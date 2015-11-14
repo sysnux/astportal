@@ -391,11 +391,11 @@ function valid_action() {
          break;
 
       case 19: // Voicemail
-         param = $("#19_mailbox").val();
+         param = $('#19_mailbox').val() + '::' + $('#19_msg').val();
          break;
 
       case 20: // Queue
-         param = $("#20_queuename").val();
+         param = $('#20_queuename').val();
          break;
 
       case 21: // QueueLog
@@ -636,7 +636,9 @@ function display(redraw) {
 
          case 19: // Voicemail
             act = actions_by_id[app];
-            par = scenario[r].parameters;
+            var a = scenario[r].parameters.split('::');
+				par = a[0] + ' (' + 
+					['aucun message', 'message indisponible', 'message occupé'][a[1]] + ')';
             break;
 
          case 20: // Queue
@@ -895,7 +897,9 @@ function edit_action(i) {
          break;
 
       case 19: // Voicemail
-         $("#19_mailbox").val(scenario[i].parameters);
+         var a = scenario[i].parameters.split('::');
+         $("#19_mailbox").val(a[0]);
+         $("#19_msg").val(a[1]);
          break;
 
       case 20: //Queue
@@ -974,20 +978,21 @@ function del_action(i) {
 function submit() {
    // Convert array of objects to array of arrays 
    var sce = new Array();
-   for (i in scenario) {
+   for (i in scenario)
       sce.push([scenario[i].comments, 
             scenario[i].context, 
             scenario[i].extension, 
             scenario[i].priority, 
             scenario[i].application, 
-            scenario[i].parameters].join('::'))
-   }
+            scenario[i].parameters].join('::'));
+console.log(sce);
+
    var positions = new Array();
-   for (i in contexts_pos) {
+   for (i in contexts_pos)
       positions.push([i, 
             contexts_pos[i]['top'], 
             contexts_pos[i]['left']].join('::'))
-   }
+
    $.post(
       'save_scenario',
       {'id': ${tmpl_context.app_id}, 'scenario': sce, 'positions': positions},
@@ -1495,8 +1500,16 @@ function update_canvas() {
 
    <!-- Voicemail: 19 -->
    <div id="action_params_19" style="display: none">
-      Nom de la boîte vocale:
-      <input type="text" id="19_mailbox"/>
+      <table>
+      	<tr><td>Nom de la boîte vocale:</td>
+	      	<td><input type="text" id="19_mailbox"/></td></tr>
+      	<tr><td>Message d'accueil:</td>
+	      	<td><select id="19_msg">
+						<option value="0">Aucun</option>
+						<option value="1">Indisponible</option>
+						<option value="2">Occupé</option>
+					</select></td></tr>
+      </table>
    </div>
 
    <!-- Queue: 20 -->

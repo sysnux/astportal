@@ -443,7 +443,8 @@ class Application_ctrl(RestController):
             scenario = (scenario,)
          for s in scenario:
             sc = Scenario()
-            (c,i,e,p,a,m) = s.split('::',5)
+            (c, i, e, p, a, m) = s.split('::',5)
+            log.debug(c, i, e, p, a, m)
             p = (1+int(p))
             (sc.comments, sc.app_id, sc.context, sc.extension, sc.step, sc.action, 
                sc.parameters) = (c, id, i, e, p, a, m)
@@ -934,8 +935,14 @@ def generate_dialplan():
          continue
 
       elif action==19: # Voicemail
-         svi_out.write(u"exten => s,%d,Voicemail(%s@astportal,s)\n" % 
-               (prio, parameters) )
+         try:
+            mb, msgidx = parameters.split('::')
+            msgidx = int(msgidx)
+         except:
+            mb = parameters
+            msgidx = 0
+         svi_out.write(u"exten => s,%d,Voicemail(%s@astportal,%s)\n" % 
+               (prio, mb, 'sub'[msgidx]) )
          prio += 1
          continue
 
