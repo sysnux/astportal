@@ -24,7 +24,7 @@ def do():
 
    while not callbacks.empty():
       chan, dst_chan, dst_exten, uid = callbacks.get_nowait()
-      if dst_chan in busy:
+      if chan in busy or dst_chan in busy:
          requeue.append((chan, dst_chan, dst_exten, uid))
          continue
       log.debug('Processing src=%s, dst=%s (%s), (uid %s)' % (chan, dst_exten, dst_chan, uid))

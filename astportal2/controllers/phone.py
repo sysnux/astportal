@@ -300,6 +300,8 @@ def row(p):
       user = None
 
    ip, ua, st = peer_info(p.sip_id, p.exten)
+   if ua is None: ua = ''
+   if ip is None: ip = ''
 
    action =  u'<a href="'+ str(p.phone_id) + u'/edit" title="Modifier">'
    action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'

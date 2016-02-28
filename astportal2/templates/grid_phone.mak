@@ -7,6 +7,9 @@ $(document).ready(function() {
    $(window).bind('resize', function() {
       $('#grid').setGridWidth($('#data').width()-10, true);
    });
+   window.setInterval(function() {
+      $('#grid').trigger("reloadGrid");
+   }, 10000);
 });
 
 function add(x) {

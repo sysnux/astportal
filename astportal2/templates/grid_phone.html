@@ -7,7 +7,8 @@
 <xi:include href="master.html"/>
 
 <head>
-   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
+   <meta content="text/html; charset=utf-8"  
+      http-equiv="Content-Type" py:replace="''"/>
    <title py:content="title">Jquery Grid</title>
 
    <script type="text/javascript">
@@ -17,6 +18,10 @@ $(document).ready(function() {
    $(window).bind('resize', function() {
       $('#grid').setGridWidth($('#data').width()-10, true);
    });
+   window.setInterval(function() {
+      console.log('Reload grid');
+      $('#grid').trigger("reloadGrid");
+   }, 10000);
 });
 
 function add(x) {

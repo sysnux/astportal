@@ -38,6 +38,7 @@ def fetch_contacts():
     log.debug('Fetching contacts from AstDB (%s):' % sip_type)
     man = Globals.manager.command(
        '''database query "select key, value from astdb where key like '/registrar/contact/%'"''')
+    names = []
     for i, r in enumerate(man.response):
        log.debug(' . %d: %s' % (i, r))
        m = re_contact_value.search(r)
@@ -51,7 +52,14 @@ def fetch_contacts():
              Globals.asterisk.peers[name]['UserAgent'] = d['user_agent']
           else:
              Globals.asterisk.peers[name] = {'Address': ip, 'UserAgent': d['user_agent']}
+          names.append(name)
  
+    # Remove old entries
+    for name in Globals.asterisk.peers:
+       if name not in names:
+          Globals.asterisk.peers[name]['Address'] = None
+          Globals.asterisk.peers[name]['UserAgent'] = None
+
 
 def manager_check():
     '''Check manager connection and try to reconnect if needed

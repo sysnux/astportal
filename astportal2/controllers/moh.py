@@ -108,10 +108,10 @@ def process_file(filename, filetype, id, type, name, lang):
          return u"Erreur lors de la conversion WAV, le son n'a pas été ajouté !"
 
       else:
-         # remove uploaded file
-         unlink(filename)
-#         rename(final16, final8 + '16')
          try:
+            # remove uploaded file
+            unlink(filename)
+            rename(final16, final8 + '16')
             Globals.manager.send_action({'Action': 'Command',
                'Command': 'moh reload'})
          except:

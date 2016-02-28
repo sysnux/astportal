@@ -464,8 +464,6 @@ class Status(object):
          log.debug('')
          log.debug('')
 
-# XXX         ws_update() # Send update WS clients
-
       return True
 
    def _handle_DialBegin(self, data):

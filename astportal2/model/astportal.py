@@ -334,7 +334,7 @@ class Fax(DeclarativeBase):
    created = Column(DateTime, nullable=False, default=datetime.now)
    pdf = Column(LargeBinary)
    def __repr__(self):
-      return '<Sound: uniqueid="%d">' % (self.fax_id)
+      return '<Fax: id="%d">' % (self.fax_id)
 
 
 class Report(DeclarativeBase):
