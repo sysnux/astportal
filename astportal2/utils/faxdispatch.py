@@ -23,7 +23,7 @@ chmod 666 astportal/$pdf
 ls -l astportal/$pdf >> $log 2>&1
 
 echo "Appel script Python" >> $log 2>&1
-eval $(astportal/faxdispatch.py)
+eval $(astportal/faxdispatch.py $pdf $CALLID1 $CALLID4 $COMMID)
 if [ "x$SENDTO" = 'x' ]; then 
    SENDTO=FaxMaster@sysnux.pf
 fi
@@ -50,17 +50,23 @@ from astportal2.model import DBSession, Phone, Fax
 
 log = open('/var/spool/hylafax/log/faxdispatch.log', 'a')
 log.write('\n' + '>' * 40 + '\n')
-for k in os.environ.keys(): 
-   log.write('%s => %s\n' % (k, os.environ[k]))
-log.write('\n')
 
-dst = os.environ.get('CALLID4')
-src = os.environ.get('CALLID1')
-hyla_id = os.environ.get('COMMID')
 try:
    pdf = sys.argv[1]
 except:
    pdf = None
+try:
+   src = sys.argv[2]
+except:
+   src = None
+try:
+   dst = sys.argv[3]
+except:
+   dst = None
+try:
+   hyla_id = sys.argv[4]
+except:
+   hyla_id = None
 
 log.write('src=%s -> dst=%s, hyla_id=%s, pdf=%s\n' % (src, dst, hyla_id, pdf))
 

@@ -20,7 +20,7 @@ var channels = new Object();
 $(document).ready(function() {
    $(document).ajaxError(data_fetch_failed);
    update();
-   display_tmo = setTimeout(display, 1500);
+   setTimeout(display, 1500);
 });
 
 function update() {
@@ -44,7 +44,8 @@ function list_channels(data) {
 }
 
 function display() {
-   var table = '', time = (new Date()).getTime(), tot_chan=0, tot_calls=0;
+   var table = '', time = (new Date()).getTime(), tot_chan=0, tot_calls=0,
+      klass = 0, p, duree;
    for (p in channels) {
       var c = channels[p];
 console.log('channel', c);
@@ -62,7 +63,8 @@ console.log('channel', c);
             Javascript time is millisec, server time is sec  */
 			begins[p] = time - 1000 * (server_time - c['Begin']);
 		duree = min_sec(time-begins[p]);
-		table += '<tr class="' + ((tot_chan%2) ? 'even':'odd') + '">';
+      klass++;
+		table += '<tr class="' + ((klass % 2) ? 'even':'odd') + '">';
       if (c['Link']==undefined) { // Channel not linked
          if (c['Outgoing']) {
        		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>';

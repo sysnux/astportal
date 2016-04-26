@@ -91,9 +91,12 @@ def row(f):
    Parameter: Fax object
    '''
 
-   action = u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (
-      str(f.fax_id), u"Suppression de la télécopie %s" % f.filename.replace("'", ''))
-   action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+   if f.filename is not None:
+       action = u'<a href="#" onclick="del(\'%s\',\'%s\')" title="Supprimer">' % (
+          str(f.fax_id), u"Suppression de la télécopie %s" % f.filename.replace("'", ''))
+       action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+   else:
+       action = '' 
 
    download = u'''<a href="download?id=%s"><img src="/images/emblem-downloads.png" title="Télécharger"></a>''' % f.fax_id
 
@@ -278,7 +281,7 @@ class Fax_ctrl(RestController):
       rh['Expires'] = '0'
       rh['Cache-Control'] = 'max-age=0' #for IE
       rh['Content-Type'] = 'application/pdf'
-      rh['Content-Disposition'] = str( (u'attachment; filename="%s.%s"; size=%d;' % (
+      rh['Content-Disposition'] = str( (u'attachment; filename="%s"; size=%d;' % (
          name, st.st_size)).encode('utf-8') )
       rh['Content-Transfer-Encoding'] = 'binary'
       return fd.read()
