@@ -30,13 +30,13 @@ class New_group_form(TableForm):
    '''
    fields = [
          TextField('group_name', validator=NotEmpty,
-            label_text=u'Nom', help_text=u'Entrez le nom du groupe'),
+            label_text=u'Nom'), # help_text=u'Entrez le nom du groupe'),
          TextField('display_name', validator=NotEmpty,
-            label_text=u'Descriptif', help_text=u'Entrez un descriptif du groupe'),
+            label_text=u'Descriptif'), # help_text=u'Entrez un descriptif du groupe'),
          ]
    submit_text = u'Valider...'
    action = '/groups/create'
-   hover_help = True
+#   hover_help = True
 new_group_form = New_group_form('new_group_form')
 
 
@@ -45,14 +45,14 @@ class Edit_group_form(TableForm):
    '''
    fields = [
          TextField('display_name', validator=NotEmpty,
-            label_text='Descriptif', help_text=u'Entrez un descriptif du groupe'),
+            label_text='Descriptif'), # help_text=u'Entrez un descriptif du groupe'),
          HiddenField('_method', validator=None), # Needed by RestController
          HiddenField('group_id', validator=Int),
          ]
    submit_text = u'Valider...'
    action = '/groups'
    method = 'POST'
-   hover_help = True
+#   hover_help = True
 edit_group_form = Edit_group_form('edit_group_form')
 
 
