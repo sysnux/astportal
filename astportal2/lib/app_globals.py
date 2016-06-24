@@ -69,10 +69,10 @@ def manager_check():
 
     from astportal2.lib.app_globals import Globals # Leave me here!
 
-    # Start Asterisk manager thread(s)
     if Globals.manager is not None and Globals.manager.connected():
        return
 
+    # Start Asterisk manager thread(s)
     if Globals.asterisk is None:
        from astportal2.lib import asterisk
        Globals.asterisk = asterisk.Status()
@@ -131,7 +131,7 @@ class Globals(object):
 
    def __init__(self):
       """Start the scheduler."""
-        
+
       tgscheduler.start_scheduler()
 
       tgscheduler.add_interval_task(action=manager_check,

@@ -1,4 +1,4 @@
-#! /opt/tg22env/bin/python
+#! /home/SysNux/tg234/bin/python
 # -*- coding: utf-8 -*-
 
 from os import popen
@@ -6,11 +6,11 @@ from sys import path, exit, argv
 from getopt import getopt
 import re
 
-path.insert(0, '/opt/astportal21')
+path.insert(0, '/home/SysNux/Projets/astportal3')
 
 from paste.deploy import appconfig
 from astportal2.config.environment import load_environment
-conf = appconfig('config:/opt/astportal21/socredo.ini')
+conf = appconfig('config:/home/SysNux/Projets/astportal3/tiare.ini')
 load_environment(conf.global_conf, conf.local_conf) # Needed for DBSession
 
 from tg import config

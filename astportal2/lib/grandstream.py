@@ -4,18 +4,19 @@ import logging
 log = logging.getLogger(__name__)
 from time import time, sleep
 from os import system, popen #, rename
-import cookielib, urllib, urllib2, json
 from BeautifulSoup import BeautifulSoup
 from struct import pack, unpack
 import os
+from urllib import urlencode
+import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 from tg import config
 default_company = config.get('company')
 
 class Grandstream(object):
 
-   cj = cookielib.CookieJar()
-   opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
    params = dict(
 # Admin password for web interface
 P2 = 'admin',
@@ -124,73 +125,74 @@ P2382 = 0,
       self.pwd = pwd
       self.type = 0
       self.sid = None
-      self.url = 'http://%s/' % host
+      self.cj = {}
 
    def get(self, action, params=None):
-      if params:
-         params = urllib.urlencode(params)
+
       if self.type in (0, 1, 2) and params is not None:
-         params += '&gnkey=0b82' # Seems it *must* be last parameter, or update fails
+         params['gnkey'] = '0b82' # Seems it *must* be last parameter, or update fails
       elif self.sid is not None:
-         params += '&sid=' + self.sid
+         params['sid'] = self.sid
       for c in self.cj:
          log.debug('Cookie: %s = %s' % (c.name, c.value))
-      req = urllib2.Request(self.url + action, params)
+
       try:
-         resp = self.opener.open(req)
-         log.debug('Request %s, params %s returns %s (%s)' % (\
-               self.url + action, params, resp.msg, resp.code))
-      except:
-         log.warning('Request %s, params %s failed' % (\
-               self.url + action, params))
-         return None
+         # Try HTTPS first
+         resp = requests.get('https://' + self.host + '/' + action, params=params, verify=False)
+      except requests.ConnectionError:
+         try:
+            # Then HTTP (brand new phone)
+            resp = requests.get('http://' + self.host + '/' + action, params=params)
+         except:
+            log.warning('Request %s, params %s failed' % (\
+               self.host + '/' + action, params))
+            return None
       return resp
 
    def login(self, pwd=None):
+
       if pwd:
          self.pwd = pwd
-      # Login
-      logged_in = False
-      if self.get('dologin.htm', {'P2': self.pwd}) == None:
-         log.debug('Login error, GXP-2xxx?')
-         if self.get('cgi-bin/dologin', {'P2': self.pwd}) != None:
+
+      # Newer phones
+      resp = self.get('cgi-bin/dologin', {'username': 'admin', 'password': self.pwd})
+      if resp is not None and resp.status_code==200:
+         log.debug('GXP new firmware returns %s' % resp.content)
+         try:
+            data = resp.json()
+            if data['response'] == 'success':
+               self.sid = data['body']['sid']
+               self.type = 3
+               log.debug('Logged in GXP2xxx, new firmware')
+               return True
+
+         except:
+            log.error('new firmware does not return JSON ?')
+            pass
+
+      # New firmware
+      resp = self.get('cgi-bin/dologin', {'P2': self.pwd})
+      if resp is not None and resp.status_code == 200:
             # GXP-2100
             for c in self.cj:
                log.debug('Cookie: %s = %s' % (c.name, c.value))
                if c.name=='session_id':
                   log.debug('Logged in GXP2xxx, old firmware')
-                  logged_in = True
                   self.type = 2
-            if not logged_in:
-               resp = self.get('cgi-bin/dologin', {'password': self.pwd})
-               if resp != None:
-                  r = resp.readline()
-                  log.debug('GXP new firmware returns %s' % r)
-                  try:
-                     data = json.loads(r)
-                     if data['response'] == 'success':
-                        self.sid = data['body']['sid']
-                        logged_in = True
-                        self.type = 3
-                        log.debug('Logged in GXP2xxx, new firmware')
-                  except:
-                     log.error('new firmware does not return JSON ?')
-                     pass
-         else:
-            log.warning('GXP-2xxx login failed!')
-      else:
-         for c in self.cj:
+                  return True
+
+      # Older phones
+      resp = self.get('dologin.htm', {'P2': self.pwd})
+      if resp is not None and resp.status_code == 200:
+         for c in self.cookies:
             log.debug('Cookie: %s = %s' % (c.name, c.value))
             if c.name=='SessionId':
                log.debug('Logged in GXP1xxx')
-               logged_in = True
                self.type = 1
-      if not logged_in:
-         log.warning('Login failed (check password? %s)', pwd)
-         return False
-      
-      log.debug('GXP login ok!')
-      return True
+               return True
+
+      log.warning('Login failed (check password? %s)', pwd)
+      return False
 
    def infos(self):
 
@@ -211,12 +213,8 @@ P2382 = 0,
             log.error('infos failed, html=----\n%s\n----' % html)
             return None
 
-      elif self.type == 2: # GXP-14XX 21XX
-         resp = self.get('cgi-bin/index')
-         buffer = ''
-         for l in resp.readlines():
-            buffer += unicode(l,'UTF-8')
-         html = BeautifulSoup(buffer)
+      if self.type == 2: # GXP-14XX 21XX
+         html = BeautifulSoup(unicode(resp.content))
          content = model = soft = ''
          try:
             content = html('table')[2]
@@ -246,7 +244,7 @@ P2382 = 0,
 
       elif self.type == 3: # GXP-14XX 21XX new firmware
          resp = self.get('cgi-bin/api.values.get', {'request': 'phone_model:68'})
-         data = json.loads(resp.readlines()[-1])
+         data = resp.json()
          model = data['body']['phone_model']
          soft = data['body']['68']
 
@@ -269,8 +267,8 @@ P2382 = 0,
          resp = self.get('cgi-bin/update', params)
       elif self.type == 3:
          resp = self.get('cgi-bin/api.values.post', params)
-      log.debug('Update returns -> %s', resp.msg)
-      return resp.msg
+      log.debug('Update returns -> %s', resp.content)
+      return resp.content
 
    def reboot(self):
       # Reboot
@@ -326,6 +324,8 @@ P2382 = 0,
       self.params['P192'] = '%s/%s' % (firmware_url, mac)
       self.params['P237'] = config_url
       self.params['P331'] = phonebook_url + '/grandstream/phonebook'
+      if screen_url is None:
+         screen_url = config_url
       self.params['P341'] = screen_url + '/grandstream/screen'
       self.params['P30'] = ntp_server
       self.params['P64'] = 120
@@ -417,7 +417,7 @@ P2382 = 0,
 
       # Update and reboot phone
       self.update(self.params)
-      if reboot:
+      if False: #reboot:
          sleep(3)
          self.reboot()
 
@@ -466,7 +466,8 @@ the header and parameter strings are written to a binary file.
  
       cfg = bytearray((0,0,0,0,0,0,0,0,0,0,0,0,13,10,13,10)) # Header
       cfg[6:12] = [int(h,16) for h in self.mac.split(':')]
-      params = urllib.urlencode(self.params)
+      params = urlencode(self.params)
+      params = urlencode(self.params)
       params += '&gnkey=0b82' # Seems it must be the *last* parameter, or update fails
       if len(params) % 2:
          params += chr(0) # Padding
