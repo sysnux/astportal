@@ -281,13 +281,19 @@ def peer_info(sip_id=None, exten=None):
             Globals.asterisk.peers[tech+peer]['State'] is not None:
          state = Globals.asterisk.peers[tech+peer]['State']
       
+   log.debug('peer_info %s, %s, %s', ip, ua, state)
    return ip, ua, state
 
 
-def row(p):
+def row(p, unavailable_only):
    '''Displays a formatted row of the phones list
    Parameter: Phone object
    '''
+
+   ip, ua, st = peer_info(p.sip_id, p.exten)
+   if unavailable_only and st!='UNAVAILABLE':
+       return None
+
    try:
       dptm = Markup(u'<a href="/departments/%d/edit/">%s</a>' % \
          (p.department.dptm_id, p.department.comment))
@@ -299,7 +305,6 @@ def row(p):
    except:
       user = None
 
-   ip, ua, st = peer_info(p.sip_id, p.exten)
    if ua is None: ua = ''
    if ip is None: ip = ''
 
@@ -311,14 +316,18 @@ def row(p):
    action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
    if st == 'UNAVAILABLE':
       ua = '<span style="color: red;">%s</span>' % ua
+      exten = '<span style="color: red;">%s</span>' % p.exten
    elif st == 'BUSY':
       ua = '<span style="color: orange;">%s</span>' % ua
+      exten = '<span style="color: orange;">%s</span>' % p.exten
    elif st == 'NOT_INUSE':
       ua = '<span style="color: green;">%s</span>' % ua
+      exten = '<span style="color: green;">%s</span>' % p.exten
    else:
       log.warning('Unknown phone state "%s"' % st)
+      exten = '<span style="color: blue;">%s</span>' % p.exten
 
-   return [Markup(action), Markup(ua), p.exten, p.dnis, user , dptm]
+   return [Markup(action), Markup(ua), Markup(exten), p.dnis, user , dptm]
 
 
 class Phone_ctrl(RestController):
@@ -352,6 +361,10 @@ class Phone_ctrl(RestController):
             { 'name': 'user_id', 'width': 120, 'search': False },
             { 'name': 'department_id', 'width': 120, 'search': False },
             ],
+         postData = {'unavailable_only': 
+               js_callback('''\
+                  function() { return $('#unavailable_only').attr('checked');}\
+               ''')}, # Don't display deleted campaigns by default
          navbuttons_options = {'view': False, 'edit': False, 'add': True,
             'del': False, 'search': True, 'refresh': True, 
             'addfunc': js_callback('add'),
@@ -387,11 +400,12 @@ class Phone_ctrl(RestController):
    @require(in_group('admin',
       msg=u'Seul un membre du groupe administrateur peut afficher la liste des téléphones'))
    def fetch(self, rows, page, sidx='user_name', sord='asc', _search='false',
-          searchOper=None, searchField=None, searchString=None, **kw):
+          searchOper=None, searchField=None, searchString=None, unavailable_only='false', **kw):
       ''' Function called on AJAX request made by FlexGrid
       Fetch data from DB, return the list of rows + total + current page
       '''
 
+      log.debug('unavailable_only="%s"', unavailable_only)
       fetch_contacts()
       if Globals.manager is not None:
          # Refresh Asterisk peers
@@ -465,7 +479,12 @@ class Phone_ctrl(RestController):
       log.debug('sidx=%s, col=%s' % (sidx,column))
       phones = phones.order_by(getattr(column,sord)()).offset(offset).limit(rows)
 
-      data = [ { 'id'  : p.phone_id, 'cell': row(p) } for p in phones ]
+      data = []
+      for p in phones:
+         cell = row(p, True if unavailable_only=='true' else False)
+         if cell is None:
+             continue
+         data.append({ 'id'  : p.phone_id, 'cell': cell })
 
       return dict(page=page, total=total, rows=data)
 
@@ -615,6 +634,8 @@ class Phone_ctrl(RestController):
          p.mac = kw['mac']
          p.vendor = new_phone.vendor
          p.model = new_phone.model
+         log.debug('%s %s, session %s', 
+                   new_phone.vendor, new_phone.model, new_phone.sid )
       p.password = pwd
       if kw['exten']: p.exten = exten
       if kw['dnis']: p.dnis = dnis

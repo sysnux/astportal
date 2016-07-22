@@ -2,15 +2,31 @@
 
    <script type="text/javascript">
 //<![CDATA[
-      
+
+var subgrid_expanded = 0;      
 $(document).ready(function() {
    $(window).bind('resize', function() {
       $('#grid').setGridWidth($('#data').width()-10, true);
    });
-   window.setInterval(function() {
-      $('#grid').trigger("reloadGrid");
-   }, 10000);
+   window.setInterval(grid_reload, 5000);
+	$('#grid').jqGrid('setGridParam', { 
+		subGridBeforeExpand: function(e) {
+			subgrid_expanded++;
+			return true;
+		},
+		subGridRowColapsed: function(e) {
+			subgrid_expanded--;
+			grid_reload();
+			return true;
+		},
+	});
 });
+
+function grid_reload() {
+	if (!subgrid_expanded) {
+      $('#grid').trigger("reloadGrid");
+	}
+}
 
 function add(x) {
    location = 'new'
@@ -72,6 +88,14 @@ console.log(xhr);
          <input type="hidden" name="gnkey" value="0b82"/-->
          <input type="hidden" name="sid" value=""/>
       </form>
+
+      <p>
+         <input type="checkbox" id="unavailable_only" 
+            onchange="$('#grid').trigger('reloadGrid');" />
+         <label for="unavailable_only">
+            Afficher seulement les postes non connectés
+         </label>
+      </p>
 
       <div id="data">
          <!-- JQuery Grid -->

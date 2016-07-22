@@ -3,7 +3,6 @@
 import logging
 log = logging.getLogger(__name__)
 from time import time, sleep
-from os import system, popen #, rename
 from BeautifulSoup import BeautifulSoup
 from struct import pack, unpack
 import os
@@ -11,6 +10,7 @@ from urllib import urlencode
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+proxies = dict(http=None, https=None) # No HTTpoxy!
 
 from tg import config
 default_company = config.get('company')
@@ -127,28 +127,64 @@ P2382 = 0,
       self.sid = None
       self.cj = {}
 
-   def get(self, action, params=None):
+   def get(self, action, params={}):
 
       if self.type in (0, 1, 2) and params is not None:
          params['gnkey'] = '0b82' # Seems it *must* be last parameter, or update fails
       elif self.sid is not None:
          params['sid'] = self.sid
+
       for c in self.cj:
          log.debug('Cookie: %s = %s' % (c.name, c.value))
+      
+      for k, v in params.iteritems():
+          log.debug('Param "%s" => "%s"', k, v)
 
       try:
          # Try HTTPS first
-         resp = requests.get('https://' + self.host + '/' + action, params=params, verify=False)
+         resp = requests.get('https://' + self.host + '/' + action,
+                             proxies=proxies,
+                             params=params,
+                             verify=False)
       except requests.ConnectionError:
          try:
             # Then HTTP (brand new phone)
-            resp = requests.get('http://' + self.host + '/' + action, params=params)
+            resp = requests.get('http://' + self.host + '/' + action, 
+                             proxies=proxies,
+                             params=params)
          except:
-            log.warning('Request %s, params %s failed' % (\
+            log.warning('GET %s, params %s failed' % (\
                self.host + '/' + action, params))
             return None
       return resp
 
+   def post(self, action, params={}):
+
+      # Type 3 phones only
+      if self.type !=3:
+          return None
+
+      if self.sid is not None:
+         params['sid'] = self.sid
+
+      try:
+         # Try HTTPS first
+         resp = requests.post('https://' + self.host + '/' + action,
+                              proxies=proxies,
+                              data=params,
+                              verify=False)
+      except requests.ConnectionError:
+         try:
+            # Then HTTP (brand new phone)
+            resp = requests.post('http://' + self.host + '/' + action,
+                                 proxies=proxies,
+                                 data=params)
+         except:
+            log.warning('POST %s, params %s failed' % (\
+               self.host + '/' + action, params))
+            return None
+      return resp
+      
    def login(self, pwd=None):
 
       if pwd:
@@ -243,7 +279,11 @@ P2382 = 0,
             return None
 
       elif self.type == 3: # GXP-14XX 21XX new firmware
-         resp = self.get('cgi-bin/api.values.get', {'request': 'phone_model:68'})
+         resp = self.get('cgi-bin/api.values.get',
+                        {'request': 'phone_model:68', 'sid': self.sid})
+#         resp = requests.get('http://' + self.host + '/cgi-bin/api.values.get',
+#                             proxies=proxies,
+#                             params={'request': 'phone_model:68', 'sid': self.sid})
          data = resp.json()
          model = data['body']['phone_model']
          soft = data['body']['68']
@@ -266,7 +306,7 @@ P2382 = 0,
       elif self.type == 2:
          resp = self.get('cgi-bin/update', params)
       elif self.type == 3:
-         resp = self.get('cgi-bin/api.values.post', params)
+         resp = self.post('cgi-bin/api.values.post', params)
       log.debug('Update returns -> %s', resp.content)
       return resp.content
 
@@ -280,7 +320,7 @@ P2382 = 0,
       elif self.type == 2:
          resp = self.get('cgi-bin/rs')
       elif self.type == 3:
-         resp = self.get('cgi-bin/api-sys_operation', {'request': 'REBOOT'})
+         resp = self.post('cgi-bin/api-sys_operation', {'request': 'REBOOT'})
       return 'OK'
 #      # While rebooting, phone is reachable, then unreachable, then reachable again
 #      reachable = True
@@ -417,7 +457,7 @@ P2382 = 0,
 
       # Update and reboot phone
       self.update(self.params)
-      if False: #reboot:
+      if reboot:
          sleep(3)
          self.reboot()
 
