@@ -77,6 +77,9 @@ def manager_check():
        from astportal2.lib import asterisk
        Globals.asterisk = asterisk.Status()
 
+    log.error('Not connected to manager, resetting global data')
+    Globals.asterisk.reset()
+
     # Connect to manager
     try:
        man = eval(config.get('asterisk.manager'))

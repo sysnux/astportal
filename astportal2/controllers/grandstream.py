@@ -4,10 +4,12 @@ from tg import expose, request, redirect
 from tg.decorators import use_custom_format
 
 from sqlalchemy import or_
+from operator import itemgetter
 
 from astportal2.model import DBSession, Phonebook, User, Phone
 from astportal2.lib.app_globals import Globals
 from astportal2.lib.base import BaseController
+from astportal2.controllers.phonebook import phonebook_list
 
 from tg import config
 default_company = config.get('company')
@@ -16,7 +18,6 @@ default_cid = config.get('default_cid')
 import logging
 log = logging.getLogger(__name__)
 
-from time import sleep
 default_company = config.get('company')
 
 import re
@@ -80,11 +81,6 @@ def phone_details():
       ''' Try to find phone model and user from request: user agent, or ip
       '''
 
-#      if Globals.manager is not None:
-#         # Refresh Asterisk peers
-#         Globals.manager.sippeers()
-#         sleep(2) # Give time to sippeers to return data
-
       mac = model = phone = None
       try:
          m = re_model.search(request.environ['HTTP_USER_AGENT'])
@@ -130,10 +126,10 @@ class Grandstream_ctrl(BaseController):
    @expose()
    def _default(self, *args):
 
-      if request.environ['PATH_INFO'].startswith('/grandstream/phonebook/'):
+      if request.environ['PATH_INFO'].startswith('/grandstream/phonebook'):
          redirect('/grandstream/gs_phonebook')
 
-      elif request.environ['PATH_INFO'].startswith('/grandstream/screen/'):
+      elif request.environ['PATH_INFO'].startswith('/grandstream/screen'):
          redirect('/grandstream/gs_screen')
 
       else:
@@ -238,95 +234,29 @@ class Grandstream_ctrl(BaseController):
 
    @expose(content_type='text/xml; charset=utf-8')
    def gs_phonebook(self):
-      ''' Export phonebook to Grandstream XML phonebook format
-      '''
 
       phone, model = phone_details()
       log.debug('Grandstream phonebook: model "%s", phone "%s"' % (model, phone))
 
       xml = '<?xml version="1.0" encoding="utf-8"?>\n<AddressBook>\n'
 
-      # Fist, look for entries in phonebook...
-      list = DBSession.query(Phonebook). \
-         filter( or_(Phonebook.phone1!=None,
-               Phonebook.phone2!=None,
-               Phonebook.phone3!=None))
+      uid = phone.user.user_id if phone is not None and phone.user is not None \
+                               else None
 
-      # Check privacy
-      if phone is not None and phone.user is not None:
-         list = list.filter(or_(Phonebook.user_id==phone.user.user_id,
-            Phonebook.private==False))
-      else:
-         list = list.filter(Phonebook.private==False)
-
-      # Then sort
-      list = list.order_by(Phonebook.lastname, Phonebook.firstname)
-
-      total = 0
-
-      for e in list:
-         if e.phone1:
-            total +=1
-#            if model=='1200' and total >= 100:
-#               break
-            xml += '''<Contact>
+      for e in sorted(phonebook_list(uid), key = itemgetter('lastname')):
+         if not e['lastname'] and not e['firstname']:
+             continue
+         for p in (e['phone1'], e['phone2'], e['phone3']):
+             if not p:
+                 continue
+             xml += '''<Contact>
 <LastName>%s</LastName>
 <FirstName>%s</FirstName>
   <Phone>
    <phonenumber>%s</phonenumber>
    <accountindex>0</accountindex>
   </Phone>
-</Contact>''' % (e.lastname, e.firstname, e.phone1)
-
-         if e.phone2:
-            total +=1
-            if model=='1200' and total >= 100:
-               break
-            xml += '''<Contact>
-<LastName>%s</LastName>
-<FirstName>%s</FirstName>
-  <Phone>
-   <phonenumber>%s</phonenumber>
-   <accountindex>0</accountindex>
-  </Phone>
-</Contact>''' % (e.lastname, e.firstname, e.phone2)
-
-         if e.phone3:
-            total +=1
-            if model=='1200' and total >= 100:
-               break
-            xml += '''<Contact>
-<LastName>%s</LastName>
-<FirstName>%s</FirstName>
-  <Phone>
-   <phonenumber>%s</phonenumber>
-   <accountindex>0</accountindex>
-  </Phone>
-</Contact>''' % (e.lastname, e.firstname, e.phone3)
-
-
-      # ...then add users
-      list = DBSession.query(User).\
-         filter(User.phone!=None)
-      list = list.order_by(User.lastname)
-#         filter(User.phone!=None).\
-#         filter(User.display_name!='')
-#      list = list.order_by(User.display_name)
-
-      for e in list:
-         if e.phone[0].hide_from_phonebook:
-            continue
-         total +=1
-#         if model=='1200' and total >= 100:
-#            break
-         xml += '''<Contact>
-<LastName>%s</LastName>
-<FirstName>%s</FirstName>
-  <Phone>
-   <phonenumber>%s</phonenumber>
-   <accountindex>0</accountindex>
-  </Phone>
-</Contact>''' % (e.lastname, e.firstname, e.phone[0].exten)
+</Contact>''' % (e['lastname'], e['firstname'], p)
 
       xml += '</AddressBook>\n'
 

@@ -74,8 +74,10 @@ class Phone(DeclarativeBase):
    contexts = Column(Unicode(64))
    callgroups = Column(Unicode(64))
    pickupgroups = Column(Unicode(64))
+   phonebook_label = Column(Unicode(64))
    exten = Column(Unicode(16), unique=True)
    dnis = Column(Unicode(16), unique=True)
+   secretary = Column(Unicode(16))
    department_id = Column(Integer, ForeignKey('department.dptm_id'), nullable=False)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
    created = Column(DateTime, nullable=False, default=datetime.now)
@@ -83,8 +85,8 @@ class Phone(DeclarativeBase):
    user = relation('User', backref=backref('phone'))
    hide_from_phonebook = Column(Boolean(), default=False)
    fax = Column(Boolean(), default=False) # Real fax machine connected via ATA
-   block_cid_in = Column(Boolean(), default=False) # Block incoming caller id
-   block_cid_out = Column(Boolean(), default=False) # Block outgoing caller id
+   block_cid_in = Column(Boolean(), default=False) # Block caller id on incoming calls
+   block_cid_out = Column(Boolean(), default=False) # Block caller id on outgoing calls
    priority = Column(Boolean(), default=False) # This phone has priority (kill other calls if needed!)
 
 #   def __init__(self, num, did):
@@ -116,13 +118,37 @@ class View_phonebook(DeclarativeBase):
    View used to include users in phonebook.
 
    Must be manually created in the database:
-CREATE VIEW view_pb AS 
-   SELECT -phone_id as pb_id, lastname, firstname, '__COMPANY__' AS company, email_address AS email, exten AS phone1, dnis AS phone2, '' AS phone3, 'f' AS private, -1 as user_id
-   FROM phone LEFT OUTER JOIN tg_user ON phone.user_id=tg_user.user_id 
-   WHERE exten is not null AND not hide_from_phonebook
-UNION 
-   SELECT pb_id, lastname, firstname, company, email, phone1, phone2, phone3, private, user_id
-   FROM phonebook;
+CREATE VIEW view_pb as
+ SELECT - phone.phone_id AS pb_id,
+    tg_user.lastname,
+    tg_user.firstname,
+    '__COMPANY__'::text AS company,
+    tg_user.email_address AS email,
+    ''::text AS code,
+    phone.exten AS phone1,
+    phone.dnis AS phone2,
+    ''::text AS phone3,
+    false AS private,
+    '-1'::integer AS user_id,
+    phonebook_label
+   FROM phone
+     LEFT JOIN tg_user ON phone.user_id = tg_user.user_id
+  WHERE phone.exten IS NOT NULL AND not hide_from_phonebook
+UNION
+ SELECT phonebook.pb_id,
+    phonebook.lastname,
+    phonebook.firstname,
+    phonebook.company,
+    phonebook.email,
+    phonebook.code,
+    phonebook.phone1,
+    phonebook.phone2,
+    phonebook.phone3,
+    phonebook.private,
+    phonebook.user_id,
+    ''::text AS phonebook_label
+FROM phonebook;
+
    '''
    __tablename__ = 'view_pb'
    pb_id = Column(Integer, primary_key=True)
@@ -135,6 +161,7 @@ UNION
    email = Column(Unicode())
    private = Column(Boolean())
    user_id = Column(Integer)
+   phonebook_label = Column(Unicode())
 
 
 class Sound(DeclarativeBase):

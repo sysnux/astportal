@@ -444,7 +444,6 @@ class Application_ctrl(RestController):
          for s in scenario:
             sc = Scenario()
             (c, i, e, p, a, m) = s.split('::',5)
-            log.debug(c, i, e, p, a, m)
             p = (1+int(p))
             (sc.comments, sc.app_id, sc.context, sc.extension, sc.step, sc.action, 
                sc.parameters) = (c, id, i, e, p, a, m)
@@ -693,7 +692,7 @@ def generate_dialplan():
          #svi_out.write(u'exten => s,%d,%s(%s,%s)\n' % (prio, a, p, param[3]))
          svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, a, p))
          prio +=1
-         svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,1,%s)\n' % (prio, param[4], param[3]))
+         svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,,%s,1,%s)\n' % (prio, param[4], param[3]))
          (a, p) = play_or_tts(param[1][0], int(param[1][2:]))
          svi_out.write(u'exten => i_%d,1,%s(%s)\n' % (prio, a, p))
          svi_out.write(u'exten => i_%d,2,Goto(s,a_%d)\n' % (prio, tag))
@@ -719,15 +718,19 @@ def generate_dialplan():
          svi_out.write(u'exten => s,%d,GotoIf($[ 0${%s} > 3 ]?e_%d,1)\n' % (prio, cpt, tag))
          prio +=1
          (a, p) = play_or_tts(param[0][0], int(param[0][2:]))
-         # svi_out.write(u'exten => s,%d,%s(%s,%s)\n' % (prio, a, p, param[3]))
-         svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, a, p))
+         if a == 'RealSpeak':
+            svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, a, p))
+            sound_file = ''
+         else:
+            svi_out.write(u'exten => s,%d,Answer()\n' % (prio))
+            sound_file = p
          prio +=1
          if param[4]=='fixed':
-            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s)\n' % (prio,param[3],param[5]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,%s)\n' % (prio, sound_file, param[3], param[5]))
          elif param[4]=='star':
-            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,*)\n' % (prio,param[3]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,*)\n' % (prio, sound_file, param[3]))
          elif param[4]=='pound':
-            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,#)\n' % (prio,param[3]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,#)\n' % (prio, sound_file, param[3]))
          (a, p) = play_or_tts(param[1][0], int(param[1][2:]))
          svi_out.write(u'exten => i_%d,1,%s(%s)\n' % (prio,a, p))
          svi_out.write(u'exten => i_%d,2,Goto(s,a_%d)\n' % (prio,tag))
@@ -775,7 +778,12 @@ def generate_dialplan():
 #    INVALIDARGS
 
          (tel, timeout, noanswer, busy, error) = parameters.split('::')
-         svi_out.write(u'exten => s,%d,Dial(local/%s@sviout/nj,%s,g)\n' % (prio, tel, timeout))
+         tel = tel.lower()
+         if not tel.startswith('local/'):
+            tel = 'local/' + tel
+         if '@' not in tel:
+            tel += '@sviout'
+         svi_out.write(u'exten => s,%d,Dial(%s/nj,%s,g)\n' % (prio, tel, timeout))
          prio += 1
          tag = prio
          svi_out.write(u'exten => s,%d,Goto(s_%d_${DIALSTATUS},1)\n' % (tag,prio))
@@ -843,7 +851,7 @@ def generate_dialplan():
             (c,l) = if_false[2:].split(',')
             if_false = u'App_%s_%s,s,%s' % (app_id, c, l)
 
-         svi_out.write(u'exten => s,%d,GotoIf($[ ${%s} %s %s ]?%s:%s)\n' % 
+         svi_out.write(u'exten => s,%d,GotoIf($[ "${%s}" %s "%s" ]?%s:%s)\n' % 
                (prio, var, ops[ope], val, if_true, if_false))
          prio +=1
          continue
@@ -928,7 +936,7 @@ def generate_dialplan():
 
          svi_out.write(u"exten => s,%d,Gosub(holidays,s,1)\n" % (prio) )
          prio += 1
-         svi_out.write(u'exten => s,%d,GotoIf($[ ${holiday} = true ]?%s:%s)\n' % 
+         svi_out.write(u'exten => s,%d,GotoIf($[ "${holiday}" = "true" ]?%s:%s)\n' % 
                (prio, if_true, if_false))
          prio +=1
          
@@ -1030,6 +1038,10 @@ def generate_dialplan():
       elif action==24: # AGI
          app = u'AGI'
          param = u'astportal/%s' % (parameters)
+
+      elif action==25: # Say digits
+         app = u'SayDigits'
+         param = parameters
 
       else:
          m = u'Unknown action sce_id=%d, action=%d\n' % (sce_id, action)

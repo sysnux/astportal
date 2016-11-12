@@ -3,7 +3,7 @@
 
 # Script de changement des mots de passe
 
-# Import nécessaires pour utiliser le modèle
+# Imports nécessaires pour utiliser le modèle
 import transaction
 import os, sys
 import ConfigParser
@@ -36,4 +36,5 @@ except:
 
 p.user.password = passwd
 DBSession.flush()
-transaction.commit() 
+transaction.commit()
+

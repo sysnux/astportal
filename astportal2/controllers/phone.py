@@ -33,6 +33,7 @@ import logging
 log = logging.getLogger(__name__)
 
 server_sip = config.get('server.sip')
+server_sip2 = config.get('server.sip2')
 server_firmware = config.get('server.firmware')
 server_config = config.get('server.config')
 server_syslog = config.get('server.syslog')
@@ -51,8 +52,8 @@ _vendors = {
 }
 
 _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'), 
-   ('services', u'Services'), ('shortcuts', u'Raccourcis'), ('local', u'Local'),
-   ('gsm', u'GSM'), ('international', u'International'))
+   ('services', u'Services'), ('shortcuts', u'Raccourcis'), ('tahitimoorea', u'Tahiti - Moorea'),
+   ('pyf', u'Polynésie française'), ('international', u'International'))
 
 def departments():
    a = [] # [('-9999',' - - - ')]
@@ -152,6 +153,11 @@ class New_phone_form(AjaxForm):
          label_text = u"Appel prioritaire",
          validator = Bool),
 #         help_text = u"Cocher pour ne pas montrer l'identifiant des appels sortants"),
+      TextField('phonebook_label',
+         not_empty = False,
+         label_text=u'Libellé pour annuaire'), # help_text=u'Attente avant non réponse / messagerie'),
+      TextField('secretary',
+         label_text=u'Numéro secrétaire'), # help_text=u'Numéro secrétaire pour filtrage'
       HiddenField('mac',
          not_empty = False,
          validator=Int),
@@ -237,6 +243,11 @@ class Edit_phone_form(TableForm):
          label_text = u"Appel prioritaire",
          validator = StringBoolean),
 #         help_text = u"Cocher pour ne pas montrer l'identifiant des appels sortants"),
+      TextField('phonebook_label',
+         not_empty = False,
+         label_text=u'Libellé pour annuaire'), # help_text=u'Attente avant non réponse / messagerie'),
+      TextField('secretary',
+         label_text=u'Numéro secrétaire'), # help_text=u'Numéro secrétaire pour filtrage'
       HiddenField('_method', validator=None), # Needed by RestController
       HiddenField('phone_id', validator=Int),
       ]
@@ -263,7 +274,7 @@ def peer_info(sip_id=None, exten=None):
 
    ip = ua = state = None
    if peer:
-      log.debug('Peer status: %s' %Globals.asterisk.peers[tech+peer])
+      log.debug('Peer status: %s', Globals.asterisk.peers[tech+peer])
       # Peer exists, try to find User agent
       if 'UserAgent' not in Globals.asterisk.peers[tech+peer]:
          res = Globals.manager.sipshowpeer(peer)
@@ -280,8 +291,14 @@ def peer_info(sip_id=None, exten=None):
       if 'State' in Globals.asterisk.peers[tech+peer] and \
             Globals.asterisk.peers[tech+peer]['State'] is not None:
          state = Globals.asterisk.peers[tech+peer]['State']
-      
-   log.debug('peer_info %s, %s, %s', ip, ua, state)
+
+   log.debug('peer_info %s%s:%s -> %s, %s, %s', 
+              tech,
+              sip_id,
+              exten,
+              ip,
+              ua,
+              state)
    return ip, ua, state
 
 
@@ -317,15 +334,15 @@ def row(p, unavailable_only):
    if st == 'UNAVAILABLE':
       ua = '<span style="color: red;">%s</span>' % ua
       exten = '<span style="color: red;">%s</span>' % p.exten
-   elif st == 'BUSY':
-      ua = '<span style="color: orange;">%s</span>' % ua
-      exten = '<span style="color: orange;">%s</span>' % p.exten
+   elif st in ('RING', 'RINGING', 'BUSY', 'INUSE', 'ONHOLD'):
+      ua = '<span style="color: blue;">%s</span>' % ua
+      exten = '<span style="color: blue;">%s</span>' % p.exten
    elif st == 'NOT_INUSE':
       ua = '<span style="color: green;">%s</span>' % ua
       exten = '<span style="color: green;">%s</span>' % p.exten
    else:
       log.warning('Unknown phone state "%s"' % st)
-      exten = '<span style="color: blue;">%s</span>' % p.exten
+      exten = '<span style="color: orange;">%s</span>' % p.exten
 
    return [Markup(action), Markup(ua), Markup(exten), p.dnis, user , dptm]
 
@@ -405,11 +422,13 @@ class Phone_ctrl(RestController):
       Fetch data from DB, return the list of rows + total + current page
       '''
 
-      log.debug('unavailable_only="%s"', unavailable_only)
+      unavailable_only = True if unavailable_only=='true' else False
+
       fetch_contacts()
       if Globals.manager is not None:
          # Refresh Asterisk peers
-         Globals.manager.sippeers()
+         if sip_type=='sip':
+            Globals.manager.sippeers()
          Globals.manager.send_action({'Action': 'DeviceStateList'})
          Globals.manager.send_action({'Action': 'IAXpeers'})
          resp = Globals.manager.send_action({'Action': 'Command', 'Command': 'pjsip show contacts'})
@@ -477,14 +496,16 @@ class Phone_ctrl(RestController):
       total = phones.count()/rows + 1
       column = getattr(Phone, sidx)
       log.debug('sidx=%s, col=%s' % (sidx,column))
-      phones = phones.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      phones = phones.order_by(getattr(column, sord)())
+      if not unavailable_only:
+         phones = phones.offset(offset).limit(rows)
 
       data = []
       for p in phones:
-         cell = row(p, True if unavailable_only=='true' else False)
+         cell = row(p, unavailable_only)
          if cell is None:
              continue
-         data.append({ 'id'  : p.phone_id, 'cell': cell })
+         data.append({ 'id': p.phone_id, 'cell': cell })
 
       return dict(page=page, total=total, rows=data)
 
@@ -615,6 +636,7 @@ class Phone_ctrl(RestController):
       mwi_subscribe = 0
       need_voicemail_update = False
       sip_server = server_sip
+      sip_server2 = server_sip2
       sip_display_name = ''
       mwi_subscribe = 0
       if kw['user_id']!='-9999':
@@ -652,6 +674,8 @@ class Phone_ctrl(RestController):
       p.block_cid_in = True if kw['block_cid_in']==u'True' else False
       p.block_cid_out = True if kw['block_cid_out']==u'True' else False
       p.priority = True if kw['priority']==u'True' else False
+      p.phonebook_label = kw['phonebook_label'] 
+      p.secretary = kw['secretary'] 
       DBSession.add(p)
 
       asterisk_update_phone(p)
@@ -665,7 +689,8 @@ class Phone_ctrl(RestController):
             server_config + '/phones/config', server_ntp,
             server_config, '', '', '',
             sip_server, sip_id, sip_display_name, mwi_subscribe,
-            screen_url = server_config, exten=p.exten)
+            screen_url = server_config, exten=p.exten,
+            sip_server2=sip_server2)
 
          session.save()
 
@@ -695,6 +720,8 @@ class Phone_ctrl(RestController):
          'block_cid_in': p.block_cid_in,
          'block_cid_out': p.block_cid_out,
          'priority': p.priority,
+         'phonebook_label': p.phonebook_label,
+         'secretary': p.secretary,
          '_method': 'PUT'}
       if p.exten: ident = p.exten
       elif p.mac: ident = p.mac
@@ -720,7 +747,7 @@ class Phone_ctrl(RestController):
    @expose()
    def put(self, phone_id, dptm_id, user_id, exten, dnis, contexts,
          hide_from_phonebook, fax, block_cid_in, block_cid_out, priority,
-         callgroups=None, pickupgroups=None):
+         phonebook_label, secretary, callgroups=None, pickupgroups=None):
       ''' Update phone 
 
       User and exten information is independant from phone, there is no need
@@ -790,6 +817,8 @@ class Phone_ctrl(RestController):
       p.block_cid_in = block_cid_in
       p.block_cid_out = block_cid_out
       p.priority = priority
+      p.phonebook_label = phonebook_label 
+      p.secretary = secretary 
 
       asterisk_update_phone(p, old_exten, old_dnis)
 

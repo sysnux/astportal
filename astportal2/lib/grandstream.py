@@ -24,9 +24,9 @@ P2 = 'admin',
 #P51 = 1601,
 
 # No Key Entry Timeout. Default - 4 seconds.
-P85 = 2,
+P85 = 3,
 # Use # as Dial Key. 0 - no, 1 - yes
-P72 = 1,
+P72 = 0,
 # Local RTP port (1024-65535, default 5004)
 P39 = 5004,
 # Use Random Port. 0 - no, 1 - yes
@@ -36,7 +36,7 @@ P84 = 20,
 #Use RFC3581 Symmetric Routing
 P131 = 1,
 # Account 1 Ring Tone: 0=system ring tone, N=custom ring tone N
-P104 = 1,
+#P104 = 0,
 # Firmware Upgrade. 0 - TFTP Upgrade,  1 - HTTP Upgrade,  2 - HTTPS Upgrade.
 P212 = 2,
 # Firmware Server Path
@@ -100,10 +100,14 @@ P335 = 0,
 P1357 = 0,
 # Idle Screen XML Download HTTPS
 P340=3,
+# HEADSET Key Mode
+P1312=1,
 # Idle Screen XML Server Path
 # P341=172.20.6.1/grandstream/screen,
 # Download Screen XML at Boot-up Yes
 P1349=1,
+# Phonebook key -> local phonebook
+P1526=2,
 # Web Access Mode. 0 - HTTPS, 1 - HTTP. Default is 1
 P1650 = 0,
 # Enable Call Features.  0 - No, 1 - Yes. Default is 1
@@ -112,8 +116,12 @@ P191 = 0,
 #P71
 # Disable SSH. 0 - No, 1 - Yes. Default is 0
 P276 = 1,
+# Screensaver 0 - No, 1 - Yes. Default is 1
+P2918 = 0,
 # Dial Plan 0 - Disabled, 1 Enabled
 P2382 = 0,
+# Secondary SIP server
+P2312 = '',
 )
 
 
@@ -126,6 +134,7 @@ P2382 = 0,
       self.type = 0
       self.sid = None
       self.cj = {}
+      self.session = requests.Session()
 
    def get(self, action, params={}):
 
@@ -142,14 +151,14 @@ P2382 = 0,
 
       try:
          # Try HTTPS first
-         resp = requests.get('https://' + self.host + '/' + action,
+         resp = self.session.get('https://' + self.host + '/' + action,
                              proxies=proxies,
                              params=params,
                              verify=False)
       except requests.ConnectionError:
          try:
             # Then HTTP (brand new phone)
-            resp = requests.get('http://' + self.host + '/' + action, 
+            resp = self.session.get('http://' + self.host + '/' + action, 
                              proxies=proxies,
                              params=params)
          except:
@@ -169,14 +178,14 @@ P2382 = 0,
 
       try:
          # Try HTTPS first
-         resp = requests.post('https://' + self.host + '/' + action,
+         resp = self.session.post('https://' + self.host + '/' + action,
                               proxies=proxies,
                               data=params,
                               verify=False)
       except requests.ConnectionError:
          try:
             # Then HTTP (brand new phone)
-            resp = requests.post('http://' + self.host + '/' + action,
+            resp = self.session.post('http://' + self.host + '/' + action,
                                  proxies=proxies,
                                  data=params)
          except:
@@ -184,7 +193,7 @@ P2382 = 0,
                self.host + '/' + action, params))
             return None
       return resp
-      
+
    def login(self, pwd=None):
 
       if pwd:
@@ -199,7 +208,7 @@ P2382 = 0,
             if data['response'] == 'success':
                self.sid = data['body']['sid']
                self.type = 3
-               log.debug('Logged in GXP2xxx, new firmware')
+               log.debug('Logged in GXP2xxx, new firmware, sid=%s' % self.sid)
                return True
 
          except:
@@ -281,9 +290,6 @@ P2382 = 0,
       elif self.type == 3: # GXP-14XX 21XX new firmware
          resp = self.get('cgi-bin/api.values.get',
                         {'request': 'phone_model:68', 'sid': self.sid})
-#         resp = requests.get('http://' + self.host + '/cgi-bin/api.values.get',
-#                             proxies=proxies,
-#                             params={'request': 'phone_model:68', 'sid': self.sid})
          data = resp.json()
          model = data['body']['phone_model']
          soft = data['body']['68']
@@ -294,8 +300,15 @@ P2382 = 0,
       log.debug(u'Version <%s>'% soft)
 
       if model.startswith('GXP21'):
+         # Dial plan
+         self.params['P290'] = \
+            '{ x+ | *x+ | *x.# | *xx.*xx.# | *xx.*0xx.# | *xx.*xx.*xx.# | #xx.| #xx.# }'
          self.params['P334'] = 100
          self.params['P335'] = 50
+         self.params['P2380'] = 1 # Show account name only
+         self.params['P2970'] = 1 # Phonebook management Exact match
+         self.params['P2991'] = 25 # Call log on softkey 2
+         self.params['P2993'] = 'Historique' # Call log on softkey 2 
 
       return {'model': model.strip(), 'version': soft.strip()}
 
@@ -339,7 +352,8 @@ P2382 = 0,
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
-         mwi_subscribe=False, reboot=True, screen_url=None, exten=None):
+         mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
+         sip_server2=None):
       '''Parameters: firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None
       '''
@@ -378,6 +392,8 @@ P2382 = 0,
             self.params['P28']) = dns2.split('.')
 
       self.params['P270'] = default_company
+      if self.model.startswith('GXP21'):
+         self.params['P270'] += ' - ' + exten
       self.params['P99'] = 1 # XXX if mwi_subscribe else 0
       if sip_server:
          self.params['P47'] = sip_server
@@ -390,6 +406,8 @@ P2382 = 0,
          self.params['P1346'] = \
          self.params['P188'] = \
             1
+         if sip_server2 is not None:
+            self.params['P2312'] = sip_server2
       else:
          self.params['P47'] = \
          self.params['P35'] = \
@@ -405,11 +423,15 @@ P2382 = 0,
       self.params['P48'] = ''
       self.params['P78'] = ''
       self.params['P52'] = \
-      self.params['P29'] = \
       self.params['P182'] = \
       self.params['P58'] = \
          0
+#      self.params['P29'] = 0
+
+      self.params['P1402'] = 0 # Weather service
+      self.params['P1404'] = 0 # Currency service
       self.params['P33'] = '*79'
+      self.params['P29'] = 0 # Early Dial
       self.params['P73'] = 1
       self.params['P1347'] = '**' # BLF Call-pickup Prefix
       self.params['P57'] = 8
@@ -421,7 +443,7 @@ P2382 = 0,
          self.params['P143'] = 0 # No DHCP option 2
          self.params['P1379'] = 'c' # celsius degrees
          self.params['P1362'] = 'fr' # language
-         self.params['update'] = 'Mise a jour'
+#         self.params['update'] = 'Mise a jour'
 
       else: # Old GXP
          # Display Language. 0 - English, 3 - Secondary Language, 2 - Chinese
@@ -457,9 +479,9 @@ P2382 = 0,
 
       # Update and reboot phone
       self.update(self.params)
-      if reboot:
-         sleep(3)
-         self.reboot()
+#      if  reboot:
+      sleep(6)
+      self.reboot()
 
    def encode(self):
       '''Create a configuration file suitable for phone
@@ -506,7 +528,6 @@ the header and parameter strings are written to a binary file.
  
       cfg = bytearray((0,0,0,0,0,0,0,0,0,0,0,0,13,10,13,10)) # Header
       cfg[6:12] = [int(h,16) for h in self.mac.split(':')]
-      params = urlencode(self.params)
       params = urlencode(self.params)
       params += '&gnkey=0b82' # Seems it must be the *last* parameter, or update fails
       if len(params) % 2:

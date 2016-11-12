@@ -74,7 +74,6 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'type', 'friend'),
             ('Append', p.sip_id, 'host', 'dynamic'),
             ('Append', p.sip_id, 'context', p.sip_id),
-            ('Append', p.sip_id, 'allow', 'g722'),
             ]
       if p.callgroups:
          actions.append(('Append', p.sip_id, 'callgroup', p.callgroups))
@@ -83,7 +82,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       cidnum = p.dnis if p.dnis else default_dnis
       if cidname or cidnum:
          actions.append(('Append', p.sip_id, 'callerid', '%s <%s>' % (cidname,cidnum) ))
-      if p.user_id and user.email_address and p.exten:
+      if p.user_id and user.voicemail and p.exten:
          actions.append(('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten))
       # ... then really update (delete + add)
       Globals.manager.update_config(directory_asterisk  + 'sip.conf', 
@@ -105,6 +104,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'inbound_auth/username', p.sip_id),
             ('Append', p.sip_id, 'inbound_auth/password', p.password),
             ('Append', p.sip_id, 'endpoint/context', p.sip_id),
+            ('Append', p.sip_id, 'endpoint/set_var', 'GROUP()=' + p.sip_id),
             ('Append', p.sip_id, 'endpoint/language', 'fr'),
             ('Append', p.sip_id, 'endpoint/direct_media', 'no'),
             ('Append', p.sip_id, 'endpoint/aggregate_mwi', 'yes'),
@@ -120,8 +120,9 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
          actions.append(('Append', p.sip_id, 'endpoint/t38_udptl', 'yes'))
          actions.append(('Append', p.sip_id, 'endpoint/t38_udptl_ec', 'fec'))
          actions.append(('Append', p.sip_id, 'endpoint/t38_udptl_maxdatagram', 400))
-      else:
+      elif p.vendor=='Grandstream' and p.model.startswith('GXP'):
          actions.append(('Append', p.sip_id, 'endpoint/allow', 'g722'))
+      else:
          actions.append(('Append', p.sip_id, 'endpoint/allow', 'alaw'))
 
       if p.callgroups:
@@ -178,12 +179,10 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
    Globals.manager.update_config(
       directory_asterisk  + 'voicemail.conf', 
       None, [('Delete', 'astportal', old_exten)])
-   if user is not None and user.email_address is not None:
-      vm = u'>%s,%s,%s' \
-            % (user.password, cidname, user.email_address)
-      actions = [
-         ('Append', 'astportal', p.exten, vm),
-         ]
+   if user is not None and user.email_address is not None \
+         and user.voicemail and user.email_voicemail:
+      vm = u'>%s,%s,%s' % (p.exten, cidname, user.email_address)
+      actions = [ ('Append', 'astportal', p.exten, vm) ]
       res = Globals.manager.update_config(
          directory_asterisk  + 'voicemail.conf', 
          'app_voicemail', actions)
@@ -207,6 +206,8 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
          ]
       for c in p.contexts.split(','):
          actions.append(('Append', p.sip_id, 'include', '>%s' % c))
+      actions.append(('Append', p.sip_id, 'include', '>nomatch'))
+
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', None, actions)
       log.debug('Update outgoing extensions.conf returns %s' % res)
@@ -216,15 +217,15 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Delete', 'dnis', 'exten', None, 
-            '%s,1,Gosub(stdexten,%s,1)' % (old_dnis[-4:], old_exten))])
-      log.debug('Delete <%s,1,Gosub(stdexten,%s,1)> returns %s' % \
+            '%s,1,Gosub(stdexten,%s,1,fromdnis)' % (old_dnis[-4:], old_exten))])
+      log.debug('Delete <%s,1,Gosub(stdexten,%s,1,fromdnis)> returns %s' % \
             (old_dnis, p.exten, res))
 
    if p.dnis is not None:
       # Create dnis entry (extensions.conf)
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
-         None, [('Append', 'dnis', 'exten', '>%s,1,Gosub(stdexten,%s,1)' % \
+         None, [('Append', 'dnis', 'exten', '>%s,1,Gosub(stdexten,%s,1,fromdnis)' % \
                (p.dnis[-4:], p.exten) )]
       )
       log.debug('Update dnis extensions.conf returns %s' % res)
@@ -328,6 +329,9 @@ class Status(object):
    '''
 
    def __init__(self):
+      self.reset()
+
+   def reset(self):
       self.last_update = time()
       self.last_queue_update = time()
       self.peers = {}
@@ -367,16 +371,20 @@ class Status(object):
       previous_update = self.last_update
       e = event.headers['Event']
 
-      if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused', 
-            'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete', 
-            'DTMF', 'RTCPReceived', 'RTCPSent', 'ExtensionStatus', 'Dial', 
-            'MessageWaiting', 'Shutdown', 'Reload', 'JabberEvent', 'JabberStatus', 
+      if e in ('WaitEventComplete', 'QueueStatusComplete', 'QueueMemberPaused',
+            'MusicOnHold', 'PeerlistComplete', 'FullyBooted', 'StatusComplete',
+            'DTMF', 'RTCPReceived', 'RTCPSent', 'ExtensionStatus', 'Dial',
+            'MessageWaiting', 'Shutdown', 'Reload', 'JabberEvent', 'JabberStatus',
             'Registry', 'NewAccountCode', 'NewCallerid', 'Transfer', 'CEL',
             'OriginateResponse', 'Status', 'Masquerade', 'HangupRequest',
             'DialEnd', 'NewConnectedLine', 'DeviceStateListComplete',
-            'SoftHangupRequest', 'ChannelUpdate', 'LocalBridge', 'QueueCallerAbandon',
-            'ChallengeSent', 'SuccessfulAuth', 'ChallengeResponseFailed', 'InvalidAccountID',
-            'AOC-E', 'DAHDIChannel', 'JitterBufStats', 'ChannelReload'):
+            'SoftHangupRequest', 'ChannelUpdate', 'LocalBridge',
+            'ChallengeSent', 'SuccessfulAuth', 'ChallengeResponseFailed',
+            'InvalidAccountID', 'Unhold', 'BlindTransfer', 'Pickup',
+            'AOC-E', 'DAHDIChannel', 'JitterBufStats', 'ChannelReload',
+            'Hold', 'MusicOnHoldStart', 'MusicOnHoldStop',
+            'AgentComplete', 'QueueCallerLeave', 'AgentCalled', 'QueueCallerAbandon',
+            'DTMFBegin', 'DTMFEnd', 'ContactStatus'):
 #         log.debug(' * * * IGNORED %s' % str(event.headers))
          # Ignored 
          return
@@ -473,7 +481,8 @@ class Status(object):
       if src in self.channels:
          self.channels[src]['Outgoing'] = True
          self.channels[src]['LastUpdate'] = self.last_update = time()
-         self.channels[dst]['From'] = src
+         if dst in self.channels:
+            self.channels[dst]['From'] = src
       if dst in self.channels:
          self.channels[dst]['Outgoing'] = False
          self.channels[dst]['LastUpdate'] = self.last_update = time()
@@ -869,7 +878,8 @@ Count: 1
       if c in self.astp_vars:
       	del self.astp_vars[c]
 
-      del self.channels[c]
+      if c in self.channels:
+         del self.channels[c]
       self.last_update = time()
 
    def _handle_BridgeCreate(self, data):

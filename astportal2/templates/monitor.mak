@@ -10,7 +10,7 @@ var ws = null, ws_reconnect = null;
 
 $(document).ready(function() {
 	ws_connect();
-   display_tmo = setTimeout(display, 1500);
+   setTimeout(display, 1500);
 });
 
 function ws_connect() {
@@ -61,7 +61,7 @@ function list_channels(data) {
 }
 
 function display() {
-   var table = '', time = (new Date()).getTime(), tot_chan=0, tot_calls=0;
+   var table = '', time = (new Date()).getTime(), tot_chan=0, tot_calls=0, klass=0, p, duree;
    for (p in channels) {
       var c = channels[p];
 
@@ -82,7 +82,8 @@ function display() {
 			begins[p] = time - 1000 * (server_time - c['Begin']);
 
 		duree = min_sec(time-begins[p]);
-		table += '<tr class="' + ((tot_chan%2) ? 'even':'odd') + '">';
+		klass++;
+		table += '<tr class="' + ((klass % 2) ? 'even':'odd') + '">';
       if (c['Link']==undefined) { // Channel not linked
          if (c['Outgoing']) {
        		table += '<td>' + c['CallerIDName'] + ' ' + c['CallerIDNum'] + '</td>' +

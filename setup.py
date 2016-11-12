@@ -31,9 +31,9 @@ testpkgs=['WebTest >= 1.2.3',
                'repoze.who-testutil >= 1.0.1',
                ]
 install_requires=[
-    'python-dateutil>=1.5,<2.0dev',
     "TurboGears2 >= 2.3.4",
     "Genshi",
+    "beaker",
     "Mako",
     "zope.sqlalchemy >= 0.4",
     "sqlalchemy",

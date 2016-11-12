@@ -22,6 +22,7 @@ from astportal2.lib.app_globals import Markup
 from astportal2.model import DBSession, Phonebook, User, Phone, View_phonebook
 from astportal2.lib.app_globals import Globals
 from astportal2.lib.myjqgrid import MyJqGrid
+from operator import itemgetter
 
 from tg import config
 default_company = config.get('company')
@@ -29,6 +30,108 @@ default_cid = config.get('default_cid')
 
 import logging
 log = logging.getLogger(__name__)
+
+
+def phonebook_list(user_id=None, searchOper=None,  searchField=None, searchString=None):
+
+    # Fist, look for entries in phonebook...
+    pb = DBSession.query(View_phonebook) \
+                  .filter( or_(View_phonebook.phone1!=None,
+                               View_phonebook.phone2!=None,
+                               View_phonebook.phone3!=None)) \
+
+    # Check privacy
+    if user_id is not None:
+        pb = pb.filter(or_(View_phonebook.user_id==user_id,
+                               View_phonebook.private==False))
+    else:
+        pb = pb.filter(View_phonebook.private==False)
+
+    # Search?
+    if  searchOper and searchField and searchString:
+        searchString = searchString.lower()
+        log.debug('fetch query <%s> <%s> <%s>' % \
+            (searchField, searchOper, searchString))
+        try:
+            field = eval('View_phonebook.' + searchField)
+        except:
+            field = None
+            log.warning('eval: View_phonebook.' + searchField)
+        if field and searchOper=='cn':
+            pb = pb.filter(field.ilike('%' + searchString + '%'))
+        elif field and searchOper=='nc':
+            pb = pb.filter(~field.ilike('%' + searchString + '%'))
+    log.debug('pb=%s', pb)
+
+    contacts = []
+    for p in pb:
+        try:
+            l, f = p.phonebook_label.split(None, 1)
+        except:
+            l = p.phonebook_label
+            f = ''
+        if l in (None, ''):
+            f = p.firstname
+            l = p.lastname
+        contacts.append({'user_id': p.user_id,
+                 'pb_id': p.pb_id,
+                 'firstname': f,
+                 'lastname': l,
+                 'company': p.company,
+                 'phone1': p.phone1,
+                 'phone2': p.phone2,
+                 'phone3': p.phone3,
+                 'private': p.private,
+                 'email': p.email})
+
+    return contacts
+
+
+def row(pb):
+   '''Displays a formatted row of the contacts
+   Parameter: phonebook object
+   '''
+
+   if (int(pb['pb_id'])>0):
+      action =  u'<a href="'+ str(pb['pb_id']) + u'/edit" title="Modifier">'
+      action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
+      action += u'&nbsp;&nbsp;&nbsp;'
+      action += u'<a href="#" onclick="del(\'%d\',\'Suppression du contact %s %s\')" title="Supprimer">' % \
+         (pb['pb_id'], pb['firstname'].replace("'","\\'"), pb['lastname'].replace("'","\\'"))
+      action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
+      company = pb['company']
+      private = u'Oui' if pb['private'] else u'Non'
+   else:
+      action = ''
+      company = default_company
+      private = ''
+
+   uphones = request.identity['user'].phone
+   phones = []
+   if pb['phone1']:
+      if len(uphones)<1:
+         phones.append(pb['phone1'])
+      else:
+         phones.append(u'''<a href="#" onclick="originate('%s')" title="Appeler">%s</a>''' % (pb['phone1'], pb['phone1']))
+
+   if pb['phone2']:
+      if len(uphones)<1:
+         phones.append(pb['phone2'])
+      else:
+         phones.append(u'''<a href="#" onclick="originate('%s')" title="Appeler">%s</a>''' % (pb['phone2'], pb['phone2']))
+
+   if pb['phone3']:
+      if len(uphones)<1:
+         phones.append(pb['phone3'])
+      else:
+         phones.append(u'''<a href="#" onclick="originate('%s')" title="Appeler">%s</a>''' % (pb['phone3'], pb['phone3']))
+
+   email = u'<a href="mailto:%s">%s</a>' % (pb['email'], pb['email']) if pb['email'] is not None\
+      else ''
+
+   return [Markup(action), pb['firstname'], pb['lastname'], company, 
+         Markup(u', '.join(phones)), Markup(email), private]
+
 
 class New_contact_form(TableForm):
    ''' New contact form
@@ -86,53 +189,6 @@ class Edit_contact_form(TableForm):
 edit_contact_form = Edit_contact_form('edit_contact_form')
 
 
-def row(pb):
-   '''Displays a formatted row of the contacts
-   Parameter: phonebook object
-   '''
-
-   if (int(pb.pb_id)>0):
-      action =  u'<a href="'+ str(pb.pb_id) + u'/edit" title="Modifier">'
-      action += u'<img src="/images/edit.png" border="0" alt="Modifier" /></a>'
-      action += u'&nbsp;&nbsp;&nbsp;'
-      action += u'<a href="#" onclick="del(\'%d\',\'Suppression du contact %s %s\')" title="Supprimer">' % \
-         (pb.pb_id, pb.firstname.replace("'","\\'"), pb.lastname.replace("'","\\'"))
-      action += u'<img src="/images/delete.png" border="0" alt="Supprimer" /></a>'
-      company = pb.company
-      private = u'Oui' if pb.private else u'Non'
-   else:
-      action = ''
-      company = default_company
-      private = ''
-
-#   uphones = request.identity['user'].phone)
-   uphones = DBSession.query(User).get(request.identity['user'].user_id).phone
-   phones = []
-   if pb.phone1:
-      if len(uphones)<1:
-         phones.append(pb.phone1)
-      else:
-         phones.append(u'''<a href="#" onclick="originate('%s')" title="Appeler">%s</a>''' % (pb.phone1, pb.phone1))
-
-   if pb.phone2:
-      if len(uphones)<1:
-         phones.append(pb.phone2)
-      else:
-         phones.append(u'''<a href="#" onclick="originate('%s')" title="Appeler">%s</a>''' % (pb.phone2, pb.phone2))
-
-   if pb.phone3:
-      if len(uphones)<1:
-         phones.append(pb.phone3)
-      else:
-         phones.append(u'''<a href="#" onclick="originate('%s')" title="Appeler">%s</a>''' % (pb.phone3, pb.phone3))
-
-   email = u'<a href="mailto:%s">%s</a>' % (pb.email, pb.email) if pb.email is not None\
-      else ''
-
-   return [Markup(action), pb.firstname, pb.lastname, company, 
-         Markup(u', '.join(phones)), Markup(email), private]
-
-
 class Phonebook_ctrl(RestController):
    
 #   allow_only = not_anonymous( msg=u'Veuillez vous connecter pour continuer' )
@@ -153,15 +209,25 @@ class Phonebook_ctrl(RestController):
                { 'name': 'firstname', 'width': 80 },
                { 'name': 'lastname', 'width': 80 },
                { 'name': 'company', 'width': 120 },
-               { 'name': 'phones', 'width': 160, 'sortable': False },
-               { 'name': 'email', 'width': 160,  },
-               { 'name': 'private', 'width': 40,  },
+               { 'name': 'phones', 'width': 160, 'search': False, 'sortable': False },
+               { 'name': 'email', 'width': 160 },
+               { 'name': 'private', 'width': 40, 'search': False },
             ],
             sortname = 'lastname',
             navbuttons_options = {'view': False, 'edit': False, 'add': True,
                'del': False, 'search': True, 'refresh': True, 
                'addfunc': js_callback('add'),
-               }
+               },
+            search_options = {
+                'caption': "Rechercher...",
+                'Find': "Chercher",
+                'Reset': "RAZ",
+                'sopt': ['cn', 'nc'],
+                'odata' : ['equal', 'not equal', 'less', 'less or equal','greater','greater or equal', 'begins with','does not begin with','is in','is not in','ends with','does not end with','contient','ne contient pas'],
+                'groupOps': [ {'op': "AND", 'text': "all"}, {'op': "OR", 'text': "any"} ],
+                'matchText': " match",
+                'rulesText': " rules"
+                },
             )
       tmpl_context.grid = grid
       tmpl_context.form = None
@@ -194,52 +260,14 @@ class Phonebook_ctrl(RestController):
          page = 1
          rows = 25
 
-      book = DBSession.query(View_phonebook)
-      book = book.filter(or_(View_phonebook.private==False, 
-         View_phonebook.user_id==request.identity['user'].user_id))
-      if  searchOper and searchField and searchString:
-         searchString = searchString.lower()
-         log.debug('fetch query <%s> <%s> <%s>' % \
-            (searchField, searchOper, searchString))
-         try:
-            field = eval('View_phonebook.' + searchField)
-         except:
-            field = None
-            log.error('eval: View_phonebook.' + searchField)
-         if field and searchOper=='eq': 
-            book = book.filter(func.lower(field)==searchString)
-         elif field and searchOper=='ne':
-            book = book.filter(field!=searchString)
-         elif field and searchOper=='le':
-            book = book.filter(field<=searchString)
-         elif field and searchOper=='lt':
-            book = book.filter(field<searchString)
-         elif field and searchOper=='ge':
-            book = book.filter(field>=searchString)
-         elif field and searchOper=='gt':
-            book = book.filter(field>searchString)
-         elif field and searchOper=='bw':
-            book = book.filter(field.ilike(searchString + '%'))
-         elif field and searchOper=='bn':
-            book = book.filter(~field.ilike(searchString + '%'))
-         elif field and searchOper=='ew':
-            book = book.filter(field.ilike('%' + searchString))
-         elif field and searchOper=='en':
-            book = book.filter(~field.ilike('%' + searchString))
-         elif field and searchOper=='cn':
-            book = book.filter(field.ilike('%' + searchString + '%'))
-         elif field and searchOper=='nc':
-            book = book.filter(~field.ilike('%' + searchString + '%'))
-         elif field and searchOper=='in':
-            book = book.filter(field.in_(str(searchString.split(' '))))
-         elif field and searchOper=='ni':
-            book = book.filter(~field.in_(str(searchString.split(' '))))
-         log.debug(book)
-
-      total = book.count()/rows + 1
-      column = getattr(View_phonebook, sidx)
-      book = book.order_by(getattr(column,sord)()).offset(offset).limit(rows)
-      data = [ { 'id'  : b.pb_id, 'cell': row(b) } for b in book ]
+      pb = sorted(phonebook_list(request.identity['user'].user_id,
+                         searchOper,
+                         searchField,
+                         searchString),
+                  key = itemgetter(sidx),
+                  reverse = True if sord=='desc' else False)
+      total = len(pb)/rows+1
+      data = [ { 'id'  : b['pb_id'], 'cell': row(b) } for b in pb[offset:offset+rows] ]
 
       return dict(page=page, total=total, rows=data)
 
@@ -375,30 +403,27 @@ class Phonebook_ctrl(RestController):
          'Téléphone 1', 'Téléphone 2', 'Téléphone 3'])
 
       # Add data lines
-      for b in DBSession.query(View_phonebook). \
-            filter(or_(View_phonebook.private==False, 
-               View_phonebook.user_id==request.identity['user'].user_id)). \
-            all():
-         log.debug(u'db=%s' % [b.lastname, b.firstname, b.company, b.email, 
-            b.phone1, b.phone2, b.phone3])
-         lastname = unicode(b.lastname).encode('utf-8') \
-               if b.lastname else ''
-         firstname = unicode(b.firstname).encode('utf-8') \
-               if b.firstname else ''
-         if b.company == u'__COMPANY__':
+      for b in sorted(phonebook_list(request.identity['user'].user_id),
+                      key = itemgetter('lastname')):
+
+         lastname = unicode(b['lastname']).encode('utf-8') \
+               if b['lastname'] else ''
+         firstname = unicode(b['firstname']).encode('utf-8') \
+               if b['firstname'] else ''
+         if b['company'] == u'__COMPANY__':
             company = unicode(default_company).encode('utf-8')
-         elif b.company is not None:
-            company = unicode(b.company).encode('utf-8')
+         elif b['company'] is not None:
+            company = unicode(b['company']).encode('utf-8')
          else:
             company = ''
-         email = unicode(b.email).encode('utf-8') \
-               if b.email else ''
-         phone1 = unicode(b.phone1).encode('utf-8') \
-               if b.phone1 else ''
-         phone2 = unicode(b.phone2).encode('utf-8') \
-               if b.phone2 else ''
-         phone3 = unicode(b.phone3).encode('utf-8') \
-               if b.phone3 else ''
+         email = unicode(b['email']).encode('utf-8') \
+               if b['email'] else ''
+         phone1 = unicode(b['phone1']).encode('utf-8') \
+               if b['phone1'] else ''
+         phone2 = unicode(b['phone2']).encode('utf-8') \
+               if b['phone2'] else ''
+         phone3 = unicode(b['phone3']).encode('utf-8') \
+               if b['phone3'] else ''
          writer.writerow([lastname, firstname, company, email, 
             phone1, phone2, phone3])
 
@@ -412,5 +437,4 @@ class Phonebook_ctrl(RestController):
       rh['Cache-control'] = 'max-age=0' #for IE
 
       return csvdata.getvalue()
-
 

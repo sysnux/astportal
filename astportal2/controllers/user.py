@@ -36,9 +36,12 @@ sip_type = config.get('asterisk.sip', 'sip')
 if sip_type=='pjsip':
    sip_file = dir_ast + 'pjsip_wizard.conf'
    sip_chan = 'chan_pjsip'
+   mailbox = 'aor/mailboxes'
 else:
+   sip_type = 'sip'
    sip_file = dir_ast + 'sip.conf'
    sip_chan = 'chan_sip'
+   mailbox = 'mailbox'
 
 # Common fields for user form, used by admin or not
 common_fields = [
@@ -76,6 +79,9 @@ admin_form_fields = [
    TextField('email_address', validator=Email,
       label_text=u'Adresse email',
       help_text=u'Entrez l\'adresse email de l\'utisateur'),
+#   TextField('over', validator=None,
+#      label_text=u'Code autorisation personnel',
+#      help_text=u'Entrez le code d\'autorisation personnel'),
    BooleanRadioButtonList('fax',
       options = [ (False, u'Non'), (True, u'Oui')],
       default = True,
@@ -329,8 +335,12 @@ class User_ctrl(RestController):
       u.password = pwd1
       u.display_name = u.lastname + ' ' + u.firstname
       u.ascii_name = asterisk_string(u.display_name)
+      over = kw.get('over')
+      if over is not None:
+         Globals.manager.send_action({'Action': 'DBput',
+            'Family': 'over', 'Key': over, 'Val': 'context'})
 
-      if 'groups' in kw.keys():
+      if 'groups' in kw:
          u.groups = DBSession.query(Group).\
                filter(Group.group_id.in_(kw['groups'])).all()
 
@@ -431,40 +441,37 @@ class User_ctrl(RestController):
                'Family': 'fax_reject', 'Key': p.exten, 'Val': 1})
 
          # Update voicemail
+         # First, delete existing voicemail entry
+         Globals.manager.update_config(
+            dir_ast  + 'voicemail.conf', 
+            None, [('Delete', 'astportal', p.exten)])
+         rmtree('%s/%s' % (dir_vm, p.exten), True)
+         log.info('Delete voicemail directory %s/%s' % (dir_vm, p.exten))
+         res = Globals.manager.update_config(
+            sip_file, sip_chan, [('Delete', p.sip_id, mailbox)])
+         log.debug('Update SIP (delete mb) returns %s' % res)
+
          if u.voicemail:
+            # Then, add new voicemail
             vm = u'>%s,%s,%s' \
                % (u.password, u.ascii_name, u.email_address if u.email_voicemail else '')
-            actions = [
-               ('Append', 'astportal', p.exten, vm),
-            ]
-            Globals.manager.update_config(
-               dir_ast  + 'voicemail.conf', 
-               None, [('Delete', 'astportal', p.exten)])
-            rmtree('%s/%s' % (dir_vm, p.exten), True)
-            log.info('Delete voicemail directory %s/%s' % (dir_vm, p.exten))
             res = Globals.manager.update_config(
                dir_ast  + 'voicemail.conf', 
-               'app_voicemail', actions)
+               'app_voicemail', [('Append', 'astportal', p.exten, vm)])
             log.debug('Update voicemail.conf returns %s' % res)
 
-            Globals.manager.send_action({'Action': 'Command',
-               'command': 'voicemail reload'})
 
             res = Globals.manager.update_config(
-               sip_file, 'app_voicemail', actions)
-
-            actions = [('Delete', p.sip_id, 'mailbox')]
-            res = Globals.manager.update_config(
-               sip_file, sip_chan, actions)
-            log.debug('Update SIP (delete) returns %s' % res)
-
-            actions = [('Append', p.sip_id, 'mailbox', '%s@astportal' % p.exten)]
-            res = Globals.manager.update_config(
-               sip_file, sip_chan, actions)
+               sip_file, sip_chan, 
+               [('Append', p.sip_id, mailbox, '%s@astportal' % p.exten)]
+               )
             log.debug('Update SIP (append) returns %s' % res)
 
-            Globals.manager.send_action({'Action': 'Command',
-               'command': 'sip reload'})
+         # Last, reload Asterisk
+         Globals.manager.send_action({'Action': 'Command',
+               'command': 'voicemail reload'})
+         Globals.manager.send_action({'Action': 'Command',
+               'command': sip_type + ' reload' })
 
       if kw.has_key('user_name'): # Modification par administrateur
          u.user_name = kw['user_name']

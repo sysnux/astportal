@@ -15,8 +15,9 @@
 
 $(document).ready( function() {
    $('#record').click(function () {
-      console.log("${tg.url('../record_by_phone')}");
-      $.post("${tg.url('../record_by_phone')}");
+      console.log("${tg.url('../record_by_phone')}", $('#record').is(':checked'));
+		if ($('#record').is(':checked'))
+	      $.post("${tg.url('../record_by_phone')}");
    });
 });
 

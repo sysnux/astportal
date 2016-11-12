@@ -363,7 +363,7 @@ function valid_action() {
          break;
 
       case 13: // Variable
-         var name = $("#13_name").val().replace(/[^()\w]/g, '_');
+         var name = $("#13_name").val(); // Variable can be eg. DB(lock/X{CHANNEL:-17:8}) .replace(/[^()\w]/g, '_');
          var value = $("#13_predefined").val();
          if (value==-1) {
             // XXX nettoyage valeur
@@ -415,6 +415,10 @@ function valid_action() {
 
       case 24: // AGI
          param = $("#24_script").val();
+         break;
+
+      case 25: // SayDigits
+         param = $("#25_saydigits").val();
          break;
 
       case -1:
@@ -664,6 +668,11 @@ function display(redraw) {
             break;
 
          case 24: // AGI
+            act = actions_by_id[app];
+            par = scenario[r].parameters;
+            break;
+
+         case 25: // Say digits
             act = actions_by_id[app];
             par = scenario[r].parameters;
             break;
@@ -1548,6 +1557,12 @@ function update_canvas() {
    <div id="action_params_24" style="display: none">
       Entrez le nom du programme à exécuter
       <input type="text" id="24_script"/>
+   </div>
+
+   <!-- SayDigits: 25 -->
+   <div id="action_params_25" style="display: none">
+      Entrez les chiffres à énoncer
+      <input type="text" id="25_saydigits"/>
    </div>
 
    <div>
