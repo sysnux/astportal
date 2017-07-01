@@ -80,9 +80,11 @@ class Phone(DeclarativeBase):
    secretary = Column(Unicode(16))
    department_id = Column(Integer, ForeignKey('department.dptm_id'), nullable=False)
    user_id = Column(Integer, ForeignKey('tg_user.user_id'))
+   ringtone_id = Column(Integer, ForeignKey('ringtone.ringtone_id'))
    created = Column(DateTime, nullable=False, default=datetime.now)
    department = relation('Department', backref=backref('phones', order_by=exten))
    user = relation('User', backref=backref('phone'))
+   ringtone = relation('Ringtone', backref=backref('phones',  order_by=exten))
    hide_from_phonebook = Column(Boolean(), default=False)
    fax = Column(Boolean(), default=False) # Real fax machine connected via ATA
    block_cid_in = Column(Boolean(), default=False) # Block caller id on incoming calls
@@ -124,7 +126,6 @@ CREATE VIEW view_pb as
     tg_user.firstname,
     '__COMPANY__'::text AS company,
     tg_user.email_address AS email,
-    ''::text AS code,
     phone.exten AS phone1,
     phone.dnis AS phone2,
     ''::text AS phone3,
@@ -140,7 +141,6 @@ UNION
     phonebook.firstname,
     phonebook.company,
     phonebook.email,
-    phonebook.code,
     phonebook.phone1,
     phonebook.phone2,
     phonebook.phone3,
@@ -484,5 +484,14 @@ class Shortcut(DeclarativeBase):
    def __repr__(self):
       return '<Shortcut: %s -> %s comment="%s">' % (
             self.exten, self.number, self.comment)
+
+
+class Ringtone(DeclarativeBase):
+   ''' Definition of ringtones
+   '''
+   __tablename__ = 'ringtone'
+   ringtone_id = Column(Integer, Sequence('ringtone_seq'), primary_key=True)
+   name = Column(Unicode(), nullable=False, unique=True)
+   file = Column(Unicode(), nullable=False, unique=True)
 
 

@@ -29,6 +29,7 @@ from astportal2.lib.app_globals import Globals
 dir_tmp = config.get('directory.tmp')
 dir_moh = config.get('directory.moh')
 dir_sounds = config.get('directory.sounds')
+dir_ringtones = config.get('directory.tftp') + 'phones/firmware'
 sip_type = 'SIP' if config.get('asterisk.sip', 'sip')=='sip' else 'PJSIP'
 
 # Language can be set via Asterisk dialplan: Set(CHANNEL(language)=en)
@@ -58,7 +59,8 @@ new_sound_fields = [
       label_text=u'Commentaires', help_text=u'Description du son' ),
    RadioButtonList('type', validator=NotEmpty,
       options=(('sound', u'message sonore'), 
-         ('moh', u'musique d\'attente')),
+               ('moh', u'musique d\'attente'),
+               ('ringtone', u'Sonnerie Grandstream')),
       label_text=u'Type de son'),
    RadioButtonList('lang', validator=NotEmpty,
       options=languages, default='fr',
@@ -90,6 +92,22 @@ def process_file(filename, filetype, id, type, name, lang):
       if filetype.split('/')[0]!='audio':
          return u'Le fichier doit être de type son !'
 
+      if type == 2:
+          # Ringtone
+          final = '%s/%s.ring' % (dir_ringtones, re.sub(r'\W', '_', name))
+          soxgs = config.get('command.soxgs') % (filename, final)
+          log.debug('soxgs command: <%s>' % soxgs)
+          ret = system(soxgs)
+          if ret:
+              return u"Erreur lors de la conversion, le son n'a pas été ajouté !"
+          try:
+              # remove uploaded file
+              unlink(filename)
+          except:
+              pass
+          return None
+
+      # Sound or music on hold
       dir_dst = (dir_moh if type==0 else dir_sounds) % lang
       final8 = '%s/%s.sln' % (dir_dst, re.sub(r'\W', '_', name))
       final16 = '%s/%s.sln16' % (dir_dst, re.sub(r'\W', '_', name))
@@ -105,7 +123,7 @@ def process_file(filename, filetype, id, type, name, lang):
       if ret8 or ret16:
          log.error('executing <%s> returns <%d>' % (sox8, ret8))
          log.error('executing <%s> returns <%d>' % (sox16, ret16))
-         return u"Erreur lors de la conversion WAV, le son n'a pas été ajouté !"
+         return u"Erreur lors de la conversion, le son n'a pas été ajouté !"
 
       else:
          try:
@@ -145,7 +163,12 @@ def row(s):
    listen += u'''&nbsp;&nbsp;&nbsp;<a href="/moh/listen?id=%s"><img src="/images/sound_section.png" title="&Eacute;couter"></a>''' % \
          s.sound_id
 
-   type = u'Son' if s.type==1 else u'Musique d\'attente'
+   if s.type == 0:
+       type = u'Musique d\'attente'
+   elif s.type == 2:
+       type = u'Sonnerie Grandstream'
+   else:
+       type = u'Son'
 
    return [Markup(action), type, s.language, s.name, s.comment , Markup(listen) ]
 
@@ -237,7 +260,12 @@ class MOH_ctrl(RestController):
       '''
       s = Sound()
       s.name = kw['name']
-      s.type = 0 if kw['type']=='moh' else 1
+      if kw['type'] == 'moh':
+          s.type = 0
+      elif kw['type'] == 'ringtone':
+          s.type = 2
+      else:
+          s.type = 1
       s.comment = kw['comment']
       s.language = kw['lang']
       if 'owner_id' in kw.keys():

@@ -18,6 +18,7 @@ class MyJqGrid(JqGrid):
 #   altrows: true
    altRows = True
    gridview = True # Faster but has limitations
+   subGridWidth = 20
    navbuttons_options = {'view': False, 'edit': False, 'add': False,
       'del': False, 'search': False, 'refresh': True, 
 #'afterRefresh': js_callback('alert("afterRefresh")'),

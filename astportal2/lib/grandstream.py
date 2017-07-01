@@ -6,6 +6,8 @@ from time import time, sleep
 from BeautifulSoup import BeautifulSoup
 from struct import pack, unpack
 import os
+import re
+from collections import defaultdict
 from urllib import urlencode
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -39,6 +41,8 @@ P131 = 1,
 #P104 = 0,
 # Firmware Upgrade. 0 - TFTP Upgrade,  1 - HTTP Upgrade,  2 - HTTPS Upgrade.
 P212 = 2,
+# Publish presence (not supported by *, generates traffic)
+P188 = 0,
 # Firmware Server Path
 P192 = '',
 # Config Server Path
@@ -155,7 +159,7 @@ P2312 = '',
                              proxies=proxies,
                              params=params,
                              verify=False)
-      except requests.ConnectionError:
+      except:
          try:
             # Then HTTP (brand new phone)
             resp = self.session.get('http://' + self.host + '/' + action, 
@@ -182,7 +186,7 @@ P2312 = '',
                               proxies=proxies,
                               data=params,
                               verify=False)
-      except requests.ConnectionError:
+      except:
          try:
             # Then HTTP (brand new phone)
             resp = self.session.post('http://' + self.host + '/' + action,
@@ -238,6 +242,13 @@ P2312 = '',
 
       log.warning('Login failed (check password? %s)', pwd)
       return False
+
+   def logout(self):
+      if self.type == 3: # GXP-14XX 21XX new firmware
+          resp = self.get('cgi-bin/dologout')
+          log.info('logout returns %s', resp)
+      else:
+          log.warnin('logout not implemented for type %s', self.type)
 
    def infos(self):
 
@@ -299,17 +310,6 @@ P2312 = '',
       log.debug(u'Model <%s>'% model)
       log.debug(u'Version <%s>'% soft)
 
-      if model.startswith('GXP21'):
-         # Dial plan
-         self.params['P290'] = \
-            '{ x+ | *x+ | *x.# | *xx.*xx.# | *xx.*0xx.# | *xx.*xx.*xx.# | #xx.| #xx.# }'
-         self.params['P334'] = 100
-         self.params['P335'] = 50
-         self.params['P2380'] = 1 # Show account name only
-         self.params['P2970'] = 1 # Phonebook management Exact match
-         self.params['P2991'] = 25 # Call log on softkey 2
-         self.params['P2993'] = 'Historique' # Call log on softkey 2 
-
       return {'model': model.strip(), 'version': soft.strip()}
 
    def update(self, params):
@@ -353,9 +353,9 @@ P2312 = '',
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
          mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
-         sip_server2=None):
+         sip_server2=None, secretary=None, ringtone=None):
       '''Parameters: firmware_url, config_url, ntp_server,
-         phonebook_url=None, syslog_server=None
+         phonebook_url=None, syslog_server=None, ...
       '''
 
       mac = self.mac.replace(':','')
@@ -369,12 +369,28 @@ P2312 = '',
       self.params['P2'] = pwd
       if not os.path.isdir('%s/%s' % (tftp, mac)):
          os.mkdir('%s/%s' % (tftp, mac))
+      try:
+         os.unlink('%s/%s/ring1.bin' % (tftp, mac))
+      except:
+         pass
+      if ringtone is not None:
+         try:
+            ringtone = re.sub(r'\W', '_', ringtone)
+            os.symlink('../%s.ring' % ringtone, '%s/%s/ring1.bin' % (tftp, mac))
+            self.params['P104'] = 1
+         except:
+            pass # XXX OSError: [Errno 17] Le fichier existe
       for f in os.listdir(tftp):
-         if os.path.isdir('%s/%s' % (tftp, f)): continue
+         if os.path.isdir('%s/%s' % (tftp, f)):
+            continue
+         if f.endswith('.ring'):
+            # Granstream ringtone
+            continue
          try:
             os.symlink('../%s' % f, '%s/%s/%s' % (tftp, mac, f))
          except:
             pass # XXX OSError: [Errno 17] Le fichier existe
+
       self.params['P192'] = '%s/%s' % (firmware_url, mac)
       self.params['P237'] = config_url
       self.params['P331'] = phonebook_url + '/grandstream/phonebook'
@@ -404,7 +420,6 @@ P2312 = '',
          self.params['P31'] = \
          self.params['P81'] = \
          self.params['P1346'] = \
-         self.params['P188'] = \
             1
          if sip_server2 is not None:
             self.params['P2312'] = sip_server2
@@ -418,7 +433,6 @@ P2312 = '',
          self.params['P31'] = \
          self.params['P81'] = \
          self.params['P1346'] = \
-         self.params['P188'] = \
             0
       self.params['P48'] = ''
       self.params['P78'] = ''
@@ -455,6 +469,31 @@ P2312 = '',
          self.params['P340'] = 1 # HTTP Idle Screen XML Download
          self.params['P212'] = 0 # HTTP Firmware Upgrade
 
+      if self.model.startswith('GXP21'):
+         # Dial plan
+         self.params['P290'] = \
+            '{ x+ | *x+ | *x.# | *xx.*xx.# | *xx.*0xx.# | *xx.*xx.*xx.# | #xx.| #xx.# }'
+         self.params['P334'] = 100
+         self.params['P335'] = 50
+         self.params['P2380'] = 1 # Show account name only
+         self.params['P2970'] = 1 # Phonebook management Exact match
+         self.params['P2991'] = 25 # Call log on softkey 1
+         self.params['P2993'] = 'Historique' # History on softkey 3
+         self.params['P8345'] = 0 # Show Label Background
+         self.params['P8346'] = 1 # Use Long Label
+         self.params['P2916'] = 1 # Wallpaper Source: Download
+         self.params['P2917'] = 'https://' + config_url + '/logo60.jpg' # Wallpaper Server Path
+
+      if self.model.startswith('GXP21') and secretary:
+         # Filtrage secrétaire
+         self.params['P1365'] = 11
+         self.params['P1366'] = 0
+         self.params['P1467'] = 'Secrétariat'
+         self.params['P1468'] = secretary
+         self.params['P2987'] = 10
+         self.params['P2989'] = 'Filtrage'
+         self.params['P2990'] = '*21*%s#' % secretary
+
       # Generate conf files (text and binary)
       name = tftp_dir + '/phones/config/cfg%s' % self.mac.replace(':','')
       try:
@@ -477,9 +516,8 @@ P2312 = '',
       except:
          log.error('ERROR: write binary config file')
 
-      # Update and reboot phone
-      self.update(self.params)
-#      if  reboot:
+      # Update config URL and reboot phone
+      self.update({'P212': 2, 'P237': config_url, 'sid': self.sid}) # self.params)
       sleep(6)
       self.reboot()
 
@@ -547,4 +585,234 @@ the header and parameter strings are written to a binary file.
          sum &= 0xFFFF
       sum = 0x10000 - sum
       return (sum >> 8, sum & 0xFF)
+
+   def notify(self, phone):
+      log.info('Notify phone %s @%s', phone.sip_id, self.host)
+
+      if phone.model.startswith('GXP'):
+         gxp_actions.put_nowait((phone, self.host))
+         gxp_in_actions_queue.append(phone)
+         for p in DBSession.query(Phone) \
+                           .filter(Phone.phone_id!=phone.phone_id) \
+                           .filter(or_(Phone.secretary==phone.exten,
+                                       Phone.exten==phone.secretary)):
+            if p in gxp_in_actions_queue:
+                continue
+            log.info('%s => boss or secretary %s', phone, p)
+            peer = 'PJSIP/' + p.sip_id
+            if 'Address' in Globals.asterisk.peers[peer] and \
+               Globals.asterisk.peers[peer]['Address'] is not None:
+               ip = (Globals.asterisk.peers[peer]['Address']).split(':')[0]
+            else:
+               log.error('Phone %s, no IP address!', p.phone_id)
+               return
+            if p.vendor == 'Grandstream':
+               gs = Grandstream(ip, p.mac)
+               gs.notify(p)
+
+      else:
+         # Send SIP notify to refresh screen XXX
+         log.error('NOTIFY NOT IMPLEMENTED for %s!', phone.model)
+
+
+   def update_screen(self, phone, ip):
+
+      log.info('update_screen %s @%s', phone, ip)
+
+      # Leave import here to avoid circular import troubles
+      from astportal2.controllers.grandstream import check_call_forwards
+
+      # Update all secretaries
+      secretaries = defaultdict(list)
+      for boss in DBSession.query(Phone) \
+                        .filter(Phone.secretary != None) \
+                        .order_by(Phone.exten):
+         if boss.secretary.startswith('g('):
+            # The secretary is a queue, we must look for phones of 
+            # indivdual members in this queue
+            q, n = boss.secretary[2:-1].split(',')
+            for m in Globals.asterisk.queues[q]['Members']:
+               sip = Globals.asterisk.members[m]['Location'][-8:]
+               p = DBSession.query(Phone) \
+                             .filter(Phone.sip_id == sip) \
+                             .one()
+               secretaries[p].append(boss)
+               log.info('Added secretary %s from queue "%s" for boss %s',
+                         p, q, boss)
+         else:
+            p = DBSession.query(Phone) \
+                             .filter(Phone.exten == boss.secretary) \
+                             .one()
+            secretaries[p].append(boss)
+            log.info('Added secretary %s from exten "%s" for boss %s',
+                     p, boss.secretary, boss)
+
+      log.info('Secretaries %s', secretaries)
+      for secretary, bosses in secretaries.iteritems():
+         log.info('Updating secretary %s for bosses %s', secretary, bosses)
+         params = {}
+         i = 0
+         for boss in bosses:
+             # This GXP belongs to a secretary, configure keys on extension
+             cfs_out, cfs_in, dnd = check_call_forwards(boss)
+             log.info('boss %s cfs_in=%s cf_out=%s', boss, cfs_in, cfs_out)
+             desc = boss.user.display_name if boss.user else boss.exten
+             # First key is BLF
+             params['P23%03d' % (5*i)] = 1 # Mode BLF
+             params['P23%03d' % (5*i+2)] = desc # Description
+             params['P23%03d' % (5*i+3)] = boss.exten # Description
+             i += 1 # Next key is direct call
+             params['P23%03d' % (5*i)] = 0 # Mode Speed Dial
+             params['P23%03d' % (5*i+2)] = 'Direct ' # + desc # Description
+             params['P23%03d' % (5*i+3)] = 'DIR' + boss.exten # Value
+             i += 1 # Next key is enable / disable filtering
+             params['P23%03d' % (5*i)] = 0 # Mode Speed Dial
+             if cfs_out:
+                params['P23%03d' % (5*i+2)] = 'Filtré !' # + desc # Description
+                params['P23%03d' % (5*i+3)] = '*70' + boss.exten # Value annulation renvoi autre poste
+             else:
+                params['P23%03d' % (5*i+2)] = 'Filtrage' # + desc # Description
+                if boss.secretary.startswith('g('):
+                   forward = '*72' + boss.exten + boss.secretary[2:-1].split(',')[1]
+                else:
+                   forward = '*71' + boss.exten
+                params['P23%03d' % (5*i+3)] = forward  # *71 : renvoi immédiat d'un autre poste vers celui-ci
+             i += 2 # One blank key
+
+         peer = 'PJSIP/' + secretary.sip_id
+         if 'Address' in Globals.asterisk.peers[peer] and \
+               Globals.asterisk.peers[peer]['Address'] is not None:
+               ip = (Globals.asterisk.peers[peer]['Address']).split(':')[0]
+         else:
+               log.error('Phone %s, no IP address!', secretary.phone_id)
+               continue
+
+         if secretary.vendor != 'Grandstream':
+             continue
+
+         gs = Grandstream(ip, secretary.mac)
+         if gs.login(secretary.password):
+
+             infos = gs.infos()
+             if not infos['model'].startswith('GXP21'):
+                 log.error('Found unknown phone (%s), cancel', infos)
+                 continue
+
+             ret = gs.post('cgi-bin/api.values.post', params)
+             if not ret.ok:
+                 log.error('Configuration returns %s', ret)
+
+             try:
+                 result = json.loads(ret.text.split('\r\n')[-1])
+             except:
+                 log.error('JSON \n%s\n%s', ret.text)
+
+             if result['response'] != 'success':
+                 log.error('Respons %s', ret.text)
+                 if infos['model'] != secretary.model:
+                      log.warning('Update phone model "%s" for %s', infos['model'], secretary)
+                      secretary.model = infos['model']
+             gs.logout()
+
+         else:
+              log.error('Login failed %s', secretary)
+      # End for secretary
+
+      # Now update the actual phone
+      if phone.model == 'GXP1165':
+         # Send SIP notify to refresh screen
+         Globals.manager.send_action({'Action': 'PJSIPNotify', 
+                                      'Endpoint': phone.sip_id,
+                                      'Variable': 'Event=x-gs-screen'})
+         log.info('Sent SIP NOTIFY to GXP1165 %s!', phone.phone_id)
+
+      else:
+          if not self.login(phone.password):
+              log.error('Login failed %s', phone)
+              return
+
+          infos = self.infos()
+          if not infos['model'].startswith('GXP'):
+             log.error('Found unknown phone (%s), cancel', infos)
+             return
+
+          params = {}
+          if phone.secretary:
+             # GXP belongs to a boss, configure filtering
+             if phone.secretary.startswith('g('):
+                sec = phone.secretary.split(',')[1][:-1]
+                params['P1365'] = 10 # Speed dial
+             else:
+                sec = phone.secretary
+                params['P1365'] = 11 # BLF
+             cfs_out, cfs_in, dnd = check_call_forwards(phone)
+             params['P1366'] = 0
+             params['P1467'] = u'Secrétariat'
+             params['P1468'] = sec
+
+             if 'CFIM' in [x[0] for x in cfs_out]:
+                params['P2987'] = 10
+                params['P2989'] = u'Filtré !'
+                params['P2990'] = u'#21#'
+             else:
+                params['P2987'] = 10
+                params['P2989'] = u'Filtrage'
+                params['P2990'] = u'*21*%s#' % sec
+ 
+             ret = self.post('cgi-bin/api.values.post', params)
+             if not ret.ok:
+                 log.error('Configuration returns %s', ret)
+
+             try:
+                 result = json.loads(ret.text.split('\r\n')[-1])
+             except:
+                 log.error('JSON \n%s\n%s', ret.text)
+
+             if result['response'] != 'success':
+                 log.error('Respons %s', ret.text)
+                 if infos['model'] != phone.model:
+                      log.warning('Update phone model "%s" for %s',
+                                  infos['model'], phone)
+                      phone.model = infos['model']
+
+             self.logout()
+
+      log.info('Screen updated for %s', phone)
+       
+
+from astportal2.lib.app_globals import Globals
+from astportal2.model import DBSession, Phone
+from sqlalchemy import or_
+from Queue import Queue
+import json
+# Queue of actions tuples (Phone, ip_addr) to signal GXP phones
+gxp_actions = Queue()
+gxp_in_actions_queue = []
+
+def do_gxp_actions():
+   '''
+   Called from scheduler (lib/app_globals)
+   '''
+
+   busy = [chan[-17:-9] for chan in Globals.asterisk.channels.keys()]
+   requeue = []
+
+   while not gxp_actions.empty():
+      phone, ip = gxp_actions.get_nowait()
+      gxp_in_actions_queue.remove(phone)
+
+      if phone.sip_id in busy:
+         requeue.append((phone, ip))
+         continue
+
+      log.info('gxp_action %s @%s', phone, ip)
+      gs = Grandstream(ip, phone.mac)
+      gs.update_screen(phone, ip)
+
+      # End while
+
+   # Requeue
+   for phone, ip in requeue:
+      gxp_actions.put_nowait((phone, ip))
+      gxp_in_actions_queue.append(phone)
 

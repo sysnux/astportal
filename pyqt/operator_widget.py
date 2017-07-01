@@ -33,13 +33,14 @@ except AttributeError:
 class DragDropButton(RichTextPushButton):
 
     def __init__(self, parent, variant, device, exten, name, img, x, y, w, h):
+
         super(DragDropButton, self).__init__(parent)
         self.setFocusPolicy(QtCore.Qt.NoFocus) # No focus!
         self.device = device
         self.channel = None
         self.exten = exten
         self.name = name
-        self.bstate = 'Down'
+        self.bstate = None
         self.variant = variant
         self.setAcceptDrops(True)
         html = u'''\
@@ -49,7 +50,7 @@ class DragDropButton(RichTextPushButton):
 </table>
 ''' % (img, exten, name)
         self.setHtml(html)
-        self.setStyleSheet("background-color: rgb(0, 192, 0); font-weight: bold;")
+        self.setStyleSheet("background-color: rgb(120, 120, 120); font-weight: bold;")
         self.setGeometry(QtCore.QRect(x, y, w, h))
         QtCore.QObject.connect(
             self, QtCore.SIGNAL('clicked()'), self.blf_clicked)
@@ -66,6 +67,8 @@ class DragDropButton(RichTextPushButton):
     def transfer(self):
         if self.channel is not None:
            self.emit(QtCore.SIGNAL("menu_transfer"), self)
+        else:
+           AsteriskOperatorPanel.debug('Transfer without channel %s' % self)
 
     def mouseMoveEvent(self, e):
         mimeData = QtCore.QMimeData()
@@ -92,18 +95,22 @@ class DragDropButton(RichTextPushButton):
 
          self.bstate = state
 
-         if self.bstate=='Down':
+         if self.bstate in ('NOT_INUSE', 'Down'):
              self.setStyleSheet("background-color: rgb(0, 192, 0);")
              self.act_transfer.setEnabled(False)
-         elif self.bstate=='Up':
+         elif self.bstate in ('BUSY', 'Up'):
              self.setStyleSheet("background-color: rgb(192, 0, 0);")
              self.act_transfer.setEnabled(True)
-         elif self.bstate=='Ring':
+         elif self.bstate in ('RING', 'Ring'):
              self.setStyleSheet("background-color: rgb(192, 192, 0);")
-         elif self.bstate=='Ringing':
+         elif self.bstate in ('RINGING', 'Ringing'):
              self.setStyleSheet("background-color: rgb(0, 192, 192);")
+         elif self.bstate in ('RINGINUSE', ):
+             self.setStyleSheet("background-color: rgb(0, 10, 10);")
          else:
-             print u'Button %s, unknown state %s' % (self, state)
+             self.setStyleSheet("background-color: rgb(100, 100, 100);")
+             if self.bstate not in ('UNAVAILABLE', ):
+                 print u'Button %s, unknown state %s' % (self, state)
 
 class Ui_AsteriskOperatorPanel(object):
 
@@ -154,8 +161,7 @@ class Ui_AsteriskOperatorPanel(object):
               row = 0
 
         # Operator button
-        self.op_button = []
-        self.op_button.append(DragDropButton( 
+        self.op_button = DragDropButton( 
                AsteriskOperatorPanel, # Parent
                'operator',
                operator, # Object name
@@ -163,7 +169,7 @@ class Ui_AsteriskOperatorPanel(object):
                'Standard', # Button text
                'headphone.png',
                10, 10, 110, 40 # x,y, w, h
-            ))
+            )
 
         # Parking buttons
         self.park_button = []
@@ -172,7 +178,7 @@ class Ui_AsteriskOperatorPanel(object):
                AsteriskOperatorPanel, # Parent
                'parking',
                'park%d' % i, # Object name
-               '', # '70%d' % (i + 1), # Exten
+               '900%d' % (i + 1), # Exten
                'Attente %d' % i, # Button text
                'parking.png',
                10, 100 + (40+5)*i, 110, 40 # x,y, w, h

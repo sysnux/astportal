@@ -1,4 +1,4 @@
-#! /home/SysNux/tg234/bin/python
+#! /opt/tg22env/bin/python
 # -*- coding: utf-8 -*-
 
 from os import popen
@@ -6,11 +6,11 @@ from sys import path, exit, argv
 from getopt import getopt
 import re
 
-path.insert(0, '/home/SysNux/Projets/astportal3')
+path.insert(0, '/opt/astportal21')
 
 from paste.deploy import appconfig
 from astportal2.config.environment import load_environment
-conf = appconfig('config:/home/SysNux/Projets/astportal3/tiare.ini')
+conf = appconfig('config:/opt/astportal21/socredo.ini')
 load_environment(conf.global_conf, conf.local_conf) # Needed for DBSession
 
 from tg import config
@@ -18,6 +18,7 @@ from astportal2.lib.grandstream import Grandstream
 from astportal2.model import DBSession, Phone
 
 server_sip = config.get('server.sip')
+server_sip2 = config.get('server.sip2')
 server_firmware = config.get('server.firmware')
 server_config = config.get('server.config')
 server_syslog = config.get('server.syslog')
@@ -91,11 +92,23 @@ for l in popen("asterisk -rx 'sip show peers'"):
          print
 
       print u'\tconfiguration en cours... ',
-      gs.configure( p.password, directory_tftp, \
-         server_firmware + '/phones/firmware', \
-         server_config + '/phones/config', server_syslog, \
-         server_config + ':8080/phonebook/gs_phonebook_xml', '', '', '', \
-         server_sip, sip_id, '', 1)
+#      gs.configure( p.password, directory_tftp, \
+#         server_firmware + '/phones/firmware', \
+#         server_config + '/phones/config', server_syslog, \
+#         server_config + ':8080/phonebook/gs_phonebook_xml', '', '', '', \
+#         server_sip, sip_id, '', 1)
+#      gs.configure(p.password, directory_tftp, \
+#         phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
+#         sip_server=None, sip_user=None, sip_display_name=None,
+#         mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
+#         sip_server2=None):
+      gs.configure( p.passwd, directory_tftp,
+            server_firmware + '/phones/firmware', 
+            server_config + '/phones/config', server_ntp,
+            server_config, '', '', '',
+            sip_server, sip_id, sip_display_name, mwi_subscribe,
+            screen_url = server_config, exten=p.exten,
+            sip_server2=server_sip2)
       print u'ok\n'
 
 #   else:

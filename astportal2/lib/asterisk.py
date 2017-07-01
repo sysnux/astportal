@@ -10,7 +10,8 @@ log = logging.getLogger(__name__)
 from os.path import exists
 from unicodedata import normalize
 from re import sub as re_sub
-from astportal2.model import DBSession, Phone, User, Sound
+from astportal2.model import DBSession, Phone, User, Sound, Record
+from astportal2.controllers.callback import callbacks
 from tg import config
 directory_asterisk = config.get('directory.asterisk')
 default_dnis = config.get('default_dnis')
@@ -111,7 +112,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'endpoint/device_state_busy_at', '1'),
             ('Append', p.sip_id, 'endpoint/allow_subscribe', 'yes'),
             ('Append', p.sip_id, 'endpoint/sub_min_expiry', '30'),
-            ('Append', p.sip_id, 'aor/max_contacts', '1'),
+            ('Append', p.sip_id, 'aor/max_contacts', '2'),
             ('Append', p.sip_id, 'aor/qualify_frequency', '60'),
             ]
 
@@ -130,10 +131,18 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
 
       if p.pickupgroups:
          actions.append(('Append', p.sip_id, 'endpoint/pickup_group', p.pickupgroups))
-      cidnum = p.dnis if p.dnis else default_dnis
-      if not p.block_cid_out and (cidname or cidnum):
-         actions.append(('Append', p.sip_id, 
-            'endpoint/callerid', '%s <%s>' % (cidname,cidnum) ))
+
+      if p.block_cid_out:
+         actions.append(('Append',
+                         p.sip_id,
+                         'endpoint/callerid',
+                         ' <%s>' % (default_dnis) ))
+      else:
+         actions.append(('Append',
+                         p.sip_id, 
+                         'endpoint/callerid',
+                         '%s <%s>' % (cidname, p.dnis if p.dnis else default_dnis) ))
+
       if p.user_id and user.email_address and p.exten:
          actions.append(('Append', p.sip_id, 
             'aor/mailboxes', '%s@astportal' % p.exten))
@@ -333,7 +342,8 @@ class Status(object):
 
    def reset(self):
       self.last_update = time()
-      self.last_queue_update = time()
+      self.last_queue_update = time() - 600
+      self.last_peers_update = time() - 600 
       self.peers = {}
       self.channels = {}
       self.bridges = {} # List of bridged channels
@@ -415,6 +425,8 @@ class Status(object):
          self._handle_BridgeLeave(event.headers)
       elif e=='Rename':
          self._handle_Rename(event.headers)
+      elif e.startswith('ContactStatus'):
+         self._handle_ContactStatus(event.headers)
       elif e=='DeviceStateChange':
          self._handle_DeviceStateChange(event.headers)
       elif e=='PeerStatus':
@@ -487,7 +499,6 @@ class Status(object):
          self.channels[dst]['Outgoing'] = False
          self.channels[dst]['LastUpdate'] = self.last_update = time()
 
-
    def _handle_PeerStatus(self,data):
       
       peer = data['Peer']
@@ -508,7 +519,7 @@ class Status(object):
 #         res = Globals.manager.sipshowpeer(peer[4:])
 #         self.peers[peer]['UserAgent'] = res.get_header('SIP-Useragent')
 
-#      self.last_update = time()
+      self.last_peers_update = time()
 
 
    def _handle_PeerEntry(self,data):
@@ -530,8 +541,21 @@ class Status(object):
             'LastUpdate': time(),
             'Address': addr
             }
+      self.last_peers_update = time()
 
-#      self.last_update = time()
+   def _handle_ContactStatus(self,data):
+      peer = 'PJSIP/' + data['EndpointName'] # or data['AOR'] ?
+      status = data['ContactStatus']
+      if peer in self.peers:
+         log.info('Update peer state "%s" is now "%s"', peer, status)
+         self.peers[peer]['State'] = status
+         self.peers[peer]['LastUpdate'] = time()
+      else:
+         log.info('New peer state "%s" is now "%s"', peer, status)
+         self.peers[peer] = {'State': status,
+            'LastUpdate': time()}
+      self.last_peers_update = time()
+
 
    def _handle_DeviceStateChange(self,data):
       peer = data['Device']
@@ -544,6 +568,7 @@ class Status(object):
          log.debug('New peer state %s: %s' % (peer, data))
          self.peers[peer] = {'State': data['State'],
             'LastUpdate': time()}
+      self.last_peers_update = time()
 
 
    def _updateQueues(self, data):
@@ -1035,6 +1060,8 @@ Count: 1
       self.last_queue_update = time()
 
    def _handle_UserEvent(self, data):
+# data={'ConnectedLineNum': '<unknown>', 'Linkedid': '1479603120.158', 'Uniqueid': '1479603120.158', 'Language': 'fr', 'AccountCode': '', 'ChannelState': '6', 'Exten': '5', 'CallerIDNum': '40501040', 'Priority': '2', 'UserEvent': 'Callback', 'ConnectedLineName': '<unknown>', 'Context': 'vm_or_cb', 'CallerIDName': 'Girard Jean-Denis', 'Privilege': 'user,all', 'Event': 'UserEvent', 'Channel': 'PJSIP/fqygGSWm-0000009c', 'ChannelStateDesc': 'Up'}
+
       if data['UserEvent']=='AgentWillConnect':
          if data['Agent'] not in self.members:
             # Happens when agent logged off before receiving call
@@ -1052,6 +1079,73 @@ Count: 1
          self.members[data['Agent']]['Custom2'] = data.get('Custom2', '')
          #self.last_update = time() # XXX nécessaire ou non ?
          self.last_queue_update = time()
+
+      elif data['UserEvent']=='Callback':
+         # Queue a callback to an busy extension
+         # Will be triggered by scheduler (lib/app_globals + controllers/callback)
+         src = data['src']
+         dstchan = data['dstchan']
+         dstexten = data['dstexten']
+         uid = data['Uniqueid']
+         log.info('New callback %s -> %s:%s (%s)', src, dstchan, dstexten, uid)
+         callbacks.put_nowait((src, dstchan, dstexten, uid))
+
+      elif data['UserEvent']=='AutoRecord':
+         # Set "recorded" flag on member
+         Globals.asterisk.members[data['name']]['Recorded'] = True
+
+         # Insert record info into database
+         r = Record()
+         r.user_id = -2 # Auto_record pseudo-user!
+         r.uniqueid = data['Uniqueid']
+         r.queue_id = DBSession.query(Queue).filter(
+            Queue.name==data['queue']).one().queue_id
+         try:
+            u = DBSession.query(User).filter(User.ascii_name==data['name']).first()
+            r.member_id = u.user_id
+         except:
+            r.member_id = 1
+            log.error('user "%s" not found' % name)
+         r.custom1 = data['custom1']
+         r.custom2 = data['custom2']
+         DBSession.add(r)
+
+      elif data['UserEvent']=='NotifyPhones':
+         phones = data['phones'].split('&')
+         log.info('NotifyPhones phones=%s', phones)
+         for phone in phones:
+            if phone == '':
+                continue
+            try:
+                p = DBSession.query(Phone).filter(Phone.sip_id==phone).one()
+            except:
+               log.error('NotifyPhones: phone %s not found!', phone)
+               return
+            log.info('Found phone %s, exten=%s, vendor=%s', 
+                      p.phone_id, p.exten, p.vendor)
+      
+            peer = 'PJSIP/' + p.sip_id
+            if 'Address' in Globals.asterisk.peers[peer] and \
+               Globals.asterisk.peers[peer]['Address'] is not None:
+               ip = (Globals.asterisk.peers[peer]['Address']).split(':')[0]
+            else:
+               log.error('Phone %s, no IP address!', p.phone_id)
+               return
+
+            if p.vendor == 'Grandstream':
+               from astportal2.lib.grandstream import Grandstream
+               gs = Grandstream(ip, p.mac)
+               gs.notify(p)
+
+            else:
+               log.warning('Notify not implemented for %s', self.vendor)
+
+      elif data['UserEvent']=='TestEvent':
+         log.info('TestEvent data=%s', data)
+
+      else:
+         log.error('Unkown UserEvent <%s>', data)
+
 
    def _handle_ParkedCall(self, data):
       log.debug('ParkedCall %s' % data)

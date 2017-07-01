@@ -1,8 +1,8 @@
-#! /home/SysNux/tg22_64/bin/python
+#! /opt/Python-2.7.12/bin/python
 # -*- coding: utf-8 -*-
-####! /opt/Python-2.7.3/bin/python
 #
 # Calcul du coût des communications à partir des logs d'asterisk
+# Version Air Tahiti
 #
 #
 # Jean-Denis Girard <jd.girard@sysnux.pf>
@@ -11,7 +11,7 @@
 import sys
 
 # Connexion base de données AstPortal via SqlAlchemy
-sys.path.insert(0, '/home/SysNux/Projets/astportal21')
+sys.path.append('/opt/astportal3')
 from paste.deploy import appconfig
 from astportal2.config.environment import load_environment
 from astportal2.model import DBSession, CDR, Phone, User, \
@@ -21,8 +21,9 @@ from sqlalchemy import func
 import getopt
 from math import ceil
 from decimal import Decimal, getcontext
+from datetime import date
 
-conf = appconfig('config:/home/SysNux/Projets/astportal21/tiare.ini')
+conf = appconfig('config:/opt/astportal3/airtahiti.ini')
 load_environment(conf.global_conf, conf.local_conf)
 getcontext().prec = 6
 tva = Decimal(1.10)
@@ -50,7 +51,7 @@ def options( argv ):
       if o[0] == '-v': v = True
       if o[0] == '-t': t.append(o[1])
    if t == []:
-      t = ['001', '003', '009', '010']
+      t = ['PJSIP/gwybat-', 'PJSIP/gwyapt-']
    return v, t
 
 import unicodedata
@@ -62,6 +63,7 @@ def channel2user_dept():
       uid = p.user.user_id if p.user else None
       did = p.department.dptm_id if p.department else None
       d[p.exten] = (uid, did)
+      d['4086' + p.exten] = (uid, did)
 
    return d
 
@@ -84,13 +86,13 @@ class Optimum(object):
       self.channel = chan
 
       if typ in (1, 2, 4, 8, 16):
-         self.forfait = typ * 840
+         self.forfait = typ * Decimal(840.00)
 
       elif typ in (25, 50, 100, 200, 250):
-         self.forfait = typ * 660
+         self.forfait = typ * Decimal(660.00)
 
       elif typ in (500, 1000, 2000, 5000, 10000):
-         self.forfait = typ * 540
+         self.forfait = typ * Decimal(540.00)
 
       else:
          print u'OPTIMUM_%d pas trouvé (forfait) !!!' % typ
@@ -101,20 +103,21 @@ class Optimum(object):
          for o in DBSession.query(OptimumTime). \
                filter(OptimumTime.offre=='OPTIMUM_%d' % typ):
             self.tarif[o.destination] = {
-               'dans_forfait': o.prix_df*tva,
-               'hors_forfait': o.prix_hf*tva}
+               'dans_forfait': o.prix_df,
+               'hors_forfait': o.prix_hf}
       except:
          print u'OPTIMUM_%d pas trouvé (base) !!!' % typ
          sys.exit(1)
 
-      f = typ * 60 * int(round(self.tarif['local_intra']['dans_forfait']))
+      f = typ * 60 * int(round(self.tarif['local_intra']['dans_forfait']*tva))
       if self.forfait != f:
          print u'OPTIMUM_%d erreur forfait : %d <> %d!!!' % (
             typ, self.forfait, f)
          sys.exit(1)
 
-      print u'Optimum %d initialisé sur canal "%s", forfait : TTC=%d, HT=%d' % (
-         self.typ, self.channel, self.forfait, int(self.forfait / tva))
+      self.forfait /= tva
+      print u'Optimum %d initialisé sur canal "%s", forfait : HT=%.2f, TTC=%d' % (
+         self.typ, self.channel, self.forfait, int(self.forfait * tva))
 
    def __call__(self, cdr):
       ''' Calcul du coût pour un appel représenté par un CDR.
@@ -135,14 +138,14 @@ class Optimum(object):
             filter(CDR.ht!=None).one()
          self.tot = tot if tot is not None else 0
 
-      print u'Canal %s, mois %s, total %d' % (self.channel, self.month, self.tot)
+      print u'Canal %s, mois %s, total %.2f' % (self.channel, self.month, self.tot)
 
       for z in zones:
-         if (cdr.dst[2:].startswith(z)):
+         if (cdr.dst[1:].startswith(z)):
             break
       else:
          print '*' * 20, cdr, u'Zone pas trouvée !!!'
-         return None, None
+         return None
 
       if zones_data[z]['zone_tarifaire'] == 'Internationale':
          tarif = self.tarif[zones_data[z]['zaa']]
@@ -155,21 +158,21 @@ class Optimum(object):
 
       elif zones_data[z]['zone_tarifaire'] == 'Interdit':
          print '*' * 20, cdr, u'interdit !!!'
-         return None, None
+         return None
 
       elif zones_data[z]['zone_tarifaire'] == 'Audiotel_3665':
          print '*' * 20, cdr, u'Audiotel_3665 !!!'
-         return None, None
+         return None
 
       elif zones_data[z]['zone_tarifaire'] == 'GSM':
          tarif = self.tarif['GSM']
 
       else: # autre zone ?
          print '*' * 20, cdr, u'Zone inconnue !!!'
-         return None, None
+         return None
 
 #      print u'%s : préfixe %s, zone %s, destination %s, tarifs (%s) %s' % (
-#         cdr.dst[2:], z, zones_data[z]['zaa'], zones_data[z]['ile_ou_pays'],
+#         cdr.dst[1:], z, zones_data[z]['zaa'], zones_data[z]['ile_ou_pays'],
 #         self.typ, tarif)
 
       forfait_min = '?'
@@ -178,31 +181,31 @@ class Optimum(object):
          # Hors forfait
          if cdr.billsec > 60:
             # Taxation à la seconde
-            ttc = int(ceil(cdr.billsec * tarif['hors_forfait'] / Decimal(60.0)))
+            ht = cdr.billsec * tarif['hors_forfait'] / Decimal(60.0)
             forfait_min = 'HORS sec'
          else:
             # Première minute indivisible
-            ttc = tarif['hors_forfait']
+            ht = tarif['hors_forfait']
             forfait_min = 'HORS 1 min'
       else:
          # Forfait pas épuisé
          if cdr.billsec > 60:
             # Taxation à la seconde
-            ttc = int(ceil(cdr.billsec * tarif['dans_forfait'] / Decimal(60.0)))
+            ht = cdr.billsec * tarif['dans_forfait'] / Decimal(60.0)
             forfait_min = 'FORFAIT sec'
          else:
             # Première minute indivisible
-            ttc = tarif['dans_forfait']
+            ht = tarif['dans_forfait']
             forfait_min = 'FORFAIT 1 min'
 
-      self.tot += ttc
+      self.tot += ht
 
       if verbose:
-         print '%s : %s -> %s %d sec -> %d F.TTC (Optimum_%s forfait=%s, hors=%s, %s)' % (
-            cdr.calldate, cdr.src, cdr.dst[2:], cdr.billsec, ttc, self.typ,
+         print '%s : %s -> %s %d sec -> %.2f F.HT (Optimum_%s forfait=%s, hors=%s, %s)' % (
+            cdr.calldate, cdr.src, cdr.dst[1:], cdr.billsec, ht, self.typ,
             tarif['dans_forfait'], tarif['hors_forfait'], forfait_min)
 
-      return  ttc, int(round(ttc / tva))
+      return ht
 
 
 class Classic(object):
@@ -219,8 +222,8 @@ class Classic(object):
       for p in DBSession.query(Prix):
          self.tarif[p.zone_destination] = {
             'ut_normal': p.step_hp, 'ut_reduit': p.step_hc,
-            'ttc_normal': int(round(p.prix_hp*tva)),
-            'ttc_reduit': int(round(p.prix_hc*tva))}
+            'ht_normal': p.prix_hp,
+            'ht_reduit': p.prix_hc}
 
    def __call__(self, cdr):
       ''' Calcul du coût d'un appel classique
@@ -229,11 +232,11 @@ class Classic(object):
       '''
 
       for z in zones:
-         if (cdr.dst[2:].startswith(z)):
+         if (cdr.dst[1:].startswith(z)):
             break
       else:
          print '*' * 20, cdr, u'zone pas trouvée !!!'
-         return None, None
+         return None
 
       if zones_data[z]['zone_tarifaire'] == 'Internationale':
 
@@ -241,10 +244,10 @@ class Classic(object):
 
          if cdr.calldate.hour < 6 or cdr.calldate.hour > 22: # Tarif réduit
             ut =  tarif['ut_reduit']
-            ttc = tarif['ttc_reduit']
+            ht = tarif['ht_reduit']
          else: # Tarif normal
             ut =  tarif['ut_normal']
-            ttc = tarif['ttc_normal']
+            ht = tarif['ht_normal']
 
       elif zones_data[z]['zone_tarifaire'] == 'Nationale':
 
@@ -255,41 +258,41 @@ class Classic(object):
 
          if cdr.calldate.hour < 6 or cdr.calldate.hour > 22: # Tarif réduit
             ut =  tarif['ut_reduit']
-            ttc = tarif['ttc_reduit']
+            ht = tarif['ht_reduit']
          else: # Tarif normal
             ut =  tarif['ut_normal']
-            ttc = tarif['ttc_normal']
+            ht = tarif['ht_normal']
 
       elif zones_data[z]['zone_tarifaire'] == 'Interdit':
          print '*' * 20, cdr, u'interdit !!!'
-         return None, None
+         return None
 
       elif zones_data[z]['zone_tarifaire'] == 'Audiotel_3665':
          print '*' * 20, cdr, u'Audiotel_3665 !!!'
-         return None, None
+         return None
 
       elif zones_data[z]['zone_tarifaire'] == 'GSM':
 
          if cdr.calldate.weekday() in (5, 6) or \
                cdr.calldate.hour < 6 or cdr.calldate.hour > 17: # Tarif réduit
             ut =  self.tarif['GSM']['ut_reduit']
-            ttc = self.tarif['GSM']['ttc_reduit']
+            ht = self.tarif['GSM']['ht_reduit']
          else: # Tarif normal
             ut =  self.tarif['GSM']['ut_normal']
-            ttc = self.tarif['GSM']['ttc_normal']
+            ht = self.tarif['GSM']['ht_normal']
 
       else: # autre zone ?
          print '*' * 20, cdr, u'Zone inconnue !!!'
-         return None, None
+         return None
 
-      ttc = int(ceil(cdr.billsec / ut)) * ttc
+      ht *= int(ceil(cdr.billsec / ut)) # Minute supérieure
 
       if verbose:
-         print u'%s : préfixe %s, zone %s, destination %s, heure %d, duree %d -> ut %d, ttc %d' % (
-            cdr.dst[2:], z, zones_data[z]['zaa'], zones_data[z]['ile_ou_pays'],
-            cdr.calldate.hour, cdr.billsec, ut, ttc)
+         print u'%s : préfixe %s, zone %s, destination %s, heure %d, duree %d -> ut %d, ht %.2f' % (
+            cdr.dst[1:], z, zones_data[z]['zaa'], zones_data[z]['ile_ou_pays'],
+            cdr.calldate.hour, cdr.billsec, ut, ht)
 
-      return  ttc, int(round(ttc / tva))
+      return ht
 
 # MAIN ------------------------------------------------------------------------
 
@@ -314,32 +317,51 @@ for z in DBSession.query(Zone):
 zones = sorted(zones_data.keys(),
    cmp=lambda x,y: cmp(len(x), len(y)), reverse=True)
 
-# Définition(s) abonnement(s)
-optimum_soc = Optimum(500, '1')
+# Définitions abonnements
+optimum_aero = Optimum(500, '003')
+optimum_bat = Optimum(500, '001')
+classic = Classic()
 
 nouveau = erreur = 0
 
 # Pour tous les appels sortants facturés dont le coût n'a pas encore été calculé
 for cdr in DBSession.query(CDR). \
-      filter(func.substr(CDR.dstchannel, 0, 4).in_(trunks)). \
+      filter(func.substr(CDR.dstchannel, 0, 13).in_(trunks)). \
       filter(CDR.billsec>0). \
       filter(CDR.ht==None). \
       order_by(CDR.calldate):
 
    nouveau += 1
 
+   if cdr.dst is None or cdr.dst[0] != '0':
+      # Pas un appel vers l'extérieur !
+      continue
+
    user, dept = c2ud.get(cdr.src, (None, None))
 
-   typ = u'Optimum bâtiment'
-   ttc, ht = optimum_soc(cdr)
+   if cdr.dstchannel.startswith('PJSIP/gwybat-'):
+      # T2 bâtiment Optimum 500
+      typ = u'Optimum bâtiment'
+      ht = optimum_bat(cdr)
+
+   elif cdr.dstchannel.startswith('PJSIP/gwyapt-'):
+      # T2 aéroport Optimum 500
+      typ = u'Optimum aéroport'
+      ht = optimum_aero(cdr)
 
    if ht is None:
       erreur += 1
       continue
 
+   # Calcul TTC
+   if cdr.calldate.date() < date(2013,10,1): # Avant le 1er octobre 2013
+      ttc = float(ht * Decimal(1.10))
+   else:
+      ttc = float(ht * Decimal(1.13))
+
    if verbose:
-      sys.stderr.write('%s, typ=%s, ht=%d, uid=%s, did=%s\n' % \
-         (cdr, typ, ht, user, dept))
+      sys.stderr.write('%s, typ=%s, ht=%.2f, ttc=%.2f, uid=%s, did=%s\n' % \
+         (cdr, typ, ht, ttc, user, dept))
 
    # Mise à jour coût
    cdr.ht = ht

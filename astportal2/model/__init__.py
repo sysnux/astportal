@@ -60,6 +60,6 @@ def init_model(engine):
 
 # Import your model modules here.
 from astportal2.model.auth import User, Group, Permission
-from astportal2.model.astportal import CDR, Phone, Department, Phonebook, Sound, Queue, Queue_log, Queue_event, Pickup, Application, Scenario, Action, Holiday, View_phonebook, Record, Fax, Report, Campaign, Customer, Outcall, Voicemessages, Shortcut
+from astportal2.model.astportal import CDR, Phone, Department, Phonebook, Sound, Queue, Queue_log, Queue_event, Pickup, Application, Scenario, Action, Holiday, View_phonebook, Record, Fax, Report, Campaign, Customer, Outcall, Voicemessages, Shortcut, Ringtone
 from astportal2.model.taxa import Prix, Zone, OptimumTime, Pays
 

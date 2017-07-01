@@ -18,7 +18,7 @@ from tw.forms.validators import NotEmpty, Int, Invalid, Bool, StringBoolean
 
 from astportal2.lib.app_globals import Markup
 
-from astportal2.model import DBSession, Phone, Department, User, Pickup
+from astportal2.model import DBSession, Phone, Department, User, Pickup, Sound
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.grandstream import Grandstream
 from astportal2.lib.cisco import Cisco
@@ -49,6 +49,7 @@ _vendors = {
    '00:04:f2': 'Polycom',
    '00:90:7a': 'Polycom',
    '1c:df:0f': 'Cisco',
+   '54:7c:69': 'Cisco',
 }
 
 _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'), 
@@ -62,9 +63,17 @@ def departments():
    return a
 
 def users():
-   a = [('-9999',' - - - ')]
+   a = [('-9999', ' - - - ')]
    for u in DBSession.query(User).order_by(User.display_name):
       a.append((u.user_id, u.display_name))
+   return a
+
+def ringtones():
+   a = [('-1', u'Par défaut')]
+   for r in DBSession.query(Sound). \
+                      filter(Sound.type==2). \
+                      order_by(Sound.name):
+      a.append((r.sound_id, r.name))
    return a
 
 
@@ -127,6 +136,9 @@ class New_phone_form(AjaxForm):
       SingleSelectField('user_id', options=users,
          not_empty = False,
          label_text=u'Utilisateur'),
+      SingleSelectField('ringtone_id', options=ringtones,
+         not_empty = False,
+         label_text = u'Sonnerie'),
       BooleanRadioButtonList('hide_from_phonebook',
          options = [ (False, u'Non'), (True, u'Oui')],
          default = False,
@@ -216,6 +228,11 @@ class Edit_phone_form(TableForm):
       SingleSelectField('user_id',
          options= users,
          label_text=u'Utilisateur', # help_text=u'Utilisateur du téléphone',
+         validator=Int
+         ),
+      SingleSelectField('ringtone_id',
+         options=ringtones,
+         label_text = u'Sonnerie',
          validator=Int
          ),
       BooleanRadioButtonList('hide_from_phonebook',
@@ -341,7 +358,7 @@ def row(p, unavailable_only):
       ua = '<span style="color: green;">%s</span>' % ua
       exten = '<span style="color: green;">%s</span>' % p.exten
    else:
-      log.warning('Unknown phone state "%s"' % st)
+      log.warning('Unknown phone state "%s" sip %s exten %s', st, p.sip_id, p.exten)
       exten = '<span style="color: orange;">%s</span>' % p.exten
 
    return [Markup(action), Markup(ua), Markup(exten), p.dnis, user , dptm]
@@ -361,10 +378,10 @@ class Phone_ctrl(RestController):
 
       if Globals.manager is None:
          flash(u'Vérifier la connexion Asterisk', 'error')
-      else:
-         # Refresh Asterisk peers
-         Globals.manager.sippeers()
-         Globals.manager.send_action({'Action': 'DeviceStateList'})
+#      else:
+#         # Refresh Asterisk peers
+#         Globals.manager.sippeers()
+#         Globals.manager.send_action({'Action': 'DeviceStateList'})
 
       grid = MyJqGrid( id='grid', url='fetch', caption=u'Téléphones',
          sortname='exten',
@@ -425,14 +442,14 @@ class Phone_ctrl(RestController):
       unavailable_only = True if unavailable_only=='true' else False
 
       fetch_contacts()
-      if Globals.manager is not None:
-         # Refresh Asterisk peers
-         if sip_type=='sip':
-            Globals.manager.sippeers()
-         Globals.manager.send_action({'Action': 'DeviceStateList'})
-         Globals.manager.send_action({'Action': 'IAXpeers'})
-         resp = Globals.manager.send_action({'Action': 'Command', 'Command': 'pjsip show contacts'})
-         log.debug('PJSIP Contacs returns:\n%s' % resp)
+#      if Globals.manager is not None:
+#         # Refresh Asterisk peers
+#         if sip_type=='sip':
+#            Globals.manager.sippeers()
+#         Globals.manager.send_action({'Action': 'DeviceStateList'})
+#         Globals.manager.send_action({'Action': 'IAXpeers'})
+#         resp = Globals.manager.send_action({'Action': 'Command', 'Command': 'pjsip show contacts'})
+#         log.debug('PJSIP Contacs returns:\n%s' % resp)
 
       log.debug('Fetch : Globals.asterisk.peers= %s ' % Globals.asterisk.peers)
 
@@ -633,7 +650,6 @@ class Phone_ctrl(RestController):
 
       # Configure phone
       sip_display_name = None
-      mwi_subscribe = 0
       need_voicemail_update = False
       sip_server = server_sip
       sip_server2 = server_sip2
@@ -663,6 +679,13 @@ class Phone_ctrl(RestController):
       if kw['dnis']: p.dnis = dnis
       if kw['dptm_id']!='-9999': p.department_id = kw['dptm_id']
       if kw['user_id']!='-9999': p.user_id = kw['user_id']
+      ringtone = None
+      if kw['ringtone_id']!='-1':
+          p.ringtone_id = kw['ringtone_id']
+          try:
+              ringtone = DBSession.query(Sound).get(int(kw['ringtone_id'])).name
+          except:
+              pass
       if 'callgroups' in kw:
          p.callgroups = ','.join([str(x) for x in kw['callgroups']])
       if 'pickupgroups' in kw:
@@ -690,7 +713,8 @@ class Phone_ctrl(RestController):
             server_config, '', '', '',
             sip_server, sip_id, sip_display_name, mwi_subscribe,
             screen_url = server_config, exten=p.exten,
-            sip_server2=sip_server2)
+            sip_server2=sip_server2, secretary=kw['secretary'],
+            ringtone=ringtone)
 
          session.save()
 
@@ -720,6 +744,7 @@ class Phone_ctrl(RestController):
          'block_cid_in': p.block_cid_in,
          'block_cid_out': p.block_cid_out,
          'priority': p.priority,
+         'ringtone_id': p.ringtone_id,
          'phonebook_label': p.phonebook_label,
          'secretary': p.secretary,
          '_method': 'PUT'}
@@ -746,8 +771,9 @@ class Phone_ctrl(RestController):
    @validate(edit_form_valid(), error_handler=edit)
    @expose()
    def put(self, phone_id, dptm_id, user_id, exten, dnis, contexts,
-         hide_from_phonebook, fax, block_cid_in, block_cid_out, priority,
-         phonebook_label, secretary, callgroups=None, pickupgroups=None):
+         hide_from_phonebook, fax, block_cid_in, block_cid_out,
+         priority, phonebook_label, secretary, ringtone_id,
+         callgroups=None, pickupgroups=None):
       ''' Update phone 
 
       User and exten information is independant from phone, there is no need
@@ -798,6 +824,19 @@ class Phone_ctrl(RestController):
             p.user_id = None
          else:
             p.user_id = user_id
+      ringtone_id = int(ringtone_id)
+      log.debug('before ringtone = %s', ringtone_id)
+      if ringtone_id==-1:
+          p.ringtone_id = None
+          ringtone = None
+      else:
+          p.ringtone_id = ringtone_id
+          try:
+              ringtone = DBSession.query(Sound).get(int(ringtone_id)).name
+          except:
+              ringtone = None
+              p.ringtone_id = None
+      log.debug('after ringtone = %s (%s)', ringtone, ringtone_id)
 
       x = ','.join([str(x) for x in contexts])
       if p.contexts != x:
@@ -821,6 +860,32 @@ class Phone_ctrl(RestController):
       p.secretary = secretary 
 
       asterisk_update_phone(p, old_exten, old_dnis)
+
+      if p.vendor == 'Grandstream':
+         # Create provisionning file and configure phone
+         ip, ua, state = peer_info(p.sip_id, p.exten)
+         log.info('Configure %s %s %s %s', p.mac, ip, ua, state)
+         gs = Grandstream(ip, p.mac)
+         gs.login(p.password)
+         gs.infos()
+         mwi_subscribe = 0
+         sip_display_name = None
+         if p.user_id!='-9999':
+            try:
+               u = DBSession.query(User).get(p.user_id)
+               sip_display_name = u.ascii_name
+               if u.email_address:
+                  mwi_subscribe = 1
+            except:
+               pass
+         gs.configure( p.password, directory_tftp,
+            server_firmware + '/phones/firmware', 
+            server_config + '/phones/config', server_ntp,
+            server_config, '', '', '',
+            server_sip, p.sip_id, sip_display_name, mwi_subscribe,
+            screen_url = server_config, exten=p.exten,
+            sip_server2=server_sip2, secretary=secretary,
+            ringtone=ringtone)
 
       flash(u'Téléphone modifié')
       redirect('/phones/%d/edit' % phone_id)
@@ -902,17 +967,4 @@ class Phone_ctrl(RestController):
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')
 
-
-   @expose('json')
-   def gxplogin(self, ip=None, mac=None, pwd=None):
-      ''' Login to GXP phone (newer firmware)
-      '''
-      log.debug(u'gxplogin ip=%s, mac=%s, pwd=%s', (ip, mac, pwd))
-      gs = Grandstream(ip, mac)
-
-      if not gs.login(pwd):
-         log.error(u'gxplogin error login')
-         return {}
-
-      return dict(sid=gs.sid)
 

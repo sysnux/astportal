@@ -91,11 +91,13 @@ class Operator(QWidget):
          print_debug = %s.
          ssl_certificates_file = %s,
          ignore_ssl_errors = %s,
-         self.blf = %s\n''' % (
+         self.blf = %s,
+         total = %d\n''' % (
             url, self.op_channel, self.op_exten,
             self.color_normal, self.color_warning, self.color_alert, 
             self.size, self.print_debug, self.certificate,
-            self.ignore_ssl_errors, self.blf))
+            self.ignore_ssl_errors, self.blf, len(self.blf))
+      )
 
       # Init panel
       self.ui = Ui_AsteriskOperatorPanel()
@@ -112,7 +114,7 @@ class Operator(QWidget):
          park.clicked.connect(self.originate)
          self.connect(park, SIGNAL("dropped"), self.transfer)
          self.connect(park, SIGNAL("menu_transfer"), self.menu_transfer)
-      self.connect(self.ui.op_button[0], SIGNAL("menu_transfer"), self.menu_transfer)
+      self.connect(self.ui.op_button, SIGNAL("menu_transfer"), self.menu_transfer)
 
       # Position panel on screen, make it semi-transparent
       screen = QDesktopWidget().screenGeometry()
@@ -124,9 +126,12 @@ class Operator(QWidget):
       self.requests = 0 # Number of requests
       self.last = 0.0 # Last update (integer representing 1/100 seconds)
       self.channels = {} # Channels dict
+      self.parked = {} # Channels parked dict
       self.time_diff = 0 # Time difference beetwen host and server
       self.url_login = url + 'login_handler'
       self.url_channels = url + 'monitor/update_channels'
+      self.url_peers = url + 'monitor/update_peers'
+      self.url_parked = url + 'monitor/update_parked'
       self.url_users = url + 'users/list'
       self.url_redirect = url + 'monitor/redirect'
       self.url_originate = url + 'monitor/originate'
@@ -176,8 +181,11 @@ class Operator(QWidget):
 <html><body bgcolor="#ffffff">
 <h2>Console Standardiste pour Asterisk<sup>&copy;</sup></h2>
 <div style="float: left;">
-   <img src="logo-320x240.jpg" width="64" height="48" border="0"/>
-par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
+   <img src="logo-320x240.jpg" width="64" height="48" border="0" style="float: left;"/>
+</div>
+<div style="margin-left: 10px">
+    par SysNux<br>
+    <a href="https://www.sysnux.pf/">https://www.sysnux.pf/</a>
 </div>
 </body></html>
 '''
@@ -220,37 +228,45 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
       self.debug(u'Menu transfert to %s' % text)
       for c in self.channels:
             if c[:-9] == s.device:
-               channel = self.channels[c]['From']
+               try:
+                  channel = self.channels[c]['From']
+               except:
+                  self.warning(u'Transfer menu cancelled: "From" does not exist %s!' % self.channels[c])
+                  return
                break
 
       if channel is None:
-         self.debug(u'Menu transfer cancelled because channel %s not found')
+         self.debug(u'Menu transfer cancelled because channel not found')
          return
 
-      self.debug(u'Transfer %s -> %s' % (url, params))
+      self.debug(u'Transfer %s -> %s' % (self.url_redirect, text[-5:-1]))
       self.request(self.url_redirect, 
-         'channel=%s&exten=%s' % (channel, text[-4:-1]),
+         'channel=%s&exten=%s' % (channel, text[-5:-1]),
          self.originate_finished)
 
    def transfer(self, s, d):
       self.debug(u'Transfer %s -> %s' % (s, d))
 
       channel = None
-      if s.variant=='parking':
+      if s.variant == 'parking':
+         self.debug('Variant parking')
          for i, c in enumerate(self.channels):
             parked = self.channels[c].get('Park')
-            if parked is not None and parked == '7%02d' % (i+1):
+            if parked is not None:
+               self.debug('%s (%d) is parked on %s' % (c, i+1, parked))
+            if parked is not None and parked == s.exten:
                channel = c
                break
 
       else:
+         self.debug('Variant NOT parking')
          for c in self.channels:
             if c[:-9] == s.device:
                channel = self.channels[c]['From']
                break
 
       if channel is None:
-         self.debug(u'Transfer cancelled because channel %s not found')
+         self.debug(u'Transfer cancelled because channel not found')
          return
 
       if d.variant=='parking':
@@ -268,24 +284,32 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
       self.debug(u'Originate sender=%s' % self.sender())
       exten = self.sender().exten
       state = self.sender().bstate
-      if state=='Down':
+      if state in ('Down', 'NOT_INUSE'):
+         # Call from operator to this exten
          url = self.url_originate
          params = 'channel=%s&exten=%s' % (self.op_channel, exten)
-      elif state=='Ringing':
-         # If destination is ringing, redirect to the operator extension
-         url = self.url_redirect
-         for c in self.channels:
-            if c[:-9] == self.sender().device:
-               src = self.channels[c]['From']
-               break
-         else:
-            self.debug(u'Transfer cancelled because channel %s not found' % channel)
-            return
-         params = 'channel=%s&exten=%s' % (src, self.op_exten)
+      elif state in ('Ringing', 'RINGING'):
+         # Destination is ringing, pickup by operator
+         url = self.url_originate
+         params = 'channel=%s&exten=**%s' % (self.op_channel, exten)
+#         url = self.url_redirect
+#         for c in self.channels:
+#            if c[:-9] == self.sender().device:
+#               src = self.channels[c]['From']
+#               break
+#         else:
+#            self.debug(u'Transfer cancelled because channel %s not found' % channel)
+#            return
+#         params = 'channel=%s&exten=%s' % (src, self.op_exten)
+      elif state in ('Up', ):
+         # Destination is ringing, pickup by operator
+         url = self.url_originate
+         params = 'channel=%s&exten=%s' % (self.op_channel, exten)
       else:
          self.debug(u'Originate ERROR state=%s' % state)
-         QMessageBox.warning(self, u'Erreur', u'Hello :)', QMessageBox.Ok)
+         QMessageBox.warning(self, u'Erreur', u'Erreur :(', QMessageBox.Ok)
          return
+      self.debug('%s %s' % (url, params))
       self.request(url, params, self.originate_finished )
 
    def originate_finished(self):
@@ -310,7 +334,7 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
 
    def rsp_login_finished(self):
       rsp = self.sender()
-      err = rsp.error() #self.rsp_login.error()
+      err = rsp.error()
       self.debug('Response login received, error=%d' % err)
       for k, v in rsp.rawHeaderPairs():
          if k == 'Set-Cookie' and str(v).startswith('authtkt='):
@@ -320,6 +344,36 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
       rsp.deleteLater()
       self.req_users()
       self.req_channels()
+      self.req_peers()
+      self.req_parked()
+
+   def req_parked(self):
+      self.requests += 1
+      self.debug('New parked %d, last=%f' % (self.requests, self.last))
+      self.request(self.url_parked,
+         'last=%f' % self.last,
+         self.rsp_parked_finished )
+
+   def rsp_parked_finished(self):
+      rsp = self.sender()
+      err = rsp.error()
+      self.debug('Response parked received, error=%d' % err)
+      if err == 0:
+         s = str(rsp.readAll())
+         if s:
+            try:
+               js = json.loads(s)
+            except:
+               self.debug('Data received is not JSON: <%s>?' % s)
+               return
+            self.parked = js['parked']
+            self.debug('parked list=%s' % (self.parked))
+
+         else:
+            self.debug('No data!')
+
+      rsp.deleteLater()
+      self.channels_timer.singleShot(314, self.req_parked)
 
    def req_users(self):
       self.debug('New users request %s' % self.url_users)
@@ -348,7 +402,7 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
 
    def req_channels(self):
       self.requests += 1
-      self.debug('New request %d, last=%f' % (self.requests, self.last))
+      self.debug('New channels %d, last=%f' % (self.requests, self.last))
       self.request(self.url_channels,
          'last=%f' % self.last,
          self.rsp_channels_finished )
@@ -356,7 +410,8 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
    def rsp_channels_finished(self):
       rsp = self.sender()
       err = rsp.error()
-      self.debug('Response %d received, error=%d' % (self.requests, err))
+      self.debug('Channels response %d received, error=%d' % (
+                self.requests, err))
       if err == 0:
          s = str(rsp.readAll())
          if s:
@@ -367,15 +422,56 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
                return
             self.last = js['last_update']
             self.time_diff = float(self.last)/100 - time()
-            self.channels = js['channels']
-            self.debug('Last=%f, channels=%s' % (self.last, self.channels))
-            self.update_screen()
+            try:
+                self.channels = js['channels']
+#               self.debug('Last=%f, channels=%s' % (self.last, self.channels))
+#                self.update_screen()
+            except:
+               self.debug('Data received, but no channels ? <%s>?' % s)
+               return
 
          else:
             self.debug('No data!')
 
       rsp.deleteLater()
       self.channels_timer.singleShot(314, self.req_channels)
+
+   def req_peers(self):
+      self.requests += 1
+      self.debug('New request %d, last=%f' % (self.requests, self.last))
+      self.request(self.url_peers,
+         'last=%f' % self.last,
+         self.rsp_peers_finished )
+
+   def rsp_peers_finished(self):
+      rsp = self.sender()
+      err = rsp.error()
+      self.debug('Peers response %d received, error=%d' % (
+                self.requests, err))
+      if err == 0:
+         s = str(rsp.readAll())
+         if s:
+            try:
+               js = json.loads(s)
+            except:
+               self.debug('Data received is not JSON: <%s>?' % s)
+               return
+            self.last = js['last_update']
+            self.time_diff = float(self.last)/100 - time()
+            self.peers = js['peers']
+#            self.debug('Peers Last=%f' % (self.last))
+#            for p, v in self.peers.iteritems():
+#                self.debug(' . Peer "%s": %s' % \
+#                                (p, v))
+#                self.debug(' . Peer "%s": %s %s' % \
+#                                (p, v['State'], v['Address']))
+            self.update_screen_peers()
+
+         else:
+            self.debug('No data!')
+
+      rsp.deleteLater()
+      self.channels_timer.singleShot(314, self.req_peers)
 
    def times(self, wait):
       ''' Convert epoch times list to string '1: 1m23s, 2: 0m12s'
@@ -392,7 +488,9 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
 
       # Check operator states
       chan = [c for c in self.channels]
-      for l in self.ui.op_button:
+#      for l in self.ui.op_button:
+      if True: # XXX
+         l = self.ui.op_button
          for c in chan:
             if c[:-9] == self.op_channel:
                 l.set_button_state(self.channels[c]['State'])
@@ -410,7 +508,7 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
       for i, p in enumerate(self.ui.park_button):
          for c in self.channels:
              parked = self.channels[c].get('Park')
-             if parked is not None and parked == '7%02d' % (i+1):
+             if parked is not None and parked == '90%02d' % (i+1):
                 p.set_button_state('Up')
                 break
          else:
@@ -432,6 +530,45 @@ par SysNux <a href="http://www.sysnux.pf/">http://www.sysnux.pf/</a>
              b.set_button_state('Down')
              b.channel = None
              b.setToolTip('')
+
+   def update_screen_peers(self):
+      self.debug('Screen update !')
+
+      # Check operator status
+      if self.op_channel in self.peers:
+         self.debug('Operator state "%s"' % self.peers[self.op_channel]['State'])
+         self.ui.op_button.set_button_state(self.peers[self.op_channel]['State'])
+      else:
+         self.debug('Operator state not found in peers "%s"' % self.op_channel)
+         self.ui.op_button.set_button_state('Down')
+         self.ui.op_button.channel = None
+         self.ui.op_button.setToolTip('')
+
+      # Check parking states
+      for i, b in enumerate(self.ui.park_button):
+          if '90%02d' % (i+1) in self.parked:
+              b.set_button_state('Up')
+          else:
+              b.set_button_state('Down')
+              b.channel = None
+              b.setToolTip('')
+#         for p in self.parked:
+#             self.debug('Parked %s' % (p))
+#             if d['exten'] == '90%02d' % (i+1):
+#                b.set_button_state('Up')
+#             else:
+#                b.set_button_state('Down')
+#                b.channel = None
+#                b.setToolTip('')
+
+      # Check BLF states
+      for k, b in self.ui.blf_button.iteritems():
+         if k in self.peers:
+            b.set_button_state(self.peers[k]['State'])
+         else:
+            b.set_button_state('Down')
+            b.channel = None
+            b.setToolTip('')
 
 
 if __name__ == '__main__':

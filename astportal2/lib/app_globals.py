@@ -34,6 +34,13 @@ def fetch_contacts():
     sip_type = 'SIP' if config.get('asterisk.sip', 'sip').lower()=='sip' \
        else 'PJSIP'
 
+    if Globals.manager is None:
+       log.warning('fetch_contacts: not connected to AMI!')
+       return
+
+    # Refresh status
+    Globals.manager.send_action({'Action': 'DeviceStateList'})
+
     # Fetch contacts from AstDB
     log.debug('Fetching contacts from AstDB (%s):' % sip_type)
     man = Globals.manager.command(
@@ -45,7 +52,7 @@ def fetch_contacts():
        if m:
           d = json.loads(m.groups()[0])
           name, ip, port = re_uri.match(d['uri']).groups()
-          log.info('Contact %s @ %s is a "%s"' % (name, ip, d['user_agent']))
+          log.debug('Contact %s @ %s is a "%s"' % (name, ip, d['user_agent']))
           name = '%s/%s' % (sip_type, name)
           if name in Globals.asterisk.peers:
              Globals.asterisk.peers[name]['Address'] = ip
@@ -146,5 +153,13 @@ class Globals(object):
 
       from astportal2.controllers.callback import do
       tgscheduler.add_interval_task(action=do, 
-         taskname='Callback do', interval=13, initialdelay=30)
+         taskname='Callback do', interval=13, initialdelay=7)
+
+#      from astportal2.controllers.grandstream import do
+#      tgscheduler.add_interval_task(action=do, 
+#         taskname='GXP action do', interval=3, initialdelay=17)
+
+      from astportal2.lib.grandstream import do_gxp_actions
+      tgscheduler.add_interval_task(action=do_gxp_actions, 
+         taskname='GXP actions', interval=3, initialdelay=11)
 

@@ -10,14 +10,14 @@ from astportal2.model import DBSession, Phonebook, User, Phone
 from astportal2.lib.app_globals import Globals
 from astportal2.lib.base import BaseController
 from astportal2.controllers.phonebook import phonebook_list
+from astportal2.lib.grandstream import Grandstream
 
 from tg import config
-default_company = config.get('company')
-default_cid = config.get('default_cid')
 
 import logging
 log = logging.getLogger(__name__)
 
+default_cid = config.get('default_cid')
 default_company = config.get('company')
 
 import re
@@ -40,6 +40,7 @@ def check_call_forwards(phone):
       sip = phone.sip_id
       cfs_out = []
       cfs_in = []
+      dnd = False
 
       man = Globals.manager.command('database show CFIM')
       for i,r in enumerate(man.response[3:-2]):
@@ -52,29 +53,40 @@ def check_call_forwards(phone):
             if v==exten:
                cfs_in.append(('CFIM', k))
 
-#      man = Globals.manager.command('database show CFBS')
-#      for i,r in enumerate(man.response[3:-2]):
-#         match = re_db.search(r)
-#         if match:
-#            k, v = match.groups()
-#            if k in sip2ext.keys():
-#               cfs.append((sip2ext[k], 'CFBS', v))
-#      man = Globals.manager.command('database show CFUN')
-#      for i,r in enumerate(man.response[3:-2]):
-#         match = re_db.search(r)
-#         if match:
-#            k, v = match.groups()
-#            if k in sip2ext.keys():
-#               cfs.append((sip2ext[k], 'CFUN', v))
-#      man = Globals.manager.command('database show CFVM')
-#      for i,r in enumerate(man.response[3:-2]):
-#         match = re_db.search(r)
-#         if match:
-#            k, v = match.groups()
-#            if k in sip2ext.keys():
-#               cfs.append((sip2ext[k], 'CFVM', v))
+      man = Globals.manager.command('database show CFBS')
+      for i,r in enumerate(man.response[3:-2]):
+         match = re_db.search(r)
+         if match:
+            k, v = match.groups()
+            if k in sip2ext.keys():
+               cfs.append((sip2ext[k], 'CFBS', v))
 
-      return cfs_out, cfs_in # XXX
+      man = Globals.manager.command('database show CFUN')
+      for i,r in enumerate(man.response[3:-2]):
+         match = re_db.search(r)
+         if match:
+            k, v = match.groups()
+            if k in sip2ext.keys():
+               cfs.append((sip2ext[k], 'CFUN', v))
+
+      man = Globals.manager.command('database show CFVM')
+      for i,r in enumerate(man.response[3:-2]):
+         match = re_db.search(r)
+         if match:
+            k, v = match.groups()
+            if k in sip2ext.keys():
+               cfs.append((sip2ext[k], 'CFVM', v))
+
+      man = Globals.manager.command('database showkey DND/' + sip)
+      log.debug(u'DND %s returns "%s"', sip, man.response[-2])
+      if not man.response[-2].startswith('0 results '):
+         log.debug(u'DND %s TRUE', sip)
+         dnd = True
+
+      log.debug(u'exten %s (sip %s) : cfs_out=%s, cfs_in=%s, dnd=%s',
+               exten, sip, cfs_out, cfs_in, dnd)
+
+      return cfs_out, cfs_in, dnd # XXX
 
 
 def phone_details():
@@ -95,7 +107,7 @@ def phone_details():
       if mac is not None:
          try:
             phone = DBSession.query(Phone).filter(Phone.mac==mac).one()
-            log.warning(u'mac "%s" -> phone %s)' % ( mac, phone))
+            log.warning(u'mac "%s" -> phone %s)', mac, phone)
 
          except:
             log.error(u'gs_phonebook_xml: phone or user not found, From "%s" by "%s" @ %s.' % (
@@ -156,9 +168,9 @@ class Grandstream_ctrl(BaseController):
 
       Generate custom XML idle screen for GXP phones.
       Reload from phone can be forced with SIP notification, e.g:
-         sudo asterisk -rx 'sip notify grandstream-idle-screen-refresh ugeHE96B'
+         sudo asterisk -rx 'sip notify gs-idle-screen-refresh ugeHE96B'
       /etc/asterisk/sip_notify.conf should include:
-         [grandstream-idle-screen-refresh]
+         [gs-idle-screen-refresh]
          Event=>x-gs-screen
       '''
 
@@ -167,7 +179,7 @@ class Grandstream_ctrl(BaseController):
          log.error(u'Grandstream screen: not a Grandstream phone?')
          return ''
 
-      log.debug('Grandstream screen: model "%s", phone "%s"' % (model, phone))
+      log.info('Grandstream screen: model "%s", phone "%s"' % (model, phone))
 
       if model == '2120':
          use_custom_format(self.gs_screen, 'gxp2120')
@@ -192,7 +204,7 @@ class Grandstream_ctrl(BaseController):
             display_name = phone.user.display_name
          else:
             ascii_name = display_name = ''
-         cfs_out, cfs_in = check_call_forwards(phone)
+         cfs_out, cfs_in, dnd = check_call_forwards(phone)
          if cfs_out:
             log.debug('Call forward out: %s' % cfs_out)
             exten += ' > ' + ', '.join([x[1] for x in cfs_out])
@@ -203,14 +215,12 @@ class Grandstream_ctrl(BaseController):
             phones_in = DBSession.query(Phone). \
                filter(Phone.sip_id.in_([x[1] for x in cfs_in])).all()
             log.debug('Call forward in: %s' % phones_in)
-            cfs_in = u' < '
-#            if phones_in.count() > 1:
-#               cfs_in = u'Renvoyés : '
-#            else:
-#               cfs_in = u'Renvoyé : '
-            cfs_in += u', '.join([p.exten for p in phones_in])
+            cfs_in = u' < ' + u', '.join([p.exten for p in phones_in])
          else:
             cfs_in = u''
+
+         dnd = 'NPD' if dnd else ''
+         
 
       else:
          exten = name = '?'
@@ -221,7 +231,7 @@ class Grandstream_ctrl(BaseController):
          a=exten, # Compte
          A='$A', # Key labels
          f='$f', T='$T', # Date / time
-         b='%s %s%s' % (default_company, exten, cfs_in),
+         b='%s %s %s%s' % (dnd, default_company, exten, cfs_in),
          CFS_IN = cfs_in,
          I = display_name, ascii_name = ascii_name, display_name = display_name,
          exten=exten,
@@ -261,4 +271,5 @@ class Grandstream_ctrl(BaseController):
       xml += '</AddressBook>\n'
 
       return xml.encode('utf-8', 'replace')
+
 

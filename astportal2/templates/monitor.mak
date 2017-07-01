@@ -116,7 +116,8 @@ function display() {
    }
 
    if (tot_chan) {
-      table = '<table><tr><th>Appelant</th><th>Appelé</th><th>Durée</th><th>&Eacute;tat</th><th>Application</th><th>Contexte</th></tr>' + table +
+      table = '<table><tr><th>Appelant</th><th>Appelé</th><th>Durée</th><th>&Eacute;tat</th><th>Application</th><th>Contexte</th></tr>' 
+			+ table +
       	'<tr>' +
       	'<th>Total :</th>' +
    		'<th colspan="6">' + tot_calls + ' appel' + ((tot_calls>1) ? 's':'') +
@@ -140,6 +141,7 @@ function data_fetch_failed (e, xhr, settings, exception) {
    } else {
       // Wait a bit and try again
       setTimeout(update, 1000*error);
+		error = 0;
    }
 }
 

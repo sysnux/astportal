@@ -70,7 +70,8 @@ class Cisco(object):
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
-         mwi_subscribe=False, reboot=True, screen_url=None, exten=None):
+         mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
+         sip_server2=None):
       '''Parameters: firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None
       '''
@@ -78,7 +79,7 @@ class Cisco(object):
       log.debug('company=%s, sip_display_name=%s, exten=%s' % (default_company, sip_display_name, exten))
       self.config_url = config_url
       ET.register_namespace('', 'http://www.sipura.net/xsd/SPA50x-30x-SIP')
-      xml = ET.parse('/opt/astportal3/astportal2/templates/spa504g-v7.5.5.xml')
+      xml = ET.parse('/opt/astportal/astportal2/templates/spa504g-v7.5.5.xml')
 #      for e in xml.getiterator():
 #         log.debug('%s -> %s' % (e.tag, e.attrib))
       ns = '{http://www.sipura.net/xsd/SPA50x-30x-SIP}'
