@@ -228,17 +228,18 @@ function member_status(name, now, queue) {
       case '1': // AST_DEVICE_NOT_INUSE
          if (name==my_name && my_status && member['HangupURL']!='') {
             // Open hangup window
-            var params = '?uid=' + member['Uniqueid'];
-            params += '&member=' + name;
-            params += '&queue=' + queue;
-            params += '&custom1=' + member['Custom1'];
+            var params = '?uid=' + member['Uniqueid'] +
+                         '&member=' + name +
+                         '&interface=' + member['Location'] +
+                         '&queue=' + queue +
+                         '&custom1=' + member['Custom1'];
             params += '&custom2=' + member['Custom2'];
 	         window.open(member['HangupURL'] + params, 
-               'Hangup', 'location=no,width=600,height=400');
+               'Hangup', 'location=no,scrollbars=yes,toolbar=no,menubar=no,width=800,height=600');
 	         my_status = null;
          }
-         if (member['Paused']=='1') {
-            sclass='paused'; stat='En pause';
+         if (member['Paused']!='0') {
+            sclass='paused'; stat=member['Paused'];
          } else {
             sclass='free'; stat='Libre';
          }
@@ -249,12 +250,13 @@ function member_status(name, now, queue) {
             my_status = member['Uniqueid'];
             if (member['ConnectURL']!='') {
                // Open connect window
-               var params = '?uid=' + member['Uniqueid'];
-               params += '&member=' + name;
-               params += '&queue=' + queue;
-               params += '&holdtime=' + member['HoldTime'];
-               params += '&custom1=' + member['Custom1'];
-               params += '&custom2=' + member['Custom2'];
+               var params = '?uid=' + member['Uniqueid'] +
+                            '&member=' + name +
+                            '&interface=' + member['Location'] +
+                            '&queue=' + queue +
+                            '&holdtime=' + member['HoldTime'] +
+                            '&custom1=' + member['Custom1'] +
+                            '&custom2=' + member['Custom2'];
 	            window.open(member['ConnectURL'] + params,
                   'CRM', 'location=no,width=600,height=400');
             }

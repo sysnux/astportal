@@ -31,6 +31,7 @@
 
 var scenario = new Object();
 var actions = new Object();
+var applications = new Object();
 var actions_by_id = new Object();
 var sounds = new Object();
 var sounds_by_id = new Object();
@@ -70,6 +71,7 @@ $(document).ready(
          queues = data.queues;
          qevents = data.qevents;
          contexts_pos = data.positions;
+         applications = data.applications;
 
          var o = '<option value="-1"> - - - </option>\n';
          for (a in actions) {
@@ -458,7 +460,7 @@ function display(redraw) {
    context_opts += '<optgroup label="Blocs">\n';
    var label_opts = '<optgroup label="étiquettes">\n';
 
-   for (r=0; r<scenario.length; r++) {
+   for (var r=0; r<scenario.length; r++) {
 
       if (!context_re.test(scenario[r].context)) { // New bloc
          context_opts += '<option value="c:' + scenario[r].context + '">' + scenario[r].context + '</option>';
@@ -610,7 +612,10 @@ function display(redraw) {
 
          case 14: // Goto
             act = actions_by_id[app];
-            par = scenario[r].parameters.substr(2);
+            if (scenario[r].parameters.substr(0,1)=='a')
+	            par = 'Appli: ' + applications[scenario[r].parameters.substr(2)].app_name;
+            else
+               par = scenario[r].parameters.substr(2);
             break;
 
          case 16: // Label
@@ -717,7 +722,15 @@ function display(redraw) {
    $('#9_action').html(context_opts);
    context_opts += label_opts + '</optgroup>';
    $("#scenario").html(divs);
-   $('#14_goto').html(context_opts);
+   var goto_opts = context_opts + '<optgroup label="Application">';
+   for (var a in applications) {
+      goto_opts += '<option value="a:' + applications[a].app_id + '">' +
+                                         applications[a].app_name + ' (' +
+                                         applications[a].app_comment + 
+					 ')</option>';
+   }
+   goto_opts += '</optgroup>';
+   $('#14_goto').html(goto_opts);
    context_opts += '<optgroup label="Autre">\n';
    context_opts += '<option value="-2">Continuer</option></optgroup>';
    $('#11_if_false').html(context_opts);
@@ -1186,6 +1199,9 @@ function update_canvas() {
 
          case 14: // Goto
             switch (scenario[r].parameters.substr(0,1)) {
+               case 'a':
+                  // Goto application: nothing to show!
+                  break;
                case 'c':
                   canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
                         $('#'+scenario[r].parameters.substr(2)) );

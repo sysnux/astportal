@@ -33,7 +33,6 @@ from astportal2.model import DBSession, Phone, Record, Queue, User, Group
 from astportal2.lib.app_globals import Globals
 
 from time import sleep
-import copy
 import unicodedata
 
 import logging
@@ -126,12 +125,57 @@ class CC_Monitor_ctrl(TGController):
          return dict(res='ko')
 
       user = p.user.ascii_name if p.user else p.exten
-      iface = '%s%s' % (sip_type, iface)
+      iface = sip_type + iface
 
       Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': queue, 
          'Interface': iface, 'Penalty': penality,
          'MemberName':
          user})
+      return dict(res='ok')
+
+
+   @expose('json')
+   def add_or_remove_all_members(self, add_or_remove):
+      ''' Add or remove all agents to / from their queues
+      '''
+
+      if add_or_remove not in ('add', 'remove'):
+         log.error('Wrong parameter "%s"', add_or_remove)
+         return dict(res='ko')
+
+      for q in DBSession.query(Queue):
+         g = DBSession.query(Group).filter(Group.group_name=='AG %s' % q.name).one()
+
+         for m in g.users:
+            try:
+               p = m.phone[0]
+            except:
+               continue
+
+            if p.sip_id is not None and sip_type + p.sip_id in Globals.asterisk.peers:
+               iface = p.sip_id
+            elif p.exten is not None and sip_type + p.exten in Globals.asterisk.peers:
+               iface = p.exten
+            else:
+               log.error('%s:%s not registered, not adding member!' % (p.sip_id, p.exten))
+               continue
+
+            user = p.user.ascii_name if p.user else p.exten
+            iface = sip_type + iface
+
+            if add_or_remove == 'add':
+#               Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': q.name, 
+#                                            'Interface': iface, 'Penalty': 0,
+#                                            'MemberName': user})
+               log.debug('Member "%s" added to queue "%s" with phone "%s" (%s)',
+                         user, q.name, p.sip_id, p.exten)
+            else:
+#               Globals.manager.send_action({'Action': 'QueueRemove', 
+#                                            'Queue': q.name,
+#                                            'Interface': iface}
+               log.debug('Member "%s" removed from queue "%s" with phone "%s" (%s)',
+                         user, q.name, p.sip_id, p.exten)
+
       return dict(res='ok')
 
 
@@ -158,22 +202,12 @@ class CC_Monitor_ctrl(TGController):
       except:
          phone = None
       log.debug('User %s, phone_id=%s' % (u, phone))
-      queues = copy.deepcopy(Globals.asterisk.queues)
-      members = copy.deepcopy(Globals.asterisk.members)
-#      log.debug('Q BEFORE %s' % Globals.asterisk.queues)
-#      log.debug('M BEFORE %s' % Globals.asterisk.members)
       for i in xrange(50):
          last_update = int(Globals.asterisk.last_queue_update)
          if last_update > last:
             break
-            if queues != Globals.asterisk.queues or \
-                  members != Globals.asterisk.members or last == 0:
-               change = True
-               break
-            else:
-               last = last_update
          sleep(1)
-      log.debug(' * * * update_queues returns after sleeping %d sec, change=%s' % (i,change))
+      log.debug('update_queues returns after sleeping %d sec, last=%f' % (i, last_update))
 
       admin = False
       if in_group('admin'):
@@ -195,8 +229,6 @@ class CC_Monitor_ctrl(TGController):
                key=lambda x: int(queues[x]['Weight']), 
                reverse=True)
          ]
-#      log.debug('Q %s' % Globals.asterisk.queues)
-#      log.debug('M %s' % Globals.asterisk.members)
       return dict(last=last_update, change=True, # XXX
             queues=qq, members=Globals.asterisk.members, admin=admin,
             my_name=u.ascii_name, my_phone=phone,
@@ -208,22 +240,15 @@ class CC_Monitor_ctrl(TGController):
       ''' Function called on AJAX request made by template.
       Return when new updates available, or timeout
       '''
-      last = int(last) # Last template refresh (0 -> page just loaded)
-      log.debug('New request, last=%d' % last)
-      change = False
-      queues = copy.deepcopy(Globals.asterisk.queues)
-      for i in xrange(50):
-         last_update = float(Globals.asterisk.last_queue_update)
-         if int(last_update*100) > last:
+      last = float(last) # Last template refresh (0 -> page just loaded)
+      log.debug('update_queues2 new request, last=%f' % last)
+
+      for i in xrange(51):
+         last_update = Globals.asterisk.last_queue_update
+         if last_update > last:
             break
-            if queues != Globals.asterisk.queues or last == 0:
-               change = True
-               break
-            else:
-               last = last_update
          sleep(1)
-      log.debug('Sending response, last=%s' % last_update)
-      last_update = int(last_update*100)
+      log.debug('update_queues2 returns after sleeping %d sec, last=%f' % (i, last_update))
 
       qq = [{'name': k,
          'params': Globals.asterisk.queues[k]

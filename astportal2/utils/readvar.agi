@@ -1,65 +1,72 @@
 #! /usr/bin/env python
-# -*- coding: iso-8859-1 -*-
+# -*- coding: utf8 -*-
 #
 # Small AGI to read (matching) digits, stop on length or * or # and store in variable
 #
 # Synoptics:
-#  s,5,AGI(readvar.agi,foo,1,123*#)
-#  s,5,NoOp(foo = ${foo})
+#  s,5,AGI(readvar.agi,my_var,my_sound,1)
+#  s,5,NoOp(foo = ${my_var})
 #  i_5,1,Playback(invalid)
 #  t_5,1,Playback(timeout)
 #
 # Arguments:
 #  . variable: name of variable
-#  . max: length|*|#
-#  . match: digits must match (optionnal)
+#  . sound file (without extension)
+#  . stop: length|*|#
 
-
-import sys
-from asterisk import *
+from sys import exit, argv, path
+path.append('/var/lib/asterisk/agi-bin')
+from pyst import agi
 a = agi.AGI()
 
 ctxt = a.env['agi_context']
 prio = a.env['agi_priority']
-var_name = sys.argv[1]
-max = sys.argv[2] # '*' or '#' or length
-if len(sys.argv)>3:
-   match = sys.argv[3]
-else:
-   match = None
-a.verbose('readvar 1 %s, %s, %s)' % (var_name, max, match))
+try:
+    sound_file = argv[1]
+    var_name = argv[2]
+    stop = argv[3] # '*' or '#' or length
+except:
+    a.verbose('ERROR readvar parameters %s' % argv)
+    a.goto_on_exit('i_' + prio, 1)
+    exit(0)
+a.verbose('readvar: var_name=%s, sound_file=%s, stop=%s' % (
+           var_name, sound_file, stop), level=3)
 
-if not (max=='*' or max=='#'):
-   try:
-      max = int(max)
-   except:
-      # Syntax error
-      a.goto_on_exit('i_' + prio, 1)
-      a.verbose('ERROR readvar(%s,%s)' % (sys.argv[1], sys.argv[2]))
-      sys.exit(0)
+if stop not in '*#':
+    try:
+        stop = int(stop)
+        a.verbose('readvar: stop at length %d' % stop, level=3)
+    except:
+        # Syntax error
+        a.verbose('ERROR readvar "stop" incorrect: %s' % stop)
+        a.goto_on_exit('i_' + prio, 1)
+        exit(0)
 
 digits=''
 while 1:
-   # Read digit
-   d = a.wait_for_digit(5000)
+    # Read digit
+    a.verbose('readvar: digits="%s")' % (digits), level=3)
+    if digits=='' and sound_file:
+        d = a.stream_file(sound_file, escape_digits='0123456789*#')
 
-   if d=='': 
-      # Timeout
-      a.goto_on_exit(ctxt,'t_' + prio,1)
-      sys.exit(0)
- 
-   if (max=='*' or max=='#') and d==max:
-      # Break digit found
-      break
- 
-   if not match or d in match:
-      digits += d
-      if len(digits)==max:
-         # Max length
-         break
-   else:
-      a.verbose("readvar digit '%s' not matching, ignored" % d)
+    if not d:
+        d = a.wait_for_digit(5000)
 
-a.verbose('readvar %s <- %s)' % (var_name, digits))
+    if d=='': 
+        # Timeout
+        a.goto_on_exit(ctxt,'t_' + prio,1)
+        exit(0)
+ 
+    if (stop=='*' or stop=='#') and d==stop:
+        # Break digit found
+        break
+ 
+    digits += d
+    if len(digits)==stop:
+        # Max length
+        break
+    d = ''
+
+a.verbose('readvar %s <- %s)' % (var_name, digits), level=3)
 a.set_variable(var_name, digits)
 

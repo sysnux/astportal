@@ -207,6 +207,11 @@ class Monitor(QWidget):
 
 
 if __name__ == '__main__':
+
+   # No printing on pythonw!
+   if sys.executable.endswith("pythonw.exe"):
+      sys.stdout = sys.stderr = None
+
    app = QApplication(sys.argv)
    mon = Monitor()
 

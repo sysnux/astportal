@@ -200,7 +200,7 @@ class Voicemail_ctrl(BaseController):
          data.append({ 'id'  : v['id'], 'cell': row(v,folder) })
          total += 1
 
-      return dict(page=page, total=total, rows=data)
+      return dict(page=page, total=total, rows=data[offet:offset+rows])
 
 
    @expose('json')

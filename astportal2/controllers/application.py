@@ -391,11 +391,15 @@ class Application_ctrl(RestController):
       texts = []
 
       queues = [{'queue_id': x.queue_id, 'queue_name': x.name, 
-         'queue_comment': x.comment}
-         for x in DBSession.query(Queue).order_by(Queue.name)]
+                 'queue_comment': x.comment}
+                 for x in DBSession.query(Queue).order_by(Queue.name)]
 
       qevents = [{'qe_id': x.qe_id, 'event': x.event}
          for x in DBSession.query(Queue_event).order_by(Queue_event.event)]
+
+      applications = dict((x.app_id, {'name': x.name, 'comment': x.comment})
+                           for x in DBSession.query(Application).order_by(Application.name))
+      log.debug('fetch_scenario applications=%s', applications)
 
       scenario = []
       positions = {}
@@ -409,7 +413,8 @@ class Application_ctrl(RestController):
             positions[context] = {'top': x.top, 'left': x.left}
 
       return dict(scenario=scenario, sounds=sounds, texts=texts, 
-            actions=actions, queues=queues, qevents=qevents, positions=positions)
+            actions=actions, queues=queues, qevents=qevents,
+            positions=positions, applications=applications)
 
 
    @expose('json')
@@ -570,6 +575,7 @@ def generate_dialplan():
       else:
          svi_out.write(u'%s,n(test_end),Noop(No end)\n' % dnis)
       svi_out.write(u'%s,n(ok),Wait(1)\n' % dnis)
+      svi_out.write(u'%s,n,Set(CHANNEL(language)=${MASTER_CHANNEL(CHANNEL(language))})\n' % dnis)
       svi_out.write(u'%s,n,Set(CHANNEL(accountcode)=%s)\n' % (dnis, app_id))
       svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
@@ -604,6 +610,7 @@ def generate_dialplan():
       else:
          svi_out.write(u'%s,n(test_end),Noop(No end)\n' % dnis)
       svi_out.write(u'%s,n(ok),Wait(1)\n' % dnis)
+      svi_out.write(u'%s,n,Set(CHANNEL(language)=${MASTER_CHANNEL(CHANNEL(language))})\n' % dnis)
       svi_out.write(u'%s,n,Set(CHANNEL(accountcode)=%s)\n' % (dnis, app_id))
       svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
@@ -706,9 +713,11 @@ def generate_dialplan():
          continue
 
       elif action==3: # Input
+         # Params: msg_sound, error_sound, abandon_sound, variable, type, len
          if context=='Entrant': next = 'App_%s_' % app_id
          else: next = 'App_%s_%s_' % (app_id, context)
          param = parameters.split('::')
+         log.debug('Input: param=%s', param)
          cpt = 'svi_cpt_%s_%d' % (context, prio)
          svi_out.write(u'exten => s,%d,Set(%s=0)\n' % (prio, cpt))
          prio +=1
@@ -726,11 +735,14 @@ def generate_dialplan():
             sound_file = p
          prio +=1
          if param[4]=='fixed':
-            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,%s)\n' % (prio, sound_file, param[3], param[5]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,%s)\n' % (
+                                       prio, sound_file, param[3], param[5]))
          elif param[4]=='star':
-            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,*)\n' % (prio, sound_file, param[3]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,*)\n' % (
+                                       prio, sound_file, param[3]))
          elif param[4]=='pound':
-            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,#)\n' % (prio, sound_file, param[3]))
+            svi_out.write(u'exten => s,%d,AGI(astportal/readvar.agi,%s,%s,#)\n' % (
+                                       prio, sound_file, param[3]))
          (a, p) = play_or_tts(param[1][0], int(param[1][2:]))
          svi_out.write(u'exten => i_%d,1,%s(%s)\n' % (prio,a, p))
          svi_out.write(u'exten => i_%d,2,Goto(s,a_%d)\n' % (prio,tag))
@@ -897,12 +909,18 @@ def generate_dialplan():
          else: param += value
 
       elif action==14: # Goto
-         (typ,dest) = parameters.split(':')
+         typ, dest = parameters.split(':')
          if typ=='c': # Jump to context
             param = u'App_%s_%s,s,1' % (app_id, dest)
          elif typ=='l': # Jump to label in context
             (c,l) = dest.split(',')
             param = u'App_%s_%s,s,%s' % (app_id, c, l)
+         elif typ=='a': # Jump to application
+            for app in apps:
+                if app.app_id != int(dest):
+                    continue
+                param = u'SVI_internal,%s,1' % (app.exten)
+                break
          app = 'Goto'
 
       elif action==16: # Label

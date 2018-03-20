@@ -21,6 +21,7 @@ from astportal2.model import DBSession, Queue, Sound, Group
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.asterisk import asterisk_update_queue, asterisk_string, asterisk_shell
 from astportal2.lib.app_globals import Globals
+from astportal2.controllers.application import generate_dialplan
 
 import logging
 log = logging.getLogger(__name__)
@@ -58,6 +59,9 @@ common_fields = [
          ('rrmemory', u'Circulaire'),
       ],
       label_text=u'Distribution des appels', help_text=u''),
+   SingleSelectField('auto_answer',
+      options = [ (0, u'Non'), (1, u'Oui')],
+      label_text=u'Décroché automatique', help_text=u''),
    TextField('connectdelay', validator=Int, size=4, default=0,
       label_text=u'Temps de pré-traitement (sec)', help_text=u'Délai avant prise appel'),
    TextField('connecturl', size=40, default=None,
@@ -223,6 +227,7 @@ class Queue_ctrl(RestController):
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
       q.priority = int(kw['priority'])
       q.monitor = True if kw['monitor']=='1' else False
+      q.auto_answer = True if kw['auto_answer']==1 else False
       q.connectdelay = int(kw['connectdelay'])
       q.connecturl = kw['connecturl']
       q.hangupurl = kw['hangupurl']
@@ -257,7 +262,7 @@ class Queue_ctrl(RestController):
       ''' Display edit queue form
       '''
       if not id: id = kw['queue_id']
-      q = DBSession.query(Queue).get(id)
+      q = DBSession.query(Queue).get(int(id))
       v = {'queue_id': q.queue_id, 'comment': q.comment, '_method': 'PUT',
             'music': q.music_id, 'announce': q.announce_id, 'strategy': q.strategy, 
             'wrapuptime': q.wrapuptime, 'announce_frequency': q.announce_frequency, 
@@ -265,7 +270,8 @@ class Queue_ctrl(RestController):
             'announce_position': 'yes' if q.announce_position==1 else 'no', 
             'priority': q.priority, 'monitor': q.monitor,
             'connectdelay': q.connectdelay, 'connecturl': q.connecturl,
-            'hangupurl': q.hangupurl, 'timeout': q.timeout}
+            'hangupurl': q.hangupurl, 'auto_answer': q.auto_answer,
+            'timeout': q.timeout}
       tmpl_context.form = edit_queue_form
       return dict(title = u'Modification groupe d\'appels ' + q.name, debug='', values=v)
 
@@ -292,11 +298,15 @@ class Queue_ctrl(RestController):
       q.announce_position = 1 if kw['announce_position']=='yes' else 0
       q.priority = kw['priority']
       q.monitor = kw['monitor']
+      q.auto_answer = True if kw['auto_answer']=='1' else False
       flash(u'Groupe d\'appel modifié')
 
       # Update Asterisk queue
       asterisk_update_queue(q)
       Globals.manager.send_action({'Action': 'QueueStatus'})
+
+      # Queue is probably used in an application, update astportal/svi.conf
+      generate_dialplan()
 
       redirect('/queues/%d/edit' % queue_id)
 
@@ -333,6 +343,9 @@ class Queue_ctrl(RestController):
          # Delete from list of queues
          del(Globals.asterisk.queues[moh_class])
       Globals.manager.send_action({'Action': 'QueueStatus'})
+
+      # Queue is probably used in an application, update astportal/svi.conf
+      generate_dialplan()
 
       flash(u'Groupe d\'appels supprimé', 'notice')
       redirect('/queues/')
