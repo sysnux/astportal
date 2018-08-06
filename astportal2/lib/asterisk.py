@@ -112,7 +112,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
             ('Append', p.sip_id, 'endpoint/device_state_busy_at', '1'),
             ('Append', p.sip_id, 'endpoint/allow_subscribe', 'yes'),
             ('Append', p.sip_id, 'endpoint/sub_min_expiry', '30'),
-            ('Append', p.sip_id, 'aor/max_contacts', '2'),
+            ('Append', p.sip_id, 'aor/max_contacts', '4'),
             ('Append', p.sip_id, 'aor/qualify_frequency', '60'),
             ]
 
@@ -393,7 +393,7 @@ class Status(object):
             'InvalidAccountID', 'Unhold', 'BlindTransfer', 'Pickup',
             'AOC-E', 'DAHDIChannel', 'JitterBufStats', 'ChannelReload',
             'Hold', 'MusicOnHoldStart', 'MusicOnHoldStop',
-            'AgentComplete', 'QueueCallerLeave', 'AgentCalled', 'QueueCallerAbandon',
+            'AgentComplete', 'AgentCalled',
             'DTMFBegin', 'DTMFEnd', 'ContactStatus'):
 #         log.debug(' * * * IGNORED %s' % str(event.headers))
          # Ignored 
@@ -449,7 +449,9 @@ class Status(object):
          self._handle_QueueCallerJoin(event.headers)
       elif e=='Join':
          self._handle_Join(event.headers)
-      elif e=='Leave':
+      elif e=='QueueCallerAbandon':
+         self._handle_QueueCallerAbandon(event.headers)
+      elif e in ('Leave', 'QueueCallerLeave'):
          self._handle_Leave(event.headers)
       elif e == 'UserEvent':
          self._handle_UserEvent(event.headers)
@@ -654,7 +656,6 @@ class Status(object):
          self.members[m]['Queues'][q] = {
                'CallsTaken': int(data['CallsTaken']),
                'InBegin': time(), 'InTotal': 0, 'Penalty': data['Penalty']}
-         log.debug('New member 5')
 
       log.debug('handle_QueueMember => %s' % self.members)
       self.last_queue_update = time()
@@ -681,7 +682,7 @@ class Status(object):
          return
       s = data['Status']
       log.debug('QueueMemberStatus %s -> %s' % (m, s))
-      if s == '2': # AST_DEVICE_INUSE
+      if s == '2' or s == '3': # AST_DEVICE_INUSE
          self.members[m]['InBegin'] = time()
       elif s in ('6','7'): # AST_DEVICE_RINGING	AST_DEVICE_RINGINUSE
          self.members[m]['Outgoing'] = False
@@ -753,7 +754,7 @@ Count: 1
       self.last_queue_update = time()
 
    def _handle_Join(self, data):
-      log.debug('Join %s' % data)
+      log.debug('Join %s', data)
       if data['Queue'] not in self.queues:
          log.error('Queue "%s not found' % data['Queue'])
          return
@@ -763,17 +764,37 @@ Count: 1
       self.last_queue_update = time()
 
 
-   def _handle_Leave(self, data):
-      if data['Queue'] not in self.queues:
-         log.error('Queue "%s not found' % data['Queue'])
-         return
-      self.queues[data['Queue']]['Calls'] = int(data['Count'])
+#-----------------------------------------------------
+#               q = g[i].getAttribute('queue');
+#               p = g[i].getAttribute('position');
+#               o = g[i].getAttribute('originalposition');
+#               for (var j=p+1; j<self.queues[q]['calls']; j++)
+#                  self.queues[q]['wait'][j-1] = self.queues[q]['wait'][j];
+#               display++;
+#               break;
+   def _handle_QueueCallerAbandon(self, data):
+      log.debug('CallerAbandon %s' % data)
       pos = -999
       try:
          del self.queues[data['Queue']]['Wait'][data['Uniqueid']]
       except:
-         log.warning('Leave, Position %d does not exist in queue %s?' % (
+         log.warning('CallerAbandon, Uniqueid %s does not exist in queue %s?' % (
             data['Uniqueid'], self.queues[data['Queue']]) )
+
+      self.last_queue_update = time()
+
+
+   def _handle_Leave(self, data):
+      log.debug('Leave data %s', data)
+      if data['Queue'] not in self.queues:
+         log.error('Queue "%s not found' % data['Queue'])
+         return
+      try:
+         self.queues[data['Queue']]['Calls'] = int(data['Count'])
+         del self.queues[data['Queue']]['Wait'][data['Uniqueid']]
+      except:
+         log.warning('Leave, Position %s does not exist in queue %s?',
+                     data['Uniqueid'], self.queues[data['Queue']])
 
       self.last_queue_update = time()
 #-----------------------------------------------------
@@ -883,7 +904,7 @@ Count: 1
       # Check if channel belongs to a queue member
       loc = c[:c.find('-')] # SIP/100-000000a6 -> SIP/100
       for m in self.members:
-         if self.members[m]['Location'] == loc and self.members[m]['Status'] == '2':
+         if self.members[m]['Location'] == loc: # and self.members[m]['Status'] == '2':
             log.debug('Hangup: member "%s"' % m)
             if self.members[m]['Outgoing']:
                self.members[m]['Outgoing'] = False

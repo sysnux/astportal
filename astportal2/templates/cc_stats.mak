@@ -1,14 +1,5 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:py="http://genshi.edgewall.org/"
-  xmlns:xi="http://www.w3.org/2001/XInclude">
+<%inherit file="local:templates.master"/>
 
-<xi:include href="master.html"/>
-
-<head>
-   <meta content="text/html; charset=utf-8" http-equiv="Content-Type" py:replace="''"/>
-   <title py:content="title">Jquery FlexiGrid</title>
    <style>
       .rotated { 
          -moz-transform: rotate(-45deg);
@@ -66,7 +57,7 @@ function load_complete(data) {
       Data from the grid is used to update the graph.  */
 
    var plot_data = new Array(); // Flot data
-   var flot_series = ${tmpl_context.flot_series}.split(','); // Series to actually plot
+   var flot_series = ${tmpl_context.flot_series | n}.split(','); // Series to actually plot
    var series = new Array(); // Flot series
    for (var i=0; i<flot_series.length+1; i++) {
       series[i] = new Array(); // Each serie is an array of points (x,y)
@@ -111,25 +102,19 @@ function csv() {
 
 //]]>
    </script>
-</head>
+      <h1>${title}</h1>
+% if debug:
+		${debug}<br />
+% endif
 
-<body>
-      <h1 py:content="title">Paginate Data Grid</h1>
       
       <!-- Form -->
-      <span py:if="tmpl_context.form">
-         ${tmpl_context.form(values)}
+         ${tmpl_context.form(values) | n}
          Export <a href="#" onclick="csv();">CSV</a>
-      </span>
 
       <!-- Flot -->
-      <div id='data_flot_div' style="margin:10px auto; width:600px;" py:if="tmpl_context.data_flot">
-         ${tmpl_context.data_flot()}
-      </div>
+         ${tmpl_context.data_flot() | n}
 
       <!-- JqGrid -->
-      ${tmpl_context.data_grid()}
-
-   </body>
-</html>
+      ${tmpl_context.data_grid() | n}
 

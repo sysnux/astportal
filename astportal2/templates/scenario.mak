@@ -461,7 +461,6 @@ function display(redraw) {
    var label_opts = '<optgroup label="étiquettes">\n';
 
    for (var r=0; r<scenario.length; r++) {
-
       if (!context_re.test(scenario[r].context)) { // New bloc
          context_opts += '<option value="c:' + scenario[r].context + '">' + scenario[r].context + '</option>';
          context_re = RegExp(scenario[r].context + '_*$');
@@ -612,8 +611,12 @@ function display(redraw) {
 
          case 14: // Goto
             act = actions_by_id[app];
+console.log('Goto', scenario[r].parameters);
             if (scenario[r].parameters.substr(0,1)=='a')
-	            par = 'Appli: ' + applications[scenario[r].parameters.substr(2)].app_name;
+               if (scenario[r].parameters.substr(2) in applications) 
+	          par = 'Appli: ' + applications[scenario[r].parameters.substr(2)].name;
+               else
+                  par = '';
             else
                par = scenario[r].parameters.substr(2);
             break;
@@ -724,9 +727,9 @@ function display(redraw) {
    $("#scenario").html(divs);
    var goto_opts = context_opts + '<optgroup label="Application">';
    for (var a in applications) {
-      goto_opts += '<option value="a:' + applications[a].app_id + '">' +
-                                         applications[a].app_name + ' (' +
-                                         applications[a].app_comment + 
+      goto_opts += '<option value="a:' + a + '">' +
+                                         applications[a].name + ' (' +
+                                         applications[a].comment + 
 					 ')</option>';
    }
    goto_opts += '</optgroup>';
@@ -1007,7 +1010,6 @@ function submit() {
             scenario[i].priority, 
             scenario[i].application, 
             scenario[i].parameters].join('::'));
-console.log(sce);
 
    var positions = new Array();
    for (i in contexts_pos)
@@ -1183,17 +1185,17 @@ function update_canvas() {
          case 7: // Transfer
                var a = scenario[r].parameters.split('::');
                var number=a[0], timeout=a[1], noanswer=a[2], busy=a[3], error=a[4];
-               if (noanswer!=-2) {
+               if (noanswer!='-2') {
                   canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
-                  $('#'+a[2].substr(2)) );
+                              $('#'+ noanswer.substr(2)) );
                }
-               if (error!=-2) {
+               if (error!='-2') {
                   canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
-                  $('#'+a[3].substr(2)) );
+                              $('#' + error.substr(2)) );
                }
-               if (busy!=-2) {
+               if (busy!='-2') {
                   canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
-                  $('#'+a[4].substr(2)) );
+                              $('#' + busy.substr(2)) );
                }
             break;
 

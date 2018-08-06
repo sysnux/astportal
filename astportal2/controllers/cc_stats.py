@@ -120,10 +120,10 @@ def mk_filters(period, begin, end, queues, members):
 def stat_global(page, rows, offset, sidx, sord, date_filter, queues_filter):
    # Global stats
    q = DBSession.query(Queue_log.queue, 
-      func.count(Queue_log.queue).label('count')).\
-      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='ENTERQUEUE').\
-      filter(queues_filter).group_by(Queue_log.queue)
+                       func.count(Queue_log.queue).label('count')) \
+                .filter(Queue_log.event=='ENTERQUEUE') \
+                .filter(queues_filter) \
+                .group_by(Queue_log.queue)
 
    if date_filter is not None:
       q = q.filter(date_filter)
@@ -155,52 +155,47 @@ def stat_queues(page, rows, offset, sidx, sord, date_filter, queues_filter):
 #            group_by(Queue_log.queue).subquery()
 
    abandon = DBSession.query(Queue_log.queue.label('queue'), 
-         func.count('*').label('count')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='ABANDON')
+                             func.count('*').label('count')) \
+                      .filter(Queue_log.event=='ABANDON')
    if date_filter is not None:
       abandon = abandon.filter(date_filter)
    abandon = abandon.filter(queues_filter).group_by(Queue_log.queue).subquery()
 
    connect = DBSession.query(Queue_log.queue.label('queue'), 
-         func.count('*').label('count')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='CONNECT')
+                             func.count('*').label('count')) \
+                      .filter(Queue_log.event=='CONNECT')
    if date_filter is not None:
       connect = connect.filter(date_filter)
    connect = connect.filter(queues_filter).group_by(Queue_log.queue).subquery()
 
    dissuasion = DBSession.query(Queue_log.queue.label('queue'), 
-         func.count('*').label('count')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='DISSUASION')
+                                func.count('*').label('count')) \
+                         .filter(Queue_log.event=='DISSUASION')
    if date_filter is not None:
       dissuasion = dissuasion.filter(date_filter)
    dissuasion = dissuasion.filter(queues_filter).group_by(Queue_log.queue).subquery()
 
    closed = DBSession.query(Queue_log.queue.label('queue'), 
-         func.count('*').label('count')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='CLOSED')
+                            func.count('*').label('count')) \
+                     .filter(Queue_log.event=='CLOSED')
    if date_filter is not None:
       closed = closed.filter(date_filter)
    closed = closed.filter(queues_filter).group_by(Queue_log.queue).subquery()
 
    q = DBSession.query(Queue_log.queue.label('queue'), 
-            func.count('*').label('enter'), 
-            abandon.c.count.label('abandon'),
-            connect.c.count.label('connect'), 
-            dissuasion.c.count.label('dissuasion'), 
-            closed.c.count.label('closed')).\
-         filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-         filter(Queue_event.event=='ENTERQUEUE').\
-         filter(queues_filter).\
-         outerjoin((abandon, Queue_log.queue==abandon.c.queue)).\
-         outerjoin((connect, Queue_log.queue==connect.c.queue)).\
-         outerjoin((dissuasion, Queue_log.queue==dissuasion.c.queue)).\
-         outerjoin((closed, Queue_log.queue==closed.c.queue)).\
-         group_by(Queue_log.queue, abandon.c.count, connect.c.count, 
-         dissuasion.c.count, closed.c.count)
+                       func.count('*').label('enter'), 
+                       abandon.c.count.label('abandon'),
+                       connect.c.count.label('connect'), 
+                       dissuasion.c.count.label('dissuasion'), 
+                       closed.c.count.label('closed')) \
+                .filter(Queue_log.event=='ENTERQUEUE') \
+                .filter(queues_filter) \
+                .outerjoin((abandon, Queue_log.queue==abandon.c.queue)) \
+                .outerjoin((connect, Queue_log.queue==connect.c.queue)) \
+                .outerjoin((dissuasion, Queue_log.queue==dissuasion.c.queue)) \
+                .outerjoin((closed, Queue_log.queue==closed.c.queue)) \
+                .group_by(Queue_log.queue, abandon.c.count, connect.c.count, 
+                          dissuasion.c.count, closed.c.count)
 
    if date_filter is not None:
       q = q.filter(date_filter)
@@ -256,13 +251,13 @@ def stat_queues(page, rows, offset, sidx, sord, date_filter, queues_filter):
 def stat_sla(page, rows, offset, sidx, sord, date_filter, queues_filter, type):
    # Service Level, connect or abandon (count connect time / 30 s)
    o = sql.cast(Queue_log.data1 if type=='CONNECT' else Queue_log.data3,
-         types.INT)/30
+                types.INT) / 30
    q = DBSession.query(func.count('*').label('count'), 
-         (o).label('qwait')).\
-      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event==type).\
-      filter(queues_filter).\
-      group_by(o).order_by(o)
+                       (o).label('qwait')) \
+                .filter(Queue_log.event==type) \
+                .filter(queues_filter) \
+                .group_by(o) \
+                .order_by(o)
 
    if date_filter is not None:
       q = q.filter(date_filter)
@@ -321,11 +316,10 @@ def stat_daily(page, rows, offset, sidx, sord, date_filter, queues_filter):
       xd = (extract('dow', Queue_log.timestamp)).label('dow')
       dow = [ u'dimanche', u'lundi', u'mardi', u'mercredi', 
          u'jeudi', u'vendredi', u'samedi']
-   q = DBSession.query(xd, (func.count('*')).label('count')).\
-      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='CONNECT').\
-      filter(queues_filter).\
-      group_by(xd)
+   q = DBSession.query(xd, (func.count('*')).label('count')) \
+                .filter(Queue_log.event=='CONNECT') \
+                .filter(queues_filter) \
+                .group_by(xd)
 
    if date_filter is not None:
       q = q.filter(date_filter)
@@ -371,56 +365,52 @@ def stat_hourly(page, rows, offset, sidx, sord, date_filter, queues_filter):
 #      h_incoming = h_incoming.filter(date_filter)
 #   h_incoming = h_incoming.group_by(xh).order_by(xh).subquery()
 
-   h_connect = DBSession.query(
-         xh, func.count('*').label('count')).\
-      filter(queues_filter). \
-      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='CONNECT').filter(queues_filter)
+   h_connect = DBSession.query(xh, func.count('*').label('count')) \
+                        .filter(queues_filter) \
+                        .filter(Queue_log.event=='CONNECT') \
+                        .filter(queues_filter)
+
    if date_filter is not None:
       h_connect = h_connect.filter(date_filter)
    h_connect = h_connect.group_by(xh).subquery()
 
-   h_abandon = DBSession.query(
-         xh, func.count('*').label('count')).\
-      filter(queues_filter). \
-      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='ABANDON').filter(queues_filter)
+   h_abandon = DBSession.query(xh, func.count('*').label('count')) \
+                        .filter(queues_filter) \
+                        .filter(Queue_log.event=='ABANDON') \
+                        .filter(queues_filter)
    if date_filter is not None:
       h_abandon = h_abandon.filter(date_filter)
    h_abandon = h_abandon.group_by(xh).subquery()
 
-   h_closed = DBSession.query(
-         xh, func.count('*').label('count')).\
-      filter(queues_filter). \
-      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='CLOSED').filter(queues_filter)
+   h_closed = DBSession.query(xh, func.count('*').label('count')) \
+                       .filter(queues_filter) \
+                       .filter(Queue_log.event=='CLOSED') \
+                       .filter(queues_filter)
    if date_filter is not None:
       h_closed = h_closed.filter(date_filter)
    h_closed = h_closed.group_by(xh).subquery()
 
-   h_dissuasion = DBSession.query(
-         xh, func.count('*').label('count')).\
-      filter(queues_filter). \
-      filter(Queue_log.queue_event_id==Queue_event.qe_id).\
-      filter(Queue_event.event=='DISSUASION').filter(queues_filter)
+   h_dissuasion = DBSession.query(xh, func.count('*').label('count')) \
+                           .filter(queues_filter) \
+                           .filter(Queue_log.event=='DISSUASION') \
+                           .filter(queues_filter)
    if date_filter is not None:
       h_dissuasion = h_dissuasion.filter(date_filter)
    h_dissuasion = h_dissuasion.group_by(xh).subquery()
 
    q = DBSession.query(xh, func.count('*').label('incoming'),
-            h_abandon.c.count.label('abandon'),
-            h_connect.c.count.label('connect'), 
-            h_dissuasion.c.count.label('dissuasion'), 
-            h_closed.c.count.label('closed')).\
-      filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-      filter(Queue_event.event=='ENTERQUEUE').filter(queues_filter). \
-      filter(queues_filter). \
-      outerjoin((h_connect, xh==h_connect.c.xhour)). \
-      outerjoin((h_abandon, xh==h_abandon.c.xhour)). \
-      outerjoin((h_closed, xh==h_closed.c.xhour)). \
-      outerjoin((h_dissuasion, xh==h_dissuasion.c.xhour)). \
-      group_by(xh,h_abandon.c.count, h_connect.c.count, 
-            h_dissuasion.c.count, h_closed.c.count)
+                       h_abandon.c.count.label('abandon'),
+                       h_connect.c.count.label('connect'), 
+                       h_dissuasion.c.count.label('dissuasion'), 
+                       h_closed.c.count.label('closed')) \
+                .filter(Queue_log.event=='ENTERQUEUE').filter(queues_filter) \
+                .filter(queues_filter) \
+                .outerjoin((h_connect, xh==h_connect.c.xhour)) \
+                .outerjoin((h_abandon, xh==h_abandon.c.xhour)) \
+                .outerjoin((h_closed, xh==h_closed.c.xhour)) \
+                .outerjoin((h_dissuasion, xh==h_dissuasion.c.xhour)) \
+                .group_by(xh,h_abandon.c.count, h_connect.c.count, 
+                          h_dissuasion.c.count, h_closed.c.count)
    
    if date_filter is not None:
       q = q.filter(date_filter)
@@ -482,20 +472,30 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter,
    # members stats
 
    # Service: list of connects / disconnects, ordered by member, timestamp
-   q_service = DBSession.query(Queue_log.timestamp,
-         Queue_log.user, Queue_event.event). \
-         filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-         filter(queues_filter).filter(members_filter). \
-         filter(Queue_event.event.in_(('ADDMEMBER', 'REMOVEMEMBER'))). \
-         order_by(Queue_log.user, desc(Queue_log.timestamp))
+   q_service = DBSession.query(Queue_log.timestamp, Queue_log.agent, Queue_log.event) \
+                        .filter(queues_filter) \
+                        .filter(Queue_log.event.in_(('ADDMEMBER', 'REMOVEMEMBER'))) \
+                        .order_by(Queue_log.user, desc(Queue_log.timestamp))
+   # Above is returning channel as agent, eg.:
+#            time            |     agent      |    event     
+#----------------------------+----------------+--------------
+# 2018-07-03 07:18:16.473591 | PJSIP/fckmPBen | ADDMEMBER
+# 2018-07-03 07:18:10.685148 | PJSIP/Z5wmfvlF | ADDMEMBER
+# 2018-07-03 07:08:50.457823 | PJSIP/J2On79jC | ADDMEMBER
+# 2018-07-03 07:08:47.136693 | PJSIP/J2On79jC | REMOVEMEMBER
+# 2018-07-03 07:08:40.375988 | PJSIP/J2On79jC | ADDMEMBER
+# 2018-07-03 06:58:57.927101 | PJSIP/fWaXyRWb | ADDMEMBER
+# 2018-07-02 17:05:13.927596 | PJSIP/fckmPBen | REMOVEMEMBER
+# 2018-07-02 17:05:11.09098  | PJSIP/Z5wmfvlF | REMOVEMEMBER
+    # We need to map channel to actual agent (person)
+
 
    # Pause
-   q_pause = DBSession.query(Queue_log.timestamp, 
-         Queue_log.user, Queue_event.event). \
-         filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-         filter(Queue_event.event.in_(('PAUSE','UNPAUSE'))). \
-         filter(queues_filter).filter(members_filter). \
-         order_by(Queue_log.user, desc(Queue_log.timestamp))
+   q_pause = DBSession.query(Queue_log.timestamp, Queue_log.user, Queue_log.event) \
+                      .filter(Queue_event.event.in_(('PAUSE','UNPAUSE'))) \
+                      .filter(queues_filter) \
+                      .filter(members_filter) \
+                      .order_by(Queue_log.user, desc(Queue_log.timestamp))
 
    # Calls received per members
    q_call = DBSession.query(Queue_log.user, 
@@ -663,21 +663,18 @@ def check_access(queues):
 def queues_options():
    ''' Returns distinct queues from queue log
    '''
-   # queue_event_id==24 => AddMember
-   queues = [q[0] for q in DBSession.query(Queue_log.queue).distinct().\
-         filter(Queue_log.queue_event_id==24).order_by(Queue_log.queue)]
+   queues = [q[0] for q in DBSession.query(Queue_log.queue).distinct() \
+                                    .filter(Queue_log.event=='CONNECT') \
+                                    .order_by(Queue_log.queue)]
    return check_access(queues)
 
 def members_options():
    ''' Returns distinct members from queue log
    '''
-   # queue_event_id==24 => AddMember
-   uids = [a.user for a in DBSession.query(Queue_log.user).distinct(). \
-         filter(Queue_log.queue_event_id==24)]
-   log.debug(u'Queue members uids=%s' % uids)
-
-   return [(a.user_id, a.display_name) for a in DBSession.query(User). \
-         filter(User.user_id.in_(uids)).order_by(User.display_name)]
+   agents = [a[0] for a in DBSession.query(Queue_log.agent).distinct() \
+                                    .filter(Queue_log.event=='CONNECT')]
+   log.debug(u'Queue members=%s' % agents)
+   return [(a, a) for a in agents]
 
 class Stats_form(TableForm):
    ''' Stats form

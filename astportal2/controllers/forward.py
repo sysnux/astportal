@@ -27,7 +27,7 @@ from astportal2.model import DBSession, User, Phone, Department, Application
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 
-re_db = re.compile(r'(\w*)\s*: (\S*)')
+re_db = re.compile(r'(Output:\s+)?/CF../(\w+)\s+: (\S*)')
 cf_types = dict(CFIM = u'immédiat',
       CFUN = u'sur non réponse',
       CFBS = u'sur occupation',
@@ -152,7 +152,28 @@ class Forward_ctrl(RestController):
    def fetch(self, page, rows, sidx='mb', sord='asc', _search='false',
           searchOper=None, searchField=None, searchString=None, **kw):
       ''' Function called on AJAX request made by FlexGrid
-      Fetch data
+      Fetch data by sending command "database shox CFxx" through AMI
+Asterisk < 14
+Response: Follows
+Privilege: Command
+/CFIM/22txkNPt                                    : 8001                     
+/CFIM/4Afqg7JE                                    : 4012                     
+/CFIM/DSJqdlMH                                    : 4012                     
+/CFIM/Db8dihvo                                    : 7000                     
+/CFIM/Ei6WM7QK                                    : 4012                     
+/CFIM/KDlZeUkM                                    : 4142                     
+/CFIM/NmWv3gCc                                    : 4334                     
+/CFIM/VsxoRDqq                                    : 040864050                
+8 results found.
+--END COMMAND--
+
+Asterisk >= 15
+Response: Success
+Message: Command output follows
+Output: /CFIM/g9MoYfT6                                    : 106                      
+Output: 1 results found.
+
+
       '''
 
       log.debug('fetch')
@@ -189,31 +210,32 @@ class Forward_ctrl(RestController):
 
       cfs = []
       man = Globals.manager.command('database show CFIM')
-      for i,r in enumerate(man.response[3:-2]):
+      for i,r in enumerate(man.response[3:-1]):
          match = re_db.search(r)
          if match:
-            k, v = match.groups()
+            _, k, v = match.groups()
             if k in sip2ext.keys():
                cfs.append((sip2ext[k], 'CFIM', v))
       man = Globals.manager.command('database show CFBS')
-      for i,r in enumerate(man.response[3:-2]):
+      for i,r in enumerate(man.response[3:-1]):
          match = re_db.search(r)
          if match:
-            k, v = match.groups()
+            _, k, v = match.groups()
             if k in sip2ext.keys():
                cfs.append((sip2ext[k], 'CFBS', v))
       man = Globals.manager.command('database show CFUN')
-      for i,r in enumerate(man.response[3:-2]):
+      for i,r in enumerate(man.response[3:-1]):
          match = re_db.search(r)
          if match:
-            k, v = match.groups()
+            _, k, v = match.groups()
             if k in sip2ext.keys():
                cfs.append((sip2ext[k], 'CFUN', v))
       man = Globals.manager.command('database show CFVM')
-      for i,r in enumerate(man.response[3:-2]):
+      log.debug('database show CFVM -> <%s>', man.response)
+      for i,r in enumerate(man.response[3:-1]):
          match = re_db.search(r)
          if match:
-            k, v = match.groups()
+            _, k, v = match.groups()
             if k in sip2ext.keys():
                cfs.append((sip2ext[k], 'CFVM', v))
       log.debug('Call forwards-> %s' % (cfs))

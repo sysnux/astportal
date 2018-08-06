@@ -5,13 +5,11 @@
       src="/toscawidgets/resources/tw.jquery.base/static/javascript/ui/minified/jquery-ui.min.js"></script>
 
    <style>
-<![CDATA[
 tr.even td.free, tr.odd td.free { background-color: lightgreen;}
 tr.even td.paused, tr.odd td.paused { background-color: violet;}
 tr.even td.inuse, tr.odd td.inuse { background-color: red;}
 tr.even td.ringing, tr.odd td.ringing { background-color: yellow;}
 tr.even td.invalid, tr.odd td.invalid { background-color: lightgrey;}
-]]>
    </style>
 
    <script type="text/javascript">
@@ -246,6 +244,7 @@ function member_status(name, now, queue) {
          dur = '';
          break;
       case '2': // AST_DEVICE_INUSE
+      case '3': // AST_DEVICE_BUSY
          if (name==my_name && member['PeerChannel']!='' && !my_status) {
             my_status = member['Uniqueid'];
             if (member['ConnectURL']!='') {
@@ -261,7 +260,6 @@ function member_status(name, now, queue) {
                   'CRM', 'location=no,width=600,height=400');
             }
          }
-      case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
          sclass='inuse'; 
          if (member['Outgoing']) {
