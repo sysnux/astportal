@@ -7,6 +7,8 @@ from BeautifulSoup import BeautifulSoup
 from struct import pack, unpack
 import os
 import re
+from hashlib import sha256
+from binascii import b2a_hex
 from collections import defaultdict
 from urllib import urlencode
 import requests
@@ -135,6 +137,8 @@ P2312 = '',
       self.host = host
       self.mac = mac
       self.pwd = pwd
+      self.token = None
+      self.token_ts = None
       self.type = 0
       self.sid = None
       self.cj = {}
@@ -196,17 +200,53 @@ P2312 = '',
             log.warning('POST %s, params %s failed' % (\
                self.host + '/' + action, params))
             return None
+
       return resp
+
+   def post_json(self, action, params={}):
+       log.warning('post_json %s %s', self.host, params)
+       try:
+           # Try HTTPS first
+           resp = self.session.post('https://' + self.host + '/' + action,
+                                  data = json.dumps(params),
+                                  headers = {'Content-Type': 'application/json'},
+                                  verify=False)
+       except:
+           log.warning('POST JSON %s, params %s failed' % (\
+                       self.host + '/' + action, params))
+           return None
+
+       log.warning('post_json OK %s', self.host)
+       return resp
 
    def login(self, pwd=None):
 
       if pwd:
          self.pwd = pwd
 
+      resp = self.get('cgi-bin/api.values.get',
+                     {'request':  '68:phone_model:password_token:password_token_timestamp',
+                      'sid': self.sid})
+      data = resp.json()
+      self.token = data['body'].get('password_token')
+      self.token_ts = data['body'].get('password_token_timestamp')
+
+      params = {'username': 'admin'}
+      if self.token:
+         # Encoded password
+         sha = sha256()
+         sha.update(self.pwd + self.token)
+         sha = sha.digest()
+         pw = b2a_hex(sha)
+         params['password'] = pw
+         params['timestamp'] = self.token_ts
+      else:
+         params['password'] = self.pwd
+
       # Newer phones
-      resp = self.get('cgi-bin/dologin', {'username': 'admin', 'password': self.pwd})
+      resp = self.get('cgi-bin/dologin', params=params)
       if resp is not None and resp.status_code==200:
-         log.debug('GXP new firmware returns %s' % resp.content)
+         log.debug('GXP new firmware: params "%s" returns "%s"', resp.content)
          try:
             data = resp.json()
             if data['response'] == 'success':
@@ -300,10 +340,13 @@ P2312 = '',
 
       elif self.type == 3: # GXP-14XX 21XX new firmware
          resp = self.get('cgi-bin/api.values.get',
-                        {'request': 'phone_model:68', 'sid': self.sid})
+                        {'request':  '68:phone_model:password_token:password_token_timestamp',
+                         'sid': self.sid})
          data = resp.json()
          model = data['body']['phone_model']
          soft = data['body']['68']
+         self.token = data['body'].get('password_token')
+         self.token_ts = data['body'].get('password_token_timestamp')
 
       self.model = model
 
@@ -355,7 +398,7 @@ P2312 = '',
          mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
          sip_server2=None, secretary=None, ringtone=None):
       '''Parameters: firmware_url, config_url, ntp_server,
-         phonebook_url=None, syslog_server=None, ...
+         phonebook_url=None, syslog_server=None
       '''
 
       mac = self.mac.replace(':','')
@@ -475,7 +518,7 @@ P2312 = '',
             '{ x+ | *x+ | *x.# | *xx.*xx.# | *xx.*0xx.# | *xx.*xx.*xx.# | #xx.| #xx.# }'
          self.params['P334'] = 100
          self.params['P335'] = 50
-         self.params['P2380'] = 1 # Show account name only
+         self.params['P2380'] = 0 # Show account name only
          self.params['P2970'] = 1 # Phonebook management Exact match
          self.params['P2991'] = 25 # Call log on softkey 1
          self.params['P2993'] = 'Historique' # History on softkey 3
@@ -516,8 +559,9 @@ P2312 = '',
       except:
          log.error('ERROR: write binary config file')
 
-      # Update config URL and reboot phone
+      # Update and reboot phone
       self.update({'P212': 2, 'P237': config_url, 'sid': self.sid}) # self.params)
+#      if  reboot:
       sleep(6)
       self.reboot()
 
@@ -625,8 +669,8 @@ the header and parameter strings are written to a binary file.
       # Update all secretaries
       secretaries = defaultdict(list)
       for boss in DBSession.query(Phone) \
-                        .filter(Phone.secretary != None) \
-                        .order_by(Phone.exten):
+                           .filter(Phone.secretary != None) \
+                           .order_by(Phone.exten):
          if boss.secretary.startswith('g('):
             # The secretary is a queue, we must look for phones of 
             # indivdual members in this queue
@@ -651,6 +695,7 @@ the header and parameter strings are written to a binary file.
       for secretary, bosses in secretaries.iteritems():
          log.info('Updating secretary %s for bosses %s', secretary, bosses)
          params = {}
+         mpk = []
          i = 0
          for boss in bosses:
              # This GXP belongs to a secretary, configure keys on extension
@@ -658,10 +703,22 @@ the header and parameter strings are written to a binary file.
              log.info('boss %s cfs_in=%s cf_out=%s', boss, cfs_in, cfs_out)
              desc = boss.user.display_name if boss.user else boss.exten
              # First key is BLF
+             mpk.append({'VKID': 17+i,
+                         'ValueName': boss.exten,
+                         'Description': desc,
+                         'Account': 0,
+                         'TypeMode': 3,
+                         'Priority': 2000+i})
              params['P23%03d' % (5*i)] = 1 # Mode BLF
              params['P23%03d' % (5*i+2)] = desc # Description
              params['P23%03d' % (5*i+3)] = boss.exten # Description
              i += 1 # Next key is direct call
+             mpk.append({'VKID': 17+i,
+                         'ValueName': boss.exten,
+                         'Description': 'Direct ' + desc,
+                         'Account': 0,
+                         'TypeMode': 6,
+                         'Priority': 2000+i})
              params['P23%03d' % (5*i)] = 0 # Mode Speed Dial
              params['P23%03d' % (5*i+2)] = 'Direct ' # + desc # Description
              params['P23%03d' % (5*i+3)] = 'DIR' + boss.exten # Value
@@ -670,6 +727,12 @@ the header and parameter strings are written to a binary file.
              if cfs_out:
                 params['P23%03d' % (5*i+2)] = 'Filtré !' # + desc # Description
                 params['P23%03d' % (5*i+3)] = '*70' + boss.exten # Value annulation renvoi autre poste
+                mpk.append({'VKID': 17+i,
+                            'ValueName': '*70' + boss.exten,
+                            'Description': 'Filtré !',
+                            'Account': 0,
+                            'TypeMode': 6,
+                            'Priority': 2000+i})
              else:
                 params['P23%03d' % (5*i+2)] = 'Filtrage' # + desc # Description
                 if boss.secretary.startswith('g('):
@@ -677,6 +740,12 @@ the header and parameter strings are written to a binary file.
                 else:
                    forward = '*71' + boss.exten
                 params['P23%03d' % (5*i+3)] = forward  # *71 : renvoi immédiat d'un autre poste vers celui-ci
+                mpk.append({'VKID': 17+i,
+                            'ValueName': forward,
+                            'Description': 'Filtrage',
+                            'Account': 0,
+                            'TypeMode': 6,
+                            'Priority': 2000+i})
              i += 2 # One blank key
 
          peer = 'PJSIP/' + secretary.sip_id
@@ -698,20 +767,26 @@ the header and parameter strings are written to a binary file.
                  log.error('Found unknown phone (%s), cancel', infos)
                  continue
 
-             ret = gs.post('cgi-bin/api.values.post', params)
+             ret = gs.post_json('cgi-bin/api-save_mpk', mpk)
              if not ret.ok:
-                 log.error('Configuration returns %s', ret)
+                ret = gs.post('cgi-bin/api.values.post', params)
+                if not ret.ok:
+                    log.error('cgi-bin/api.values.post %s returns %s', params, ret)
 
-             try:
-                 result = json.loads(ret.text.split('\r\n')[-1])
-             except:
-                 log.error('JSON \n%s\n%s', ret.text)
+                try:
+                    result = json.loads(ret.text.split('\r\n')[-1])
+                except:
+                    log.error('JSON \n%s\n%s', ret.text)
 
-             if result['response'] != 'success':
-                 log.error('Respons %s', ret.text)
-                 if infos['model'] != secretary.model:
-                      log.warning('Update phone model "%s" for %s', infos['model'], secretary)
-                      secretary.model = infos['model']
+                try:
+                    if result['response'] != 'success':
+                        log.error('Respons %s', ret.text)
+                        if infos['model'] != secretary.model:
+                            log.warning('Update phone model "%s" for %s', infos['model'], secretary)
+                            secretary.model = infos['model']
+                except:
+                    log.error('ret.text = %s', ret.text)
+            
              gs.logout()
 
          else:
@@ -737,6 +812,8 @@ the header and parameter strings are written to a binary file.
              return
 
           params = {}
+          mpk = []
+          # MPK TypeMode: speed dial = 2, BLF = 3, Speed dial via active account = 6
           if phone.secretary:
              # GXP belongs to a boss, configure filtering
              if phone.secretary.startswith('g('):
@@ -746,29 +823,60 @@ the header and parameter strings are written to a binary file.
                 sec = phone.secretary
                 params['P1365'] = 11 # BLF
              cfs_out, cfs_in, dnd = check_call_forwards(phone)
+             # Second account key
              params['P1366'] = 0
              params['P1467'] = u'Secrétariat'
              params['P1468'] = sec
+             mpk.append({'VKID': 2,
+                         'ValueName': sec,
+                         'Description': u'Secrétariat',
+                         'Account': 0,
+                         'TypeMode': 3,
+                         'Priority': 1,
+                         'Locked': 0})
 
              if 'CFIM' in [x[0] for x in cfs_out]:
+                # Second soft key
                 params['P2987'] = 10
                 params['P2989'] = u'Filtré !'
                 params['P2990'] = u'#21#'
+                mpk.append({'VKID': 178,
+                            'ValueName': u'#21#',
+                            'Description': u'Filtré !',
+                            'Account': 0,
+                            'TypeMode': 2,
+                            'Priority': 3001})
              else:
+                # Second soft key
                 params['P2987'] = 10
                 params['P2989'] = u'Filtrage'
                 params['P2990'] = u'*21*%s#' % sec
+                mpk.append({'VKID': 178,
+                            'ValueName': u'*21*%s#' % sec,
+                            'Description': u'Filtrage',
+                            'Account': 0,
+                            'TypeMode': 2, # Speed dial via active account
+                            'Priority': 3001})
  
-             ret = self.post('cgi-bin/api.values.post', params)
+             ret = self.post_json('cgi-bin/api-save_mpk', mpk)
+             result = {}
              if not ret.ok:
-                 log.error('Configuration returns %s', ret)
+                ret = self.post('cgi-bin/api.values.post', params)
+                if not ret.ok:
+                    log.error('Configuration returns %s', ret)
 
-             try:
-                 result = json.loads(ret.text.split('\r\n')[-1])
-             except:
-                 log.error('JSON \n%s\n%s', ret.text)
+                try:
+                    result = json.loads(ret.text.split('\r\n')[-1])
+                except:
+                    log.error('JSON \n%s\n%s', ret.text)
 
-             if result['response'] != 'success':
+             else:
+                try:
+                    result = json.loads(ret.text.split('\r\n')[-1])
+                except:
+                    log.error('JSON \n%s\n%s', ret.text)
+
+             if result.get('response', None) != 'success':
                  log.error('Respons %s', ret.text)
                  if infos['model'] != phone.model:
                       log.warning('Update phone model "%s" for %s',

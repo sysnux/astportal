@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
+
 # Phone CReate / Update / Delete RESTful controller
 # http://turbogears.org/2.0/docs/main/RestControllers.html
 
@@ -22,6 +24,7 @@ from astportal2.model import DBSession, Phone, Department, User, Pickup, Sound
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.grandstream import Grandstream
 from astportal2.lib.cisco import Cisco
+from astportal2.lib.mitel import Mitel
 from astportal2.lib.app_globals import Globals, fetch_contacts
 from astportal2.lib.asterisk import asterisk_update_phone
 
@@ -50,6 +53,9 @@ _vendors = {
    '00:90:7a': 'Polycom',
    '1c:df:0f': 'Cisco',
    '54:7c:69': 'Cisco',
+   '00:10:bc': 'Aastra',
+   '00:08:5d': 'Aastra',
+   '08:00:0f': 'Aastra', # Mitel == Aastra ?
 }
 
 _contexts = (('urgent', u'Urgences'), ('internal', u'Interne'), 
@@ -602,6 +608,24 @@ class Phone_ctrl(RestController):
          return dict(status=0, ip=ip, mac=mac, conf='polycom_configure',
                msg=u"Trouvé téléphone Polycom")
 
+      elif _vendors[vendor] == 'Aastra':
+         new_phone = Mitel(ip, mac)
+         msg = u"Trouvé téléphone Aastra / Mitel : "
+
+         if not new_phone.login(pwd):
+            return dict(status=6, msg=msg+u'erreur login')
+
+         infos = new_phone.infos()
+
+         if not infos:
+            return dict(status=6, msg=msg+u'erreur login')
+
+         session['new_phone'] = new_phone
+         session.save()
+
+         return dict(status = 0, ip = ip, mac = mac, conf = 'mitel_configure',
+               msg = msg + infos['model'] + ', ' + infos['version'])
+
 
 #   class user_form_valid(object):
 #      def validate(self, params, state):
@@ -672,8 +696,7 @@ class Phone_ctrl(RestController):
          p.mac = kw['mac']
          p.vendor = new_phone.vendor
          p.model = new_phone.model
-         log.debug('%s %s, session %s', 
-                   new_phone.vendor, new_phone.model, new_phone.sid )
+         log.debug('%s %s', new_phone.vendor, new_phone.model)
       p.password = pwd
       if kw['exten']: p.exten = exten
       if kw['dnis']: p.dnis = dnis
