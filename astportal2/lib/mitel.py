@@ -191,9 +191,6 @@ curl 'http://192.168.10.150/globalSIPsettings.html'
       self.get('globalSIPsettings.html', params=data, method='POST')
       log.debug('Global SIP settings configured on %s (%s)', sip_user, exten)
 
-#      if exten is not None:
-#          log.debug('exten %s', exten)
-
       # Reboot phone
       sleep(2)
       self.reboot()

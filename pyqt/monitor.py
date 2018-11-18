@@ -158,10 +158,10 @@ class Monitor(QWidget):
    def times(self, wait):
       ''' Convert epoch times list to string '1: 1m23s, 2: 0m12s'
       '''
-      now = time() + self.time_diff
+      now = time() #+ self.time_diff
       x = []
       for i, w in enumerate(wait):
-         m, s = divmod(now - int(w), 60)
+         m, s = divmod(now - w, 60)
          x.append('%d: %dm%02ds' % (1+i, m, s))
       return ', '.join(x)
 
@@ -170,8 +170,8 @@ class Monitor(QWidget):
       tot = 0
       for i, q in enumerate(self.queues):
          if i>=self.max_queues: break
-         self.debug('Queue %d, name = %s, weight = %s, members = %s' % (
-            i, q['name'], q['params']['Weight'], q['params']['Members']))
+         self.debug('Queue %d, name = %s, weight = %s, members = %s, wait = %s' % (
+            i, q['name'], q['params']['Weight'], q['params']['Members'], q['params']['Wait']))
          self.ui.q[i]['name'].setText(q['name'])
          self.ui.q[i]['members'].setText('%d' % len(q['params']['Members']))
 
