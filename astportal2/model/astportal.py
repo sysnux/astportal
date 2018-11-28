@@ -210,7 +210,9 @@ class Queue(DeclarativeBase):
 
 
 class Queue_log(DeclarativeBase):
-   ''' Definition of a queue
+   ''' ODBC queue logs
+   Configuration in /etc/asterisk/extconfig.conf:
+   queue_log => pgsql,general
    '''
    __tablename__ = 'queue_log'
    ql_id = Column(Integer, Sequence('queuelog_seq'), primary_key=True)
@@ -219,12 +221,12 @@ class Queue_log(DeclarativeBase):
    queue = Column(Unicode(45), name='queuename')
    channel = Column(Unicode(80))
    agent = Column(Unicode(80))
-   data1 = Column(Unicode(20))
-   data2 = Column(Unicode(20))
-   data3 = Column(Unicode(20))
-   data4 = Column(Unicode(20))
-   data5 = Column(Unicode(20))
-   event = Column(Unicode(20))
+   data1 = Column(Unicode(80))
+   data2 = Column(Unicode(80))
+   data3 = Column(Unicode(80))
+   data4 = Column(Unicode(80))
+   data5 = Column(Unicode(80))
+   event = Column(Unicode(80))
    queue_event_id = Column(Integer, name='event_qe_id')
    department = Column(Integer)
    user = Column(Integer)
@@ -412,21 +414,24 @@ class Customer(DeclarativeBase):
    cust_id = Column(Integer, Sequence('customer_seq'), primary_key=True)
    cmp_id = Column(Integer, ForeignKey('campaign.cmp_id'))
    campaign = relation('Campaign', backref=backref('customers'))
-   code = Column(Unicode(7))
-   gender = Column(Unicode(80))
-   firstname = Column(Unicode(80))
+   number = Column(Unicode(80)) # Numéro ?
+   code = Column(Unicode(7)) # Code agent n°1
    lastname = Column(Unicode(80))
+   firstname = Column(Unicode(80))
    phone1 = Column(Unicode(20)) # Domicile
    phone2 = Column(Unicode(20)) # Bureau
    phone3 = Column(Unicode(20)) # Bureau 2
-   phone4 = Column(Unicode(20)) # Vini perso
-   phone5 = Column(Unicode(20)) # Vini pro
-   email = Column(Unicode(80))
+   client_name = Column(Unicode(80))
+   client_position = Column(Unicode(80))
+   total_amount = Column(Unicode(80))
    created = Column(DateTime, nullable=False, default=datetime.now)
    active = Column(Boolean, default=True) # Faux quand il ne faut plus 
                                           # appeler le client
    filename = Column(Unicode(80))
-   display_name = column_property(gender + ' ' + firstname + ' ' + lastname)
+
+   def __repr__(self):
+      return '<Customer %d, "%s">' % self.cust_id
+
 
 class Outcall(DeclarativeBase):
    ''' Outgoing campaign call

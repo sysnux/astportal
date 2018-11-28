@@ -50,8 +50,13 @@ def row(r, users):
    except:
       user = ''
 
+   try:
+      member = users[r.Record.member_id]
+   except:
+      member = ''
+
    return [#Markup(action), 
-         r.Queue.name, users[r.Record.member_id], user, 
+         r.Queue.name, member, user, 
          r.Record.created.strftime("%d %B, %Hh%Mm%Ss").decode('utf-8'),
          Markup(listen)]
 

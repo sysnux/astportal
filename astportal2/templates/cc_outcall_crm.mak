@@ -69,8 +69,6 @@ function originate(num, cust, id) {
    $('#phone1').html( $('#phone1 a').text() );
    $('#phone2').html( $('#phone2 a').text() );
    $('#phone3').html( $('#phone3 a').text() );
-   $('#phone4').html( $('#phone4 a').text() );
-   $('#phone5').html( $('#phone5 a').text() );
    $('#form0_phone').val(num);
    $.post(
       '${tg.url('originate')}',
@@ -154,41 +152,26 @@ function my_submit() {
       
    <table>
       <tr>
-         <th style="padding: 3px 10px;">Code client</th>
-         <th style="padding: 3px 10px;">Email</th>
+         <th style="padding: 3px 10px;">Nom client</th>
+         <th style="padding: 3px 10px;">Position client</th>
+         <th style="padding: 3px 10px;">Solde total</th>
       </tr>
       <tr>
-         <td><a href="#" title="Afficher la fiche client" 
-            ${crm_click}>${code}</a>
-            </td>
-         <td><a id="email" title="Envoyer un courrier électronique"
-            ${email_href}>${email}</a>
-            </td>
+         <td>${client_name}</td>
+         <td>${client_position}</td>
+         <td>${total_amount}</td>
       </tr>
       <tr><td colspan="5">&nbsp;</td></tr>
       <tr rowspan="2"><th colspan="5">Téléphones</th></tr>
       <tr>
-         <th style="padding: 3px 10px">Domicile</th>
-         <th style="padding: 3px 10px">Bureau 1</th>
-         <th style="padding: 3px 10px">Bureau 2</th>
-         <th style="padding: 3px 10px" id="gsm1">Vini perso.</th>
-         <th style="padding: 3px 10px" id="gsm2">Vini pro.</th>
-      </tr>
-      <tr>
-         <td id="phone1"><a href="#" title="Appeler au domicile"
-            ${ph1_click}>${phone1}</a>
+         <td id="phone1"><a href="#" title="Appeler"
+            ${ph1_click | n}>${phone1 | n}</a>
             </td>
-         <td id="phone2"><a href="#" title="Appeler au bureau"
-            ${ph2_click}>${phone2}</a>
+         <td id="phone2"><a href="#" title="Appeler"
+            ${ph2_click | n}>${phone2 | n}</a>
             </td>
-         <td id="phone3"><a href="#" title="Appeler au bureau"
-            ${ph3_click}>${phone3}</a>
-            </td>
-         <td id="phone4"><a href="#" title="Appeler sur vini perso."
-            ${ph4_click}>${phone4}</a>
-            </td>
-         <td id="phone5"><a href="#" title="Appeler au sur vini pro."
-            ${ph5_click}>${phone5}</a>
+         <td id="phone3"><a href="#" title="Appeler"
+            ${ph3_click | n}>${phone3 | n}</a>
             </td>
       </tr>
    </table>
@@ -200,11 +183,11 @@ function my_submit() {
 
    <div id="other">
       <div class="l_left">
-      <a href="#" ${prev_cust}>&lt; Client précédent</a>
+      <a href="#" ${prev_cust | n}>&lt; Client précédent</a>
       </div><div class="l_right">
-      <a href="#" ${next_cust}>Client suivant &gt;</a>
+      <a href="#" ${next_cust | n}>Client suivant &gt;</a>
       </div><div class="l_center">
-      <a href="#" ${back_list}>Retour à la liste des clients</a>
+      <a href="#" ${back_list | n}>Retour à la liste des clients</a>
       </div>
    </div>
 

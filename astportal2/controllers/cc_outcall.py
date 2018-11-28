@@ -86,6 +86,14 @@ result_text = [r[1] for r in result_options]
 cmp_types = ((-1, ' - - - '), (0, u'Commerciale'), 
    (1, u'Récurrente'), (2, u'\u00C9vénementielle'))
 
+def display_name(c):
+   name = u''
+   if c.firstname is not None:
+      name = c.firstname + ' '
+   if c.lastname is not None:
+      name += c.lastname
+   return capwords(name)
+
 def campaign_row(c):
    '''Displays a formatted row of the campaigns list
    Parameter: Campaign object
@@ -141,10 +149,11 @@ def customer_row(c):
    ''' Returns a formatted row for the list of cutomers
    Parameter: customer object
    '''
+   log.debug('customer_row %s %s %s %s', c.cust_id, c.number, c.firstname, c.lastname)
    row = [
       Markup(
          u'''<a href="#" onclick="postdata('crm', {cust_id:%d})">%s</a>''' % (
-         c.cust_id, capwords(c.display_name))),
+         c.cust_id, display_name(c))),
       c.code]
    
    phones = []
@@ -154,10 +163,6 @@ def customer_row(c):
       phones.append(c.phone2)
    if c.phone3:
       phones.append(c.phone3)
-   if c.phone4:
-      phones.append(c.phone4)
-   if c.phone5:
-      phones.append(c.phone5)
    row.append(Markup(', '.join(phones)))
 
    return row
@@ -511,7 +516,7 @@ class CC_Outcall_ctrl(BaseController):
 
       tmpl_context.form = None
 
-      return dict(title=u'Clients pour la campagne "%s"' % cmp_name, debug='')
+      return dict(title=u'Cibles pour la campagne "%s"' % cmp_name, debug='')
 
 
    @expose('json')
@@ -539,13 +544,16 @@ class CC_Outcall_ctrl(BaseController):
          page = 1
          rows = 25
 
-      data = DBSession.query(Customer). \
+      log.debug('customer_fetch, page %s, rows %s, sidx %s, sord %s, cmp_id %s',
+                page, rows, sidx, sord, cmp_id)
+      customers = DBSession.query(Customer). \
          filter(Customer.cmp_id==cmp_id). \
          filter(Customer.active==True)
-      total = 1 + data.count() / rows
-      column = getattr(Customer, sidx if sidx!='name' else 'lastname')
-      data = data.order_by(getattr(column,sord)()).offset(offset).limit(rows)
-      rows = [ { 'id'  : a.cust_id, 'cell': customer_row(a) } for a in data ]
+      total = 1 + customers.count() / rows
+#      column = getattr(Customer, sidx if sidx!='name' else 'lastname')
+#      customers = customers.order_by(getattr(column,sord)()).offset(offset).limit(rows)
+      rows = [{'id': cust.cust_id, 'cell': customer_row(cust) } \
+                for cust in customers]
 
       return dict(page=page, total=total, rows=rows)
 
@@ -647,17 +655,16 @@ class CC_Outcall_ctrl(BaseController):
             'cmp_id': c.campaign.cmp_id,
             'cmp_name': c.campaign.name})
 
-      phone1 = c.phone1
-      phone2 = c.phone2
-      phone3 = c.phone3
-      phone4 = c.phone4
-      phone5 = c.phone5
-      ph1_click = '''onclick="originate('%s',%d)"''' % (c.phone1, cust_id)
-      ph2_click = '''onclick="originate('%s',%d)"''' % (c.phone2, cust_id)
-      ph3_click = '''onclick="originate('%s',%d)"''' % (c.phone3, cust_id)
-      ph4_click = '''onclick="originate('%s',%d)"''' % (c.phone4, cust_id)
-      ph5_click = '''onclick="originate('%s',%d)"''' % (c.phone5, cust_id)
-      email_href = 'href=mailto:%s' % c.email
+      phone1 = ph1_click = phone2 = ph2_click = phone3 = ph3_click = ''
+      if c.phone1 is not None:
+          phone1 = c.phone1
+          ph1_click = '''onclick="originate('%s',%d)"''' % (c.phone1, cust_id)
+      if c.phone2 is not None:
+          phone2 = c.phone2
+          ph2_click = '''onclick="originate('%s',%d)"''' % (c.phone2, cust_id)
+      if c.phone3 is not None:
+          phone3 = c.phone3
+          ph3_click = '''onclick="originate('%s',%d)"''' % (c.phone3, cust_id)
       if config.get('crm_url') != '':
          crm_url = config.get('crm_url') % c.code
          crm_click = '''onclick="crm('%s')"''' % crm_url
@@ -671,7 +678,7 @@ class CC_Outcall_ctrl(BaseController):
          '''onclick="postdata('crm',{cust_id:%d,next:true})"''' % cust_id
       prev_cust = \
          '''onclick="postdata('crm',{cust_id:%d,prev:true})"''' % cust_id
-      title = u'%s : %s' % (c.campaign.name, capwords(c.display_name))
+      title = u'%s : %s (%s)' % (c.campaign.name, display_name(c), c.number)
 
       tmpl_context.grid = MyJqGrid( 
          id='grid', url='outcall_fetch', caption=u'Appels',
@@ -696,12 +703,11 @@ class CC_Outcall_ctrl(BaseController):
          'comment': comment}
 
       return dict(title=title, campaign=c.campaign.name, code=c.code, 
-         name=capwords(c.display_name),
-         phone1=phone1, phone2=phone2, phone3=phone3, phone4=phone4, phone5=phone5,
-         email=c.email,
+         name=display_name(c),
+         phone1=phone1, phone2=phone2, phone3=phone3,
          ph1_click=ph1_click, ph2_click=ph2_click, ph3_click=ph3_click,
-         ph4_click=ph4_click, ph5_click=ph5_click, email_href=email_href,
-         crm_click=crm_click, cal_click=cal, back_list=back_list,
+         client_name=c.client_name, client_position=c.client_position,
+         total_amount=c.total_amount, back_list=back_list,
          next_cust=next_cust, prev_cust=prev_cust, values=values)
 
 

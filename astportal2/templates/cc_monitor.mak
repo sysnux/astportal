@@ -22,12 +22,15 @@ var last=0, // last_update
     my_location = null, // Current user SIP user
     admin = false, // Is administrator?
     my_status = null, // Current user status (1=> not in use)
-    time_diff=0, // Time diff beween client and server
-    change=true, // Change in list of queues or members, need rebuild list
-    first_time=true, error=0, display_tmo,
-    add_queue=null,  // List of users for adding members
+    time_diff = 0, // Time difference beween client and server
+    change = true, // Change in list of queues or members, need rebuild list
+    first_time = true, error = 0, display_tmo = null,
+    add_queue = null,  // List of users for adding members
     queues = new Object(), // List of queues
-    members = new Object(); // List of members
+    members = new Object(), // List of members
+    // Parameters of popup window (on connect / hangup)
+    popup_params = 'location=no,scrollbars=yes,toolbar=no,menubar=no,width=600,height=600';
+
 
 $(document).ready(function() {
    $('#add_form').dialog({ 
@@ -221,33 +224,39 @@ function leave_queue(q, i, u) {
 function member_status(name, now, queue) {
    member = members[name];
    var lis = '', rec = '';
-   var sclass, stat, dur, nci, tci, nco, tco, lis, rec;
+   var sclass, stat, dur, nci, tci, nco, tco;
    switch (member['Status']) {
       case '1': // AST_DEVICE_NOT_INUSE
-         if (name==my_name && my_status && member['HangupURL']!='') {
-            // Open hangup window
-            var params = '?uid=' + member['Uniqueid'] +
+         if (name==my_name && my_status) {
+	    		my_status = null;
+            if (member['HangupURL']!='') {
+               // Open hangup window
+               var params = '?uid=' + member['Uniqueid'] +
                          '&member=' + name +
                          '&interface=' + member['Location'] +
                          '&queue=' + queue +
-                         '&custom1=' + member['Custom1'];
-            params += '&custom2=' + member['Custom2'];
-	         window.open(member['HangupURL'] + params, 
-               'Hangup', 'location=no,scrollbars=yes,toolbar=no,menubar=no,width=800,height=600');
-	         my_status = null;
+                         '&custom1=' + member['Custom1'] +
+               			 '&custom2=' + member['Custom2'];
+	        window.open(member['HangupURL'] + params, 
+                    'Hangup' + member['Uniqueid'], popup_params);
+            }
          }
          if (member['Paused']!='0') {
-            sclass='paused'; stat=member['Paused'];
+            sclass = 'paused';
+            stat = member['Paused'];
+            dur = min_sec(now - member['PauseBegin']);
          } else {
-            sclass='free'; stat='Libre';
+            sclass = 'free';
+            stat = 'Libre';
+            dur = '';
          }
-         dur = '';
          break;
       case '2': // AST_DEVICE_INUSE
-      case '3': // AST_DEVICE_BUSY
-         if (name==my_name && member['PeerChannel']!='' && !my_status) {
+         if (name==my_name && 
+             member['PeerChannel']!='' && 
+             (my_status==null || my_status!=member['Uniqueid'])) {
             my_status = member['Uniqueid'];
-            if (member['ConnectURL']!='') {
+            if (member['ConnectURL']) {
                // Open connect window
                var params = '?uid=' + member['Uniqueid'] +
                             '&member=' + name +
@@ -256,10 +265,11 @@ function member_status(name, now, queue) {
                             '&holdtime=' + member['HoldTime'] +
                             '&custom1=' + member['Custom1'] +
                             '&custom2=' + member['Custom2'];
-	            window.open(member['ConnectURL'] + params,
-                  'CRM', 'location=no,width=600,height=400');
+               window.open(member['ConnectURL'] + params,
+                  'CRM' + member['Uniqueid'], popup_params);
             }
          }
+      case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
          sclass='inuse'; 
          if (member['Outgoing']) {
@@ -284,7 +294,10 @@ function member_status(name, now, queue) {
       case '4': // AST_DEVICE_INVALID
       case '5': // AST_DEVICE_UNAVAILABLE
       default: 
-         sclass='invalid'; stat='Invalide'; dur=0; break;
+         sclass = 'invalid';
+         stat = 'Invalide';
+         dur = 0;
+         break;
    }
    nci = member['Queues'][queue]['CallsTaken'];
    tci = min_sec(member['InTotal']);

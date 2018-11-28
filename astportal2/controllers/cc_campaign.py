@@ -35,6 +35,7 @@ import re
 re_pri = re.compile(r'CLIPRI')
 re_com = re.compile(r'CLICOM')
 re_pro = re.compile(r'CLIPRO')
+re_line = re.compile(r'[^\w; ]')
 
 grid = MyJqGrid( 
    id='grid', url='fetch', caption=u'Campagnes',
@@ -138,12 +139,14 @@ def line2data(l):
       except:
          pass
 
+#   l = re_line.sub('', l)
    data = []
    # Split and cleanup line -> data
    for d in l.split(';'):
       d = d.strip()
       data.append(d if d!='' else None)
 
+#   log.debug('%s -> %s', l, data)
    return data
 
 
@@ -171,32 +174,33 @@ def process_file(csv, cmp_id):
    lines = errors = 0
    for l in tmp:
       lines += 1
-      if lines==1: continue
+      if lines==1: continue # Skip header
       data = line2data(l)
       if len(data)!=10:
          log.warning('process_file: invalid data %s' % data)
          errors += 1
          continue
-      c = Customer()
-      c.cmp_id = cmp_id
-      c.active = True
-      c.code = data[0]
-      c.gender = data[1]
-      c.lastname = data[2]
-      c.firstname = data[3]
-      c.phone1 = data[4]
-      c.phone2 = data[5]
-      c.phone3 = data[6]
-      c.phone4 = data[7]
-      c.phone5 = data[8]
-      c.email = data[9]
-      c.filename = filename
+#      [u'160000110237', u'HOARA MADELEINE RAIATUA', None, u'A30', u'87770929 GEORGE', u'87784215MADEL', u'87210395 MADELEIN', u'LA BANQUE SOCREDO', u'RCPAIEMENT', u'238214,00']
+      c = Customer(cmp_id = cmp_id,
+                   number = data[0],
+                   lastname = data[1],
+                   firstname = data[2],
+                   code = data[3],
+                   phone1 = data[4],
+                   phone2 = data[5],
+                   phone3 = data[6],
+                   client_name = data[7],
+                   client_position = data[8],
+                   total_amount = data[9],
+                   filename = filename)
+      log.debug(u'Data %s', data)
       DBSession.add(c)
+      log.debug(u'-> new "%s" "%s"', c.firstname, c.lastname)
    tmp.close()
 
    # remove uploaded file
 #   unlink(tmp)
-   return lines, errors, ''
+   return lines-1, errors, ''
 
 
 class Campaign_validate(Schema):
@@ -232,9 +236,10 @@ campaign_fields = [
             'tooLow': u'Veuillez choisir un type de campagne'}),
          label_text = u'Type de campagne', 
          help_text = u'Choisissez le type de campagne'),
+#      HiddenField('type', validator=None, default=1),
       CheckBox('active', 
          label_text=u'Active', default=True,
-         help_text=u'Cliquez pur activer la campagne'),
+         help_text=u'Cliquez pour activer la campagne'),
       CalendarDateTimePicker('begin',
          label_text=u'Début', help_text=u'Date de début',
          date_format =  '%d/%m/%y %Hh%mm',

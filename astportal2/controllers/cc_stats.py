@@ -111,8 +111,11 @@ def mk_filters(period, begin, end, queues, members):
 
    queues_filter = Queue_log.queue.in_(check_access(queues))
 
-   members_filter = Queue_log.user.in_(members) if type(members) == type([]) \
-         else Queue_log.user==members
+   if type(members) == type([]):
+      members_filter = Queue_log.user.in_([int(m) for m in members]) 
+   else:
+      members_filter = Queue_log.user==int(members)
+   log.debug('members_filter=%s', members_filter)
 
    return date_filter, queues_filter, members_filter, cdr_date_filter
 
@@ -472,23 +475,11 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter,
    # members stats
 
    # Service: list of connects / disconnects, ordered by member, timestamp
-   q_service = DBSession.query(Queue_log.timestamp, Queue_log.agent, Queue_log.event) \
-                        .filter(queues_filter) \
-                        .filter(Queue_log.event.in_(('ADDMEMBER', 'REMOVEMEMBER'))) \
-                        .order_by(Queue_log.user, desc(Queue_log.timestamp))
-   # Above is returning channel as agent, eg.:
-#            time            |     agent      |    event     
-#----------------------------+----------------+--------------
-# 2018-07-03 07:18:16.473591 | PJSIP/fckmPBen | ADDMEMBER
-# 2018-07-03 07:18:10.685148 | PJSIP/Z5wmfvlF | ADDMEMBER
-# 2018-07-03 07:08:50.457823 | PJSIP/J2On79jC | ADDMEMBER
-# 2018-07-03 07:08:47.136693 | PJSIP/J2On79jC | REMOVEMEMBER
-# 2018-07-03 07:08:40.375988 | PJSIP/J2On79jC | ADDMEMBER
-# 2018-07-03 06:58:57.927101 | PJSIP/fWaXyRWb | ADDMEMBER
-# 2018-07-02 17:05:13.927596 | PJSIP/fckmPBen | REMOVEMEMBER
-# 2018-07-02 17:05:11.09098  | PJSIP/Z5wmfvlF | REMOVEMEMBER
-    # We need to map channel to actual agent (person)
-
+   q_service = DBSession.query(Queue_log) \
+                        .filter(Queue_log.event == 'REMOVEMEMBER') \
+                        .filter(Queue_log.user != None) \
+                        .order_by(desc(Queue_log.timestamp))
+#                        .filter(queues_filter) \
 
    # Pause
    q_pause = DBSession.query(Queue_log.timestamp, Queue_log.user, Queue_log.event) \
@@ -499,11 +490,10 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter,
 
    # Calls received per members
    q_call = DBSession.query(Queue_log.user, 
-         func.count('*').label('calls'), 
-         func.avg(sql.cast(Queue_log.data2, types.INT)).label('avgtime'),
-         func.sum(sql.cast(Queue_log.data2, types.INT)).label('calltime')). \
-            filter(Queue_log.queue_event_id==Queue_event.qe_id). \
-            filter(Queue_event.event.in_(('COMPLETECALLER', 'COMPLETEAGENT'))). \
+                            func.count('*').label('calls'), 
+                            func.avg(sql.cast(Queue_log.data2, types.INT)).label('avgtime'),
+                            func.sum(sql.cast(Queue_log.data2, types.INT)).label('calltime')). \
+            filter(Queue_log.event.in_(('COMPLETECALLER', 'COMPLETEAGENT'))). \
             filter(queues_filter).filter(members_filter). \
             group_by(Queue_log.user)
 
@@ -514,24 +504,15 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter,
 
    # members service
    members_service = {}
-   services = q_service.all()
-   for i,s in enumerate(services):
-      if s.event=='REMOVEMEMBER': # End service
-         member = s.user # channel[5:]
+   for s in q_service:
+         log.debug('Service: %s %s', s.ql_id, s.data2)
+         member = s.user
          if member in members_service.keys(): 
             members_service[member]['service_num'] += 1
-            if members_service[member]['service']==None:
-               if len(services)>i+1:
-                  # Connect time = time(REMOVEMENBER) - time(ADDMEMBER)
-                  members_service[member]['service'] = s.timestamp - \
-                        service[i+1].timestamp
-            else:
-               if len(services)>i+1:
-                  members_service[member]['service'] += s.timestamp-services[i+1].timestamp
+            members_service[member]['service'] += s.timestamp - datetime.datetime.strptime(s.data2, '%Y-%m-%d %H:%M:%S.%f')
          else: # member not seen before
-            if len(services)>i+1:
                members_service[member] = {'service_num': 1,
-                  'service': s.timestamp-services[i+1].timestamp,
+                  'service': s.timestamp - datetime.datetime.strptime(s.data2, '%Y-%m-%d %H:%M:%S.%f'),
                   'pause': datetime.timedelta(0),
                   'pause_num': 0,
                   'calls_in': 0,
@@ -540,13 +521,15 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter,
                   'calls_out': 0,
                   'co_dur': 0,
                   'co_avg': 0}
-
+   for k, v in members_service.items():
+      log.debug('Member %s, services:\n%s', k, v)
+ 
    # members pause
    pauses = q_pause.all()
    for i in range(0, len(pauses)-2):
       p1 = pauses[i]
       p2 = pauses[i+1]
-      member = p1.user # channel[5:]
+      member = p1.user
       if p1.event=='UNPAUSE' and p2.event=='PAUSE' and p2.user==member: # channel[5:]==member:
          if member in members_service.keys():
             members_service[member]['pause_num'] += 1
@@ -571,7 +554,7 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter,
 
    # Calls per members
    for c in q_call:
-      member = c.user # channel[5:]
+      member = c.user
       if member in members_service.keys():
          members_service[member]['calls_in'] = c.calls
          members_service[member]['ci_dur'] = datetime.timedelta(0, c.calltime)
@@ -588,9 +571,9 @@ def stat_members(page, rows, offset, sidx, sord, date_filter, queues_filter,
             members_service[member]['calls_out'], \
                members_service[member]['co_dur'], \
                members_service[member]['co_avg'] = out
-            log.debug('member %d, %s calls out' % (member, out))
+            log.debug('member %d, %s calls out', member, out)
          except:
-            log.info('member %d, %s no calls out?' % member)
+            log.info('member %d, no calls out?', member)
 
    i = 0
    data = []
@@ -648,12 +631,12 @@ def period_options():
 def check_access(queues):
    '''Check access rigths to queues
    '''
+   if type(queues)!=type([]):
+      queues = [queues]
    if in_group('admin'):
       user_queues = queues
    else:
       user_queues = []
-      if type(queues)!=type([]):
-         queues = [queues]
       for q in queues:
          if in_group('SV ' + q):
             user_queues.append(q)
@@ -674,7 +657,8 @@ def members_options():
    agents = [a[0] for a in DBSession.query(Queue_log.agent).distinct() \
                                     .filter(Queue_log.event=='CONNECT')]
    log.debug(u'Queue members=%s' % agents)
-   return [(a, a) for a in agents]
+   return [(a.user_id, a.ascii_name) for a in \
+              DBSession.query(User).filter(User.ascii_name.in_(agents))]
 
 class Stats_form(TableForm):
    ''' Stats form
@@ -715,7 +699,7 @@ class Stats_form(TableForm):
          name = 'members',
          label_text = u'Agents',
          options = members_options,
-         default = [m[0] for m in members_options()],
+         default = [int(m[0]) for m in members_options()],
          validator = NotEmpty(),
          ),
       Spacer(),
