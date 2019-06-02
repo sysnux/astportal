@@ -27,16 +27,12 @@ class Monitor_ctrl(TGController):
    def index(self):
       '''
       '''
-      try:
-         proto = request.environ['HTTP_X_FORWARDED_PROTO'].lower()
-      except:
-         proto = 'http'
+      proto = request.scheme
       host = request.environ['HTTP_HOST']
       log.debug('request: %s://%s/' % (proto, host))
       ws_url = 'wss' if proto == 'https' else 'ws'
       ws_url += '://%s/ws/' % host
-      return dict( title=u'Appels en cours', debug='',
-         ws_url = ws_url)
+      return dict( title=u'Appels en cours', debug='', ws_url = ws_url)
 
 
    @expose('json')

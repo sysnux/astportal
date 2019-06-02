@@ -793,10 +793,10 @@ class Phone_ctrl(RestController):
 
    @validate(edit_form_valid(), error_handler=edit)
    @expose()
-   def put(self, phone_id, dptm_id, user_id, exten, dnis, contexts,
+   def put(self, phone_id, dptm_id, user_id, exten, dnis,
          hide_from_phonebook, fax, block_cid_in, block_cid_out,
          priority, phonebook_label, secretary, ringtone_id,
-         callgroups=None, pickupgroups=None):
+          contexts=None,callgroups=None, pickupgroups=None):
       ''' Update phone 
 
       User and exten information is independant from phone, there is no need
@@ -807,14 +807,14 @@ class Phone_ctrl(RestController):
       the user has email, add voicemail info to sip.conf and add entry in 
       voicemail.conf.
       '''
-      log.info('update %d' % phone_id)
-      log.debug('Contexts %s' % contexts)
-      log.debug('Callgroups %s' % callgroups)
-      log.debug('Pickupgroups %s' % pickupgroups)
-      log.debug('Hide from phonebook %s' % hide_from_phonebook)
-      log.debug('Fax %s' % fax)
-      log.debug('Block cid in %s' % block_cid_in)
-      log.debug('Block cid out %s' % block_cid_out)
+      log.info('update %d', phone_id)
+      log.debug('Contexts %s', contexts)
+      log.debug('Callgroups %s', callgroups)
+      log.debug('Pickupgroups %s', pickupgroups)
+      log.debug('Hide from phonebook %s', hide_from_phonebook)
+      log.debug('Fax %s', fax)
+      log.debug('Block cid in %s', block_cid_in)
+      log.debug('Block cid out %s', block_cid_out)
 
       p = DBSession.query(Phone).get(phone_id)
       old_exten = p.exten
