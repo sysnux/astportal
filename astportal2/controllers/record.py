@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 import re
 from os import stat
 
-from astportal2.model import DBSession, Record, User, Queue, Queue_log
+from astportal2.model import DBSession, Record, User, Queue, Queue_log, CDR
 from astportal2.lib.myjqgrid import MyJqGrid
 from astportal2.lib.app_globals import Globals
 from datetime import timedelta
@@ -53,12 +53,15 @@ def row(r, users):
    try:
       member = users[r.Record.member_id]
    except:
-      member = ''
+     member = ''
 
-   return [#Markup(action), 
-         r.Queue.name, member, user, 
-         r.Record.created.strftime("%d %B, %Hh%Mm%Ss").decode('utf-8'),
-         Markup(listen)]
+   return [r.Queue.name,
+           member,
+           user, 
+           r.CDR.src if r.CDR else '',
+           r.CDR.dst if r.CDR else '',
+           r.Record.created.strftime("%d %B, %Hh%Mm%Ss").decode('utf-8'),
+           Markup(listen)]
 
 
 def check_access(queues):
@@ -134,16 +137,18 @@ search_form = Search_Record('search_record_form', action='index2')
 
 
 grid = MyJqGrid( id='grid', url='fetch', caption=u"Enregistrements ACD",
-            sortname='created', sortorder='asc',
+            sortname='created', sortorder='desc',
 #            colNames = [u'Action', 
             colNames = [u'Groupe ACD', u'Agent', u'Enregistré par', 
-               u'Date', u'\u00C9coute' ],
+                        u'Appelant', u'Appelé', u'Date', u'\u00C9coute' ],
 #            colModel = [ { 'width': 50, 'align': 'center', 'sortable': False},
-            colModel = [ { 'name': 'queue_id', 'width': 80, 'sortable': False },
-               { 'name': 'member_id', 'width': 60, 'sortable': False },
-               { 'name': 'user_id', 'width': 70, 'sortable': False },
-               { 'name': 'created', 'width': 120 },
-               { 'name': 'listen', 'width': 50, 'sortable': False, 'align': 'center'},
+            colModel = [{'name': 'queue_id', 'width': 80, 'sortable': False},
+                        {'name': 'member_id', 'width': 60, 'sortable': False},
+                        {'name': 'user_id', 'width': 70, 'sortable': False},
+                        {'name': 'src', 'width': 60},
+                        {'name': 'dst', 'width': 60},
+                        {'name': 'created', 'width': 120},
+                        {'name': 'listen', 'width': 50, 'sortable': False, 'align': 'center'},
                ],
             navbuttons_options = {'view': False, 'edit': False, 'add': False,
                'del': False, 'search': False, 'refresh': True, 
@@ -249,8 +254,9 @@ class Record_ctrl(BaseController):
       for u in DBSession.query(User):
          users[u.user_id] = u.user_name
 
-      records = DBSession.query(Record, Queue). \
-            filter(Record.queue_id==Queue.queue_id)
+      records = DBSession.query(Record, Queue, CDR) \
+                         .outerjoin(CDR, Record.uniqueid == CDR.uniqueid) \
+            		 .filter(Record.queue_id == Queue.queue_id)
 
       filter = []
       custom1 = session.get('custom1', None)
@@ -274,10 +280,11 @@ class Record_ctrl(BaseController):
       if date is not None:
          filter.append(u'date %s' % date.strftime('%d/%m/%Y'))
          if db_engine=='oracle':
-            records = records.filter(sqlalchemy.func.trunc(CDR.calldate, 'J')==date)
+            records = records.filter(sqlalchemy.func \
+                                               .trunc(Record.created, 'J') == date)
          else: # PostgreSql
-            records = records.filter(sqlalchemy.sql.cast(Record.created, 
-               sqlalchemy.types.DATE) == date)
+            records = records.filter( \
+		sqlalchemy.sql.cast(Record.created, sqlalchemy.types.DATE) == date)
 
       if hour is not None:
          filter.append(u'heure approximative %dh%02d' % (hour[0], hour[1]))
@@ -310,8 +317,8 @@ class Record_ctrl(BaseController):
       total = records.count()/rows + 1
       column = getattr(Record, sidx)
       records = records.order_by(getattr(column,sord)()).offset(offset).limit(rows)
-      rows = [ { 'id'  : r.Record.record_id, 
-         'cell': row(r, users) } for r in records ]
+      rows = [{'id'  : r.Record.record_id, 
+               'cell': row(r, users)} for r in records ]
 
       return dict(page=page, total=total, rows=rows)
 
@@ -356,7 +363,7 @@ class Record_ctrl(BaseController):
 
       sip = phones[0].sip_id
       res = Globals.manager.originate(
-            'SIP/' + sip, # Channel
+            'PJSIP/' + sip, # Channel
             sip, # Extension
             application = 'Playback',
             data = fn[:-4],
