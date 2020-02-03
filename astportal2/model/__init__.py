@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """The application's model objects"""
 
-from zope.sqlalchemy import ZopeTransactionExtension
+from zope.sqlalchemy import register
 from sqlalchemy.orm import scoped_session, sessionmaker
 #from sqlalchemy import MetaData
 from sqlalchemy.ext.declarative import declarative_base
 
 # Global session manager: DBSession() returns the Thread-local
 # session object appropriate for the current web request.
-maker = sessionmaker(autoflush=True, autocommit=False,
-                     extension=ZopeTransactionExtension())
-DBSession = scoped_session(maker)
+DBSession = scoped_session(sessionmaker(autoflush=False))
+register(DBSession)
+
 
 # Base class for all of our model classes: By default, the data model is
 # defined with SQLAlchemy's declarative extension, but if you need more

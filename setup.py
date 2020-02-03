@@ -31,7 +31,7 @@ testpkgs=['WebTest >= 1.2.3',
                'repoze.who-testutil >= 1.0.1',
                ]
 install_requires=[
-    "TurboGears2 >= 2.3.4",
+    "TurboGears2 < 2.4",
     "Genshi",
     "beaker",
     "Mako",
@@ -47,7 +47,7 @@ install_requires=[
     'tgscheduler',
     'BeautifulSoup',
     'WebHelpers',
-    'psycopg2',
+    'psycopg2-binary',
     'vobject',
     'gevent',
     'ws4py',
