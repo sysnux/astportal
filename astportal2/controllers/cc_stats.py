@@ -1068,8 +1068,12 @@ stat=%s
       writer.writerow([c.encode('utf-8') for c in colnames])
 
       # Write CSV data
-      for r in rows:
-         writer.writerow(r['cell'])
+      for row in rows:
+         cells = row['cell']
+         try:
+            writer.writerow(cells)
+         except:
+            writer.writerow([cells[0].encode('utf-8')] +  cells[1:])
 
       rh = response.headers
       rh['Content-Type'] = 'text/csv; charset=utf-8'
