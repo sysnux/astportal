@@ -49,6 +49,7 @@ sip_type = config.get('asterisk.sip', 'sip')
 
 _vendors = {
    '00:0b:82': 'Grandstream',
+   'c0:74:ad': 'Grandstream', # GRP
    '00:04:f2': 'Polycom',
    '00:90:7a': 'Polycom',
    '1c:df:0f': 'Cisco',

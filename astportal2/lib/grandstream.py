@@ -175,7 +175,7 @@ P2312 = '',
             return None
       return resp
 
-   def post(self, action, params={}):
+   def post(self, action, params={}, **kw):
 
       # Type 3 phones only
       if self.type !=3:
@@ -186,19 +186,22 @@ P2312 = '',
 
       try:
          # Try HTTPS first
+         log.debug('HTTPS POST(%s, %s, %s)', action, params, kw)
          resp = self.session.post('https://' + self.host + '/' + action,
-                              proxies=proxies,
-                              data=params,
-                              verify=False)
+                                  proxies=proxies,
+                                  data=params,
+                                  verify=False,
+                                  **kw)
       except:
+         log.debug('HTTPS POST failed, trying with HTTP')
          try:
             # Then HTTP (brand new phone)
             resp = self.session.post('http://' + self.host + '/' + action,
-                                 proxies=proxies,
-                                 data=params)
+                                    proxies=proxies,
+                                    data=params,
+                                    **kw)
          except:
-            log.warning('POST %s, params %s failed' % (\
-               self.host + '/' + action, params))
+            log.warning('POST %s, params %s failed', self.host + '/' + action, params)
             return None
 
       return resp
@@ -230,8 +233,45 @@ P2312 = '',
       data = resp.json()
       self.token = data['body'].get('password_token')
       self.token_ts = data['body'].get('password_token_timestamp')
+      self.model = data['body'].get('phone_model')
+      self.version = data['body'].get('68')
+      log.info('Found %s %s', self.model, self.version)
 
       params = {'username': 'admin'}
+
+      # First, try newer method involving cgi-bin/access
+      self.type = 3 # Needed for self.post
+      sha = sha256()
+      sha.update(params['username'])
+      log.debug('post access')
+      r = self.post('cgi-bin/access',
+                    {'access': sha.hexdigest()},
+                    headers={'origin': self.host})
+      if r.status_code == 200:
+          # This is indeed a newer phone / firmware
+          try:
+              ret = r.json()
+              ok = True
+          except:
+              ok = False
+              log.warning('GRP access returns: %s', ret)
+
+          if ok and ret['response'] == 'success':
+              sha = sha256()
+              sha.update((self.pwd + ret['body']))
+              r = self.post('cgi-bin/dologin',
+                            {'username': params['username'], 'password': sha.hexdigest()},
+                            headers={'origin': self.host})
+              try:
+                  ret = r.json()
+              except:
+                  log.warning('GRP dologin returns: %s', ret)
+                  return False
+              if ret['response'] != 'success':
+                  return False
+              return True
+
+      # Else, try older methods
       if self.token:
          # Encoded password
          sha = sha256()
