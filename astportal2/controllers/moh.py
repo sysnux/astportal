@@ -455,7 +455,13 @@ class MOH_ctrl(RestController):
 
    @expose('json')
    def record_by_phone(self, **kw):
-      '''
+      '''Record sound by user's phone
+      Needs following context in Asterisk dialplan:
+[record]
+   exten => s,1,NoOp(Record)
+   same => n,Playback(astportal/intro_enregistrement)
+   same => n,Record(/tmp/record-${CHANNEL:-17:8}.wav,,300)
+   same => n,Playback(/tmp/record-${CHANNEL:-17:8})
       '''
 #     uphones = request.identity['user'].phone)
       uphones = DBSession.query(User).get(request.identity['user'].user_id).phone
