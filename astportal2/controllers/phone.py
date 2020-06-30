@@ -49,7 +49,7 @@ sip_type = config.get('asterisk.sip', 'sip')
 
 _vendors = {
    '00:0b:82': 'Grandstream',
-   'c0:74:ad': 'Grandstream', # GRP
+   'c0:74:ad': 'Grandstream',
    '00:04:f2': 'Polycom',
    '00:90:7a': 'Polycom',
    '1c:df:0f': 'Cisco',
@@ -979,16 +979,19 @@ class Phone_ctrl(RestController):
          except:
             log.error('rmdir error %s/%s' % (tftp, mac))
 
-      # Backup phone configuration
-      try:
-         config = directory_tftp + 'phones/config/cfg%s' % mac
-         rename(config, config + '.BAK')
-         rename(config + '.txt', config + '.txt.BAK')
-         log.warning('%s Config files saved' % mac)
-      except:
-         log.error('%s Config files save (%s)' % (mac, config))
+         # Backup phone configuration
+         try:
+            config = directory_tftp + 'phones/config/cfg%s' % mac
+            rename(config, config + '.BAK')
+            rename(config + '.txt', config + '.txt.BAK')
+            log.warning('%s config files saved' % mac)
+         except:
+            try:
+               config = directory_tftp + 'phones/config/cfg%s.xml' % mac
+               rename(config, config + '.BAK')
+               log.warning('%s XML config files saved' % mac)
+            except:
+               log.error('%s config files save (%s)' % (mac, config))
 
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')
-
-

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
+# vim: tabstop=3 expandtab shiftwidth=3 softtabstop=3
 
 import logging
 log = logging.getLogger(__name__)
-from time import time, sleep
-from BeautifulSoup import BeautifulSoup
+from gevent import sleep
+from BeautifulSoup import BeautifulSoup, Tag, BeautifulStoneSoup
 from struct import pack, unpack
 import os
 import re
@@ -407,10 +408,8 @@ P2312 = '',
       return resp.content
 
    def reboot(self):
-      # Reboot
+      '''Reboot phone'''
       log.debug('Reboot (type %d)...' % self.type)
-      t1 = time()
-
       if self.type == 1:
          resp = self.get('rs.htm')
       elif self.type == 2:
@@ -418,38 +417,20 @@ P2312 = '',
       elif self.type == 3:
          resp = self.post('cgi-bin/api-sys_operation', {'request': 'REBOOT'})
       return 'OK'
-#      # While rebooting, phone is reachable, then unreachable, then reachable again
-#      reachable = True
-#      for wait in xrange(60):
-#         try:
-#            resp = urllib2.urlopen(self.url, timeout=1)
-#            if not reachable: break
-#         except:
-#            return 'ok'
-#            reachable = False
-#         sleep(1)
-#      t2 = time()
-#      log.debug('Reboot done in %.1f seconds !' % (t2-t1))
-#      return resp.msg
 
    def configure(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
          mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
          sip_server2=None, secretary=None, ringtone=None):
-      '''Parameters: firmware_url, config_url, ntp_server,
-         phonebook_url=None, syslog_server=None
+
+      '''Called from controllers/phone when creating / modifying phone
       '''
 
       mac = self.mac.replace(':','')
       tftp = config.get('directory.tftp') + 'phones/firmware'
       vlan = config.get('gxp.vlan')
-      if vlan:
-         self.params['P51'] = vlan
       keypad = config.get('gxp.keypad')
-      if keypad in ('0', '1', '2'):
-         self.params['P1357'] = keypad
-      self.params['P2'] = pwd
       if not os.path.isdir('%s/%s' % (tftp, mac)):
          os.mkdir('%s/%s' % (tftp, mac))
       try:
@@ -473,12 +454,35 @@ P2312 = '',
             os.symlink('../%s' % f, '%s/%s/%s' % (tftp, mac, f))
          except:
             pass # XXX OSError: [Errno 17] Le fichier existe
+      if screen_url is None:
+         screen_url = config_url
+
+      #
+      really_configure = self.configure_xml if self.model.startswith('GRP') \
+                     else self.configure_text
+
+      really_configure(pwd, tftp_dir, firmware_url, config_url, ntp_server,
+         phonebook_url, syslog_server, dns1, dns2,
+         sip_server, sip_user, sip_display_name,
+         mwi_subscribe, reboot, screen_url, exten,
+         sip_server2, secretary, ringtone)
+
+   def configure_txt(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
+         phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
+         sip_server=None, sip_user=None, sip_display_name=None,
+         mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
+         sip_server2=None, secretary=None, ringtone=None):
+      if vlan:
+         self.params['P51'] = vlan
+      if keypad in ('0', '1', '2'):
+         self.params['P1357'] = keypad
+      self.params['P2'] = pwd
+      if ringtone is not None:
+         self.params['P104'] = 1
 
       self.params['P192'] = '%s/%s' % (firmware_url, mac)
       self.params['P237'] = config_url
       self.params['P331'] = phonebook_url + '/grandstream/phonebook'
-      if screen_url is None:
-         screen_url = config_url
       self.params['P341'] = screen_url + '/grandstream/screen'
       self.params['P30'] = ntp_server
       self.params['P64'] = 120
@@ -601,7 +605,6 @@ P2312 = '',
 
       # Update and reboot phone
       self.update({'P212': 2, 'P237': config_url, 'sid': self.sid}) # self.params)
-#      if  reboot:
       sleep(6)
       self.reboot()
 
@@ -669,6 +672,184 @@ the header and parameter strings are written to a binary file.
          sum &= 0xFFFF
       sum = 0x10000 - sum
       return (sum >> 8, sum & 0xFF)
+
+   def configure_xml(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
+         phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
+         sip_server=None, sip_user=None, sip_display_name=None,
+         mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
+         sip_server2=None, secretary=None, ringtone=None):
+      '''Parameters: firmware_url, config_url, ntp_server,
+         phonebook_url=None, syslog_server=None
+      '''
+
+      # Create XML document for Grandstream provionning
+      xml = BeautifulStoneSoup('''<?xml version='1.0' encoding='utf-8'?>
+<gs_provision version="1">
+<config version="2">''')
+      xml_config = xml.find('config')
+
+      def set_item(key, value):
+         '''Create item, set value, insert in XML document'''
+         if not key or not value:
+            return
+         el = Tag(xml, 'item', attrs={'name': key})
+         el.string = value
+         xml_config.insert(0, el)
+
+      mac = self.mac.replace(':','')
+      tftp = config.get('directory.tftp') + 'phones/firmware'
+      set_item('network.port.eth.1.vlan.tag', config.get('gxp.vlan'))
+      keypad = config.get('gxp.keypad')
+      if keypad in ('0', '1', '2'):
+		   # Unrestricted, BasicSettingsOnly, ConstraintMode, LockedMode -->
+		   set_item('security.configurationViaKeypadMenu',
+   		   ('Unrestricted', 'BasicSettingsOnly', 'ConstraintMode')[int(keypad)])
+
+
+      if not os.path.isdir('%s/%s' % (tftp, mac)):
+         # Create firmware directory
+         os.mkdir('%s/%s' % (tftp, mac))
+
+      # Remove previous ringtone      
+      try:
+         os.unlink('%s/%s/ring1.bin' % (tftp, mac))
+      except:
+         pass
+
+      if ringtone is not None:
+         # Add custom ringtone
+         try:
+            ringtone = re.sub(r'\W', '_', ringtone)
+            os.symlink('../%s.ring' % ringtone, '%s/%s/ring1.bin' % (tftp, mac))
+            self.params['P104'] = 1
+         except:
+            pass # XXX OSError: [Errno 17] Le fichier existe
+
+      for f in os.listdir(tftp):
+         # Create links to ringones for this phone
+         if os.path.isdir('%s/%s' % (tftp, f)):
+            continue
+         if f.endswith('.ring'):
+            # Granstream ringtone
+            continue
+         try:
+            os.symlink('../%s' % f, '%s/%s/%s' % (tftp, mac, f))
+         except:
+            pass # XXX OSError: [Errno 17] Le fichier existe
+
+      # Main parameters
+      set_item('users.admin.password', pwd)
+      set_item('users.user.password', 'Ac3PuM7trq48')
+      set_item('provisioning.firmware.protocol', 'HTTPS')
+      set_item('provisioning.firmware.serverPath', '%s/%s' % (firmware_url, mac))
+      set_item('provisioning.config.protocol', 'HTTPS')
+      set_item('provisioning.config.serverPath', config_url)
+      set_item('phonebook.download.mode', 'EnabledUseHTTPS')
+      set_item('phonebook.download.server', phonebook_url + '/grandstream/phonebook')
+      set_item('phonebook.download.interval', '120')
+      set_item('phonebook.download.removeEditedEntries', 'No')
+#      self.params['P341'] = screen_url + '/grandstream/screen'
+#      self.params['P64'] = 120
+      set_item('maintain.syslog.server', syslog_server)
+      set_item('dateTime.ntp.server.1', ntp_server)
+      set_item('network.internetProtocol', 'IPv4Only')
+      set_item('language.gui', 'fr')
+      set_item('dateTime.override.dhcp.allowOption42', 'Yes')
+      set_item('dateTime.timezone', 'HAW10')
+      set_item('dateTime.override.dhcp.allowOption2', 'Yes')
+      set_item('dateTime.format.date', 'dd-mm-yyyy')
+      set_item('dateTime.format.time', '24Hour')
+
+      if dns1:
+         dns11, dns12, dns13, dns14 = dns1.split('.')
+         set_item('network.dns.1.ip1', dns11)
+         set_item('network.dns.1.ip2', dns12)
+         set_item('network.dns.1.ip3', dns13)
+         set_item('network.dns.1.ip4', dns14)
+
+      if dns2:
+         dns21, dns22, dns23, dns24 = dns2.split('.')
+         set_item('network.dns.2.ip1', dns21)
+         set_item('network.dns.2.ip2', dns22)
+         set_item('network.dns.2.ip3', dns23)
+         set_item('network.dns.2.ip4', dns24)
+
+      if sip_server:
+         set_item('account.1.enable', 'Yes')
+         set_item('account.1.call.transferOnConferenceHangup', 'Yes')
+         set_item('account.1.name', default_company + ' - ' + exten)
+         set_item('account.1.sip.server.1.address', sip_server)
+         set_item('account.1.sip.userid', sip_user)
+         set_item('account.1.sip.subscriber.userid', sip_user)
+         set_item('account.1.sip.subscriber.password', pwd)
+         set_item('account.1.sip.subscriber.name', sip_display_name)
+         set_item('account.1.sip.voicemail.number', '*79')
+         set_item('account.1.call.earlyDial', 'No')
+         set_item('account.1.sip.subscribe.forMwi', 'Yes')
+         set_item('account.1.sip.keepAlive.enable', 'Yes')
+         set_item('account.1.sip.unregisterOnReboot', 'All')
+         set_item('account.1.sip.header.xGrandstream', 'No')
+         set_item('account.1.sip.server.2.address', sip_server2)
+
+		#  Settings/Programmable Keys/Virtual Multi-Purpose Keys
+      set_item('pks.vpk.6.keyMode', '0')
+      set_item('pks.vpk.6.account', '0')
+      set_item('pks.vpk.6.description', u'Sécurité')
+      set_item('pks.vpk.6.value', '3')
+      set_item('pks.vpk.7.keyMode', '0')
+      set_item('pks.vpk.7.account', '0')
+      set_item('pks.vpk.7.description', u'Support info.')
+      set_item('pks.vpk.7.value', '8777')
+      set_item('pks.vpk.8.keyMode', '0')
+      set_item('pks.vpk.8.account', '0')
+      set_item('pks.vpk.8.description', u'Interception')
+      set_item('pks.vpk.8.value', '*8#')
+      set_item('pks.vpk.9.keyMode', '0')
+      set_item('pks.vpk.9.account', '0')
+      set_item('pks.vpk.9.description', u'Annul. renvoi')
+      set_item('pks.vpk.9.value', '#21#')
+      set_item('pks.vpk.10.keyMode', '0')
+      set_item('pks.vpk.10.account', '0')
+      set_item('pks.vpk.10.description', u'Annul. ne pas déranger')
+      set_item('pks.vpk.10.value', '#27#')
+      set_item('network.cdp', 'No')
+
+#      if self.model.startswith('GXP21'):
+#         # Dial plan
+#         self.params['P290'] = \
+#            '{ x+ | *x+ | *x.# | *xx.*xx.# | *xx.*0xx.# | *xx.*xx.*xx.# | #xx.| #xx.# }'
+#         self.params['P334'] = 100
+#         self.params['P335'] = 50
+#         self.params['P2380'] = 0 # Show account name only
+#         self.params['P2970'] = 1 # Phonebook management Exact match
+#         self.params['P2991'] = 25 # Call log on softkey 1
+#         self.params['P2993'] = 'Historique' # History on softkey 3
+#         self.params['P8345'] = 0 # Show Label Background
+#         self.params['P8346'] = 1 # Use Long Label
+#         self.params['P2916'] = 1 # Wallpaper Source: Download
+#         self.params['P2917'] = 'https://' + config_url + '/logo60.jpg' # Wallpaper Server Path
+
+#      if self.model.startswith('GXP21') and secretary:
+#         # Filtrage secrétaire
+#         self.params['P1365'] = 11
+#         self.params['P1366'] = 0
+#         self.params['P1467'] = 'Secrétariat'
+#         self.params['P1468'] = secretary
+#         self.params['P2987'] = 10
+#         self.params['P2989'] = 'Filtrage'
+#         self.params['P2990'] = '*21*%s#' % secretary
+
+      # Generate XML conf file
+      name = tftp_dir + '/phones/config/cfg%s.xml' % mac
+      try:
+         with open(name, 'w') as xml_file:
+            xml_file.write(str(xml).replace('><', '>\n<'))
+      except:
+         log.error('Could not write XML config file "%s"', name)
+
+      # Update config URL: the phone will apply and load XML file
+      self.update({'P212': 2, 'P237': config_url, 'sid': self.sid}) # self.params)
+      sleep(3)
 
    def notify(self, phone):
       log.info('Notify phone %s @%s', phone.sip_id, self.host)

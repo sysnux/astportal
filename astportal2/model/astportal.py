@@ -67,7 +67,7 @@ class Phone(DeclarativeBase):
    __tablename__ = 'phone'
    phone_id = Column(Integer, Sequence('phone_seq'), autoincrement=True, primary_key=True)
    sip_id = Column(Unicode(10), nullable=False, unique=True)
-   mac = Column(Unicode(17)) # MAC can be null (eg. DECT)
+   mac = Column(Unicode(17)) # MAC can be null (eg. DECT  / softphone)
    vendor = Column(Unicode())
    model = Column(Unicode())
    password = Column(Unicode(10))

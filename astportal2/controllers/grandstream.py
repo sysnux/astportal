@@ -220,7 +220,6 @@ class Grandstream_ctrl(BaseController):
             cfs_in = u''
 
          dnd = 'NPD' if dnd else ''
-         
 
       else:
          exten = name = '?'
