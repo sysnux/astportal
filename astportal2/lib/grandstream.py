@@ -27,7 +27,8 @@ class Grandstream(object):
 P2 = 'admin',
 # VLAN TAG
 #P51 = 1601,
-
+# Authenticate ID
+#P36 = '',
 # No Key Entry Timeout. Default - 4 seconds.
 P85 = 3,
 # Use # as Dial Key. 0 - no, 1 - yes
@@ -58,8 +59,10 @@ P233 = '',
 P234 = '',
 # Config File Postfix
 P235 = '',
-# Automatic Upgrade. 0 - No, 1 - Yes. Default is No.
-P194 = 1,
+# Automatic Upgrade. 0 - No, 1 - Yes. Default is No. 2=tous les jours
+P194 = 2,
+P285 = 1, # Heure début mise à jour 
+P8459 = 3, # Heure fin mise à jour
 # Check for new firmware every () minutes, unit is in minute, minimnu 60 minutes, default is 7 days.
 P193 = 1440,
 # Use firmware pre/postfix to determine if f/w is required
@@ -86,7 +89,7 @@ P331 = '',
 # Phonebook Download Interval
 # This is an integer variable in hours.  
 # Valid value range is 5-720 (default 0), and greater values will default to 720
-P332 = 10,
+P332 = 240,
 # Remove Manually-edited entries on Download
 # 0 - No, 1 - Yes, other values ignored
 P333 = 0,
@@ -103,8 +106,8 @@ P334 = 8,
 # LCD Backlight Brightness. (0-8, where 0 is off and 8 is brightest) Idle
 #P335 = 50, # GXP21xx
 P335 = 0,
-# Configuration Via Keypad Menu. 0 - Unrestricted, 1 - Basic settings only, 2 - Constrai nt mode
-P1357 = 0,
+# Configuration Via Keypad Menu. 0 - Unrestricted, 1 - Basic settings only, 2 - Constraint mode
+P1357 = 2,
 # Idle Screen XML Download HTTPS
 P340=3,
 # HEADSET Key Mode
@@ -129,6 +132,27 @@ P2918 = 0,
 P2382 = 0,
 # Secondary SIP server
 P2312 = '',
+P323 = '0', # Speed dial
+P302 = 'Sécurité',
+P303 = '3',
+P324 = '0',
+P305 = 'Support info',
+P306 = '8777',
+P325 = '0',
+P308 = 'Interception',
+P309 = '*8#',
+P326 = '0',
+P311 = 'Annulation renvoi',
+P312 = '#21#',
+#P327 = '0',
+#P314 = 'Ne pas déranger',
+#P315 = '*27#',
+#P328 = '0',
+P317 = 'Annulation ne pas déranger',
+P318 = '#27#',
+P22119 = '0', # Activation CDP, 0 pour désactiver
+P196 = 'Ac3PuM7trq48', # User mot de passe
+P2304 = '1', # Transfert sur raccrochement en conférence
 )
 
 
@@ -154,7 +178,7 @@ P2312 = '',
 
       for c in self.cj:
          log.debug('Cookie: %s = %s' % (c.name, c.value))
-      
+
       for k, v in params.iteritems():
           log.debug('Param "%s" => "%s"', k, v)
 
@@ -231,7 +255,10 @@ P2312 = '',
       resp = self.get('cgi-bin/api.values.get',
                      {'request':  '68:phone_model:password_token:password_token_timestamp',
                       'sid': self.sid})
-      data = resp.json()
+      try:
+         data = resp.json()
+      except:
+         return False
       self.token = data['body'].get('password_token')
       self.token_ts = data['body'].get('password_token_timestamp')
       self.model = data['body'].get('phone_model')
@@ -239,6 +266,20 @@ P2312 = '',
       log.info('Found %s %s', self.model, self.version)
 
       params = {'username': 'admin'}
+
+      if self.model.startswith('GXP16'):
+         self.type = 3 # Needed for self.post
+         r = self.post('cgi-bin/dologin',
+                       params={'username': 'admin', 'password': self.pwd},
+                       headers={'origin': self.host, 'referrer': self.host})
+         if True: #try:
+            ret = r.json()
+            self.sid = ret['body']['sid']
+            log.info('Login correct %s', self.host)
+            return True
+         else: #except:
+            log.warning('ERROR %s, abandon', r.content)
+            return False
 
       # First, try newer method involving cgi-bin/access
       self.type = 3 # Needed for self.post
@@ -381,13 +422,17 @@ P2312 = '',
 
       elif self.type == 3: # GXP-14XX 21XX new firmware
          resp = self.get('cgi-bin/api.values.get',
-                        {'request':  '68:phone_model:password_token:password_token_timestamp',
+                        {'request':  '68:phone_model:password_token:password_token_timestamp:67',
                          'sid': self.sid})
          data = resp.json()
          model = data['body']['phone_model']
          soft = data['body']['68']
          self.token = data['body'].get('password_token')
          self.token_ts = data['body'].get('password_token_timestamp')
+         if not self.mac:
+            mac = data['body'].get('67')
+            if mac:
+               self.mac = mac
 
       self.model = model
 
@@ -497,22 +542,27 @@ P2312 = '',
       self.params['P270'] = default_company
       if self.model.startswith('GXP21'):
          self.params['P270'] += ' - ' + exten
+      elif self.model.startswith('GXP162'):
+         self.params['P270'] += ' ' + exten
       self.params['P99'] = 1 # XXX if mwi_subscribe else 0
       if sip_server:
          self.params['P47'] = sip_server
          self.params['P35'] = sip_user
+         self.params['P36'] = sip_user
          self.params['P34'] = pwd
          self.params['P3'] = sip_display_name
          self.params['P271'] = \
          self.params['P31'] = \
          self.params['P81'] = \
          self.params['P1346'] = \
+         self.params['P188'] = \
             1
          if sip_server2 is not None:
             self.params['P2312'] = sip_server2
       else:
          self.params['P47'] = \
          self.params['P35'] = \
+         self.params['P36'] = \
          self.params['P34'] = \
          self.params['P3'] = \
             ''
@@ -520,6 +570,7 @@ P2312 = '',
          self.params['P31'] = \
          self.params['P81'] = \
          self.params['P1346'] = \
+         self.params['P188'] = \
             0
       self.params['P48'] = ''
       self.params['P78'] = ''
@@ -556,7 +607,7 @@ P2312 = '',
          self.params['P340'] = 1 # HTTP Idle Screen XML Download
          self.params['P212'] = 0 # HTTP Firmware Upgrade
 
-      if self.model.startswith('GXP21'):
+      if model.startswith('GXP21') or model.startswith('GXP16'):
          # Dial plan
          self.params['P290'] = \
             '{ x+ | *x+ | *x.# | *xx.*xx.# | *xx.*0xx.# | *xx.*xx.*xx.# | #xx.| #xx.# }'
@@ -604,7 +655,7 @@ P2312 = '',
          log.error('ERROR: write binary config file')
 
       # Update and reboot phone
-      self.update({'P212': 2, 'P237': config_url, 'sid': self.sid}) # self.params)
+      self.update({'P212': 2, 'P237': config_url, 'sid': self.sid})
       sleep(6)
       self.reboot()
 
