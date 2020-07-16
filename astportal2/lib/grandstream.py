@@ -72,6 +72,8 @@ P193 = 1440,
 P238 = 0,
 # Authenticate Conf File. 0 - No, 1 - Yes. Default is No.
 P240 = 0,
+# Desactivation du DND lors de l'utilisation de la touche muet en veille. 0- DND, 1- Muet en veille, 2
+P1565 = 1,
 #----------------------------------------
 # XML Phonebook
 #----------------------------------------

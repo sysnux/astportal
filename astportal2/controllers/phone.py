@@ -979,19 +979,19 @@ class Phone_ctrl(RestController):
          except:
             log.error('rmdir error %s/%s' % (tftp, mac))
 
-         # Backup phone configuration
+      # Backup phone configuration
+      try:
+         config = directory_tftp + 'phones/config/cfg%s' % mac
+         rename(config, config + '.BAK')
+         rename(config + '.txt', config + '.txt.BAK')
+         log.warning('%s config files saved' % mac)
+      except:
          try:
-            config = directory_tftp + 'phones/config/cfg%s' % mac
+            config = directory_tftp + 'phones/config/cfg%s.xml' % mac
             rename(config, config + '.BAK')
-            rename(config + '.txt', config + '.txt.BAK')
-            log.warning('%s config files saved' % mac)
+            log.warning('%s XML config files saved' % mac)
          except:
-            try:
-               config = directory_tftp + 'phones/config/cfg%s.xml' % mac
-               rename(config, config + '.BAK')
-               log.warning('%s XML config files saved' % mac)
-            except:
-               log.error('%s config files save (%s)' % (mac, config))
+            log.error('%s config files save (%s)' % (mac, config))
 
       flash(u'Téléphone supprimé', 'notice')
       redirect('/phones/')
