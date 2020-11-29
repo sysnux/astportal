@@ -936,26 +936,31 @@ class Phone_ctrl(RestController):
 
          # Delete context, hint...
          actions = [ ('DelCat', p.sip_id),
-               ('Delete', 'hints', 'exten', None, 
-               '%s,hint,%s/%s' % (
-                   p.exten,
-                   'SIP' if sip_type=='sip' else 'PJSIP', 
-                   p.sip_id))]
+                     ('Delete',
+                      'hints',
+                      'exten',
+                      None,
+                      '%s,hint,%s/%s' % (p.exten,
+                                         'SIP' if sip_type=='sip' else 'PJSIP',
+                                         p.sip_id))]
 
          # ... and DNIS
-         if p.dnis is not None:
-            actions.append(('Delete', 'dnis', 'exten', None, 
-               '%s,1,Gosub(stdexten,%s,1)' % (p.dnis[-4:], p.exten)))
+         if p.dnis:
+             actions.append(('Delete',
+                             'dnis',
+                             'exten',
+                             None,
+                             '%s,1,Gosub(stdexten,%s,1(fromdnis))' % (p.dnis[-4:], p.exten)))
 
-         res = Globals.manager.update_config(
-            directory_asterisk  + 'extensions.conf', 
-            'dialplan', actions)
-         log.debug('Delete context, hint (DNIS) from extensions.conf returns %s' % res)
+         res = Globals.manager.update_config(directory_asterisk  + 'extensions.conf',
+                                             'dialplan',
+                                             actions)
+         log.info('Delete context, hint (DNIS) from extensions.conf returns %s' % res)
 
          # Delete voicemail entry
          res = Globals.manager.update_config(directory_asterisk  + 'voicemail.conf', 
             'app_voicemail', [ ('Delete', 'astportal', p.exten) ])
-         log.debug('Delete entry from voicemail.conf returns %s' % res)
+         log.info('Delete entry from voicemail.conf returns %s' % res)
 
       # Delete SIP entry
       actions = [ ('DelCat', p.sip_id) ]

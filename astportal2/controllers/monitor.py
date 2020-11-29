@@ -29,8 +29,8 @@ class Monitor_ctrl(TGController):
       '''
       proto = request.scheme
       host = request.environ['HTTP_HOST']
-      log.debug('request: %s://%s/' % (proto, host))
-      ws_url = 'wss' if proto == 'https' else 'ws'
+      log.info('request: %s://%s/' % (proto, host))
+      ws_url = 'wss' # XXX nginx pb with X-Forwarded-Proto... if proto == 'https' else 'ws'
       ws_url += '://%s/ws/' % host
       return dict( title=u'Appels en cours', debug='', ws_url = ws_url)
 

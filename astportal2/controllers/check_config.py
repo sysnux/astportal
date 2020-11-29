@@ -170,7 +170,7 @@ class Check_Config_ctrl(BaseController):
          directory_sounds_status))
 
       conf.append(check_value('asterisk.sip'))
-      conf.append(check_value('asterisk.vlan'))
+      conf.append(check_value('server.vlan'))
       # Configuration Via Keypad Menu. 0 - Unrestricted, 
       # 1 - Basic settings only, 2 - Constraint mode
       try:

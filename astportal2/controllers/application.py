@@ -28,7 +28,7 @@ from astportal2.lib.asterisk import asterisk_string
 
 from datetime import datetime
 import re
-from os import rename, system
+from os import rename, system, fsync
 from tempfile import mkdtemp
 
 import logging
@@ -454,7 +454,7 @@ class Application_ctrl(RestController):
                sc.parameters) = (c, id, i, e, p, a, m)
             if p==1 :
                i = 'context_%s' % i 
-               log.debug(u'position %s' % i)
+               log.debug(u'position %s', i)
                if i in positions.keys():
                   sc.top = positions[i][0]
                   sc.left = positions[i][1]
@@ -536,6 +536,10 @@ class Application_ctrl(RestController):
 def generate_dialplan():
    ''' Generate dialplan from database
    '''
+
+   # Flush SqlAlchemy session, else we might generate dialplan with stale data
+   DBSession.flush()
+
    # Check / acquire exclusive lock on file
    # XXX fcntl.lockf
 
@@ -581,7 +585,6 @@ def generate_dialplan():
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
 
-
    # Internal context: same as above
    svi_out.write(u'[SVI_internal] ; Internal context -> App\n')
    apps = DBSession.query(Application)
@@ -616,25 +619,21 @@ def generate_dialplan():
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
 
-
-   for a in apps:
-      dnis = u'exten => %s' % a.dnis
    # Create contexts, priorities, ... from database
    prev_ctxt = ''
-   scenario = DBSession.query(Scenario, Application)
-   scenario = scenario.filter(Scenario.app_id==Application.app_id)
-   scenario = scenario.filter(Application.active==True)
-   scenario = scenario.order_by(Scenario.app_id)
-   scenario = scenario.order_by(Scenario.context)
-   scenario = scenario.order_by(Scenario.step)
    return_ok = True # Is it ok to return when context ends
-   for dp in scenario.all():
+   for dp in DBSession.query(Scenario, Application) \
+                      .filter(Scenario.app_id == Application.app_id) \
+                      .filter(Application.active) \
+                      .order_by(Scenario.app_id) \
+                      .order_by(Scenario.context) \
+                      .order_by(Scenario.step):
       sce_id = int(dp.Scenario.sce_id)
       action = int(dp.Scenario.action)
       app_id = int(dp.Scenario.app_id)
       context = dp.Scenario.context
       parameters = dp.Scenario.parameters
-      log.info('App %d, scenario %d: %s, %d(%s)' % (app_id, sce_id, context, action, parameters))
+      log.info('App %s, scenario %s: %s, %s(%s)', app_id, sce_id, context, action, parameters)
 
       ctxt = u'[App_%s_%s]\n' % (app_id, context)
       if prev_ctxt!=ctxt:
@@ -1068,10 +1067,13 @@ def generate_dialplan():
          continue
 
       svi_out.write(u'exten => s,%d,%s(%s)\n' % (prio, app, param))
+      log.debug(u'exten => s,%d,%s(%s)', prio, app, param)
       prio += 1
 
    if prev_ctxt!='': svi_out.write(u'exten => s,%d,Return\n\n' % prio)
    svi_out.write(u'\n')
+   svi_out.flush()
+   fsync(svi_out.fileno())
    svi_out.close()
 
    result = -1
@@ -1080,7 +1082,7 @@ def generate_dialplan():
       try:
          rename('/etc/asterisk/astportal/svi.conf', '/etc/asterisk/astportal/svi.conf.old')
       except:
-         pass
+         log.warning('renaming svi.conf -> svi.conf.old')
       rename('/etc/asterisk/astportal/svi.conf.new', '/etc/asterisk/astportal/svi.conf')
       Globals.manager.send_action({'Action': 'Command',
          'Command': 'dialplan reload'})

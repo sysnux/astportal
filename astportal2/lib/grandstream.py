@@ -133,28 +133,29 @@ P2918 = 0,
 # Dial Plan 0 - Disabled, 1 Enabled
 P2382 = 0,
 # Secondary SIP server
-P2312 = '',
-P323 = '0', # Speed dial
-P302 = 'Sécurité',
-P303 = '3',
-P324 = '0',
-P305 = 'Support info',
-P306 = '8777',
-P325 = '0',
-P308 = 'Interception',
-P309 = '*8#',
-P326 = '0',
-P311 = 'Annulation renvoi',
-P312 = '#21#',
+P22119 = '0', # Activation CDP, 0 pour désactiver
+P196 = 'Ac3PuM7trq48', # User mot de passe
+P2304 = '1', # Transfert sur raccrochement en conférence
+# Touches de supervision GXP1628
+#P2312 = '',
+#P323 = '0', # Speed dial
+#P302 = 'Sécurité',
+#P303 = '3',
+#P324 = '0',
+#P305 = 'Support info',
+#P306 = '8777',
+#P325 = '0',
+#P308 = 'Interception',
+#P309 = '*8#',
+#P326 = '0',
+#P311 = 'Annulation renvoi',
+#P312 = '#21#',
 #P327 = '0',
 #P314 = 'Ne pas déranger',
 #P315 = '*27#',
 #P328 = '0',
-P317 = 'Annulation ne pas déranger',
-P318 = '#27#',
-P22119 = '0', # Activation CDP, 0 pour désactiver
-P196 = 'Ac3PuM7trq48', # User mot de passe
-P2304 = '1', # Transfert sur raccrochement en conférence
+#P317 = 'Annulation ne pas déranger',
+#P318 = '#27#',
 )
 
 
@@ -330,7 +331,7 @@ P2304 = '1', # Transfert sur raccrochement en conférence
       # Newer phones
       resp = self.get('cgi-bin/dologin', params=params)
       if resp is not None and resp.status_code==200:
-         log.debug('GXP new firmware: params "%s" returns "%s"', resp.content)
+         log.debug('GXP new firmware: params "%s" returns "%s"', params, resp.content)
          try:
             data = resp.json()
             if data['response'] == 'success':
@@ -476,8 +477,6 @@ P2304 = '1', # Transfert sur raccrochement en conférence
 
       mac = self.mac.replace(':','')
       tftp = config.get('directory.tftp') + 'phones/firmware'
-      vlan = config.get('gxp.vlan')
-      keypad = config.get('gxp.keypad')
       if not os.path.isdir('%s/%s' % (tftp, mac)):
          os.mkdir('%s/%s' % (tftp, mac))
       try:
@@ -514,20 +513,22 @@ P2304 = '1', # Transfert sur raccrochement en conférence
          mwi_subscribe, reboot, screen_url, exten,
          sip_server2, secretary, ringtone)
 
-   def configure_txt(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
+   def configure_text(self, pwd, tftp_dir, firmware_url, config_url, ntp_server,
          phonebook_url=None, syslog_server=None, dns1=None, dns2=None,
          sip_server=None, sip_user=None, sip_display_name=None,
          mwi_subscribe=False, reboot=True, screen_url=None, exten=None,
          sip_server2=None, secretary=None, ringtone=None):
+      vlan = config.get('server.vlan')
       if vlan:
          self.params['P51'] = vlan
+      keypad = config.get('gxp.keypad')
       if keypad in ('0', '1', '2'):
          self.params['P1357'] = keypad
       self.params['P2'] = pwd
       if ringtone is not None:
          self.params['P104'] = 1
 
-      self.params['P192'] = '%s/%s' % (firmware_url, mac)
+      self.params['P192'] = '%s/%s' % (firmware_url, self.mac)
       self.params['P237'] = config_url
       self.params['P331'] = phonebook_url + '/grandstream/phonebook'
       self.params['P341'] = screen_url + '/grandstream/screen'
@@ -545,7 +546,7 @@ P2304 = '1', # Transfert sur raccrochement en conférence
       if self.model.startswith('GXP21'):
          self.params['P270'] += ' - ' + exten
       elif self.model.startswith('GXP162'):
-         self.params['P270'] += ' ' + exten
+         self.params['P270'] += exten
       self.params['P99'] = 1 # XXX if mwi_subscribe else 0
       if sip_server:
          self.params['P47'] = sip_server
@@ -609,7 +610,7 @@ P2304 = '1', # Transfert sur raccrochement en conférence
          self.params['P340'] = 1 # HTTP Idle Screen XML Download
          self.params['P212'] = 0 # HTTP Firmware Upgrade
 
-      if model.startswith('GXP21') or model.startswith('GXP16'):
+      if self.model.startswith('GXP21') or self.model.startswith('GXP16'):
          # Dial plan
          self.params['P290'] = \
             '{ x+ | *x+ | *x.# | *xx.*xx.# | *xx.*0xx.# | *xx.*xx.*xx.# | #xx.| #xx.# }'
@@ -620,9 +621,9 @@ P2304 = '1', # Transfert sur raccrochement en conférence
          self.params['P2991'] = 25 # Call log on softkey 1
          self.params['P2993'] = 'Historique' # History on softkey 3
          self.params['P8345'] = 0 # Show Label Background
-         self.params['P8346'] = 1 # Use Long Label
-         self.params['P2916'] = 1 # Wallpaper Source: Download
-         self.params['P2917'] = 'https://' + config_url + '/logo60.jpg' # Wallpaper Server Path
+         self.params['P8346'] = 0 # Use Long Label
+#         self.params['P2916'] = 1 # Wallpaper Source: Download
+#         self.params['P2917'] = 'https://' + config_url + '/logo60.jpg' # Wallpaper Server Path
 
       if self.model.startswith('GXP21') and secretary:
          # Filtrage secrétaire
@@ -751,7 +752,7 @@ the header and parameter strings are written to a binary file.
 
       mac = self.mac.replace(':','')
       tftp = config.get('directory.tftp') + 'phones/firmware'
-      set_item('network.port.eth.1.vlan.tag', config.get('gxp.vlan'))
+      set_item('network.port.eth.1.vlan.tag', config.get('server.vlan'))
       keypad = config.get('gxp.keypad')
       if keypad in ('0', '1', '2'):
 		   # Unrestricted, BasicSettingsOnly, ConstraintMode, LockedMode -->

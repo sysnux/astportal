@@ -185,7 +185,7 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
          'Family': 'fax_reject', 'Key': p.exten, 'Val': 1})
 
    # Voicemail.conf: allways delete old_exten (don't care if doesn't exists)
-   if old_exten is None:
+   if not old_exten:
       old_exten = p.exten
    Globals.manager.update_config(
       directory_asterisk  + 'voicemail.conf', 
@@ -224,33 +224,32 @@ def asterisk_update_phone(p, old_exten=None, old_dnis=None):
       log.debug('Update outgoing extensions.conf returns %s', res)
 
    # Always delete old dnis entry (extensions.conf)
-   if old_dnis is not None:
-      res = Globals.manager.update_config(
-         directory_asterisk  + 'extensions.conf', 
-         None, [('Delete', 'dnis', 'exten', None, 
-            '%s,1,Gosub(stdexten,%s,1(fromdnis))' % (old_dnis[-4:], old_exten))])
-      log.debug('Delete <%s,1,Gosub(stdexten,%s,1(fromdnis))> returns %s',
-                old_dnis, p.exten, res)
+   if old_dnis:
+      action = '%s,1,Gosub(stdexten,%s,1(fromdnis))' % (old_dnis[-4:], old_exten)
+      res = Globals.manager.update_config(directory_asterisk  + 'extensions.conf',
+                                          None,
+                                          [('Delete', 'dnis', 'exten', None, action)])
+      log.warning('Delete <%s> returns %s', action, res)
 
-   if p.dnis is not None:
+   if p.dnis:
       # Create dnis entry (extensions.conf)
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 
          None, [('Append', 'dnis', 'exten', '>%s,1,Gosub(stdexten,%s,1(fromdnis))' % \
                (p.dnis[-4:], p.exten) )]
       )
-      log.debug('Update dnis extensions.conf returns %s', res)
+      log.info('Update dnis extensions.conf returns %s', res)
 
    # Hints
-   if old_exten is not None:
-      res = Globals.manager.update_config(
-         directory_asterisk  + 'extensions.conf', 
-         None, [('Delete', 'hints', 'exten', None, 
-            '%s,hint,%s/%s' % \
-               (old_exten, 'SIP' if sip_type=='sip' else 'PJSIP', p.sip_id))])
-      log.debug('Delete <%s,hint,xxSIP/%s> returns %s', old_exten, p.sip_id,res)
+   if old_exten:
+      action = '%s,hint,%s/%s' % \
+               (old_exten, 'SIP' if sip_type=='sip' else 'PJSIP', p.sip_id)
+      res = Globals.manager.update_config(directory_asterisk  + 'extensions.conf',
+                                          None,
+                                          [('Delete', 'hints', 'exten', None, action)])
+      log.info('Delete <%s> returns %s', action, res)
 
-   if p.exten is not None:
+   if p.exten:
       # Create new hint (extensions.conf)
       res = Globals.manager.update_config(
          directory_asterisk  + 'extensions.conf', 

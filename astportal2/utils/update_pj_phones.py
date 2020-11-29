@@ -1,4 +1,4 @@
-#! /home/SysNux/tg234/bin/python
+#! /opt/venv-astportal/bin/python
 # -*- coding: utf-8 -*-
 
 from os import popen
@@ -12,7 +12,7 @@ path.insert(0, '/home/SysNux/Projets/astportal3')
 
 from paste.deploy import appconfig
 from astportal2.config.environment import load_environment
-conf = appconfig('config:/home/SysNux/Projets/astportal3/tiare.ini')
+conf = appconfig('config:/opt/astportal/astportal.ini')
 load_environment(conf.global_conf, conf.local_conf) # Needed for DBSession
 
 from tg import config

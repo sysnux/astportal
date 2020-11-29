@@ -43,7 +43,7 @@ from astportal2.controllers.application import Application_ctrl
 from astportal2.controllers.forward import Forward_ctrl
 from astportal2.controllers.record import Record_ctrl
 from astportal2.controllers.incident import Incident_ctrl
-from astportal2.controllers.fax import Fax_ctrl
+#from astportal2.controllers.fax import Fax_ctrl
 from astportal2.controllers.close import Close_ctrl
 from astportal2.controllers.cc_monitor import CC_Monitor_ctrl
 from astportal2.controllers.cc_stats import CC_Stats_ctrl
@@ -91,7 +91,7 @@ class RootController(BaseController):
    forwards = Forward_ctrl()
    records = Record_ctrl()
    incidents = Incident_ctrl()
-   fax = Fax_ctrl()
+#   fax = Fax_ctrl()
    closed = Close_ctrl()
    cc_monitor = CC_Monitor_ctrl()
    cc_stats = CC_Stats_ctrl()

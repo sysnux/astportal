@@ -32,6 +32,8 @@ testpkgs=['WebTest >= 1.2.3',
                ]
 install_requires=[
     "TurboGears2 < 2.4",
+    'tg.devtools < 2.4',
+    'transaction < 2.4',
     "Genshi",
     "beaker",
     "Mako",
@@ -47,11 +49,13 @@ install_requires=[
     'tgscheduler',
     'BeautifulSoup',
     'WebHelpers',
-    'psycopg2-binary',
+    'psycopg2',
     'vobject',
     'gevent',
     'ws4py',
     'wsaccel',
+    'requests',
+    'gearbox',
         ]
 
 if sys.version_info[:2] == (2,4):
