@@ -6,7 +6,7 @@
       src="/toscawidgets/resources/tw.jquery.base/static/javascript/ui/minified/jquery-ui.min.js"></script>
    <script type="text/javascript" src="/js/jquery.timeentry.pack.js"></script>
 
-	<style type="text/css">
+   <style type="text/css">
       canvas {
          position:absolute;
          width: 2000px;
@@ -29,7 +29,7 @@
    <script type="text/javascript">
 //<![CDATA[
 
-var scenario = new Object();
+var scenario = new Array();
 var actions = new Object();
 var applications = new Object();
 var actions_by_id = new Object();
@@ -65,6 +65,7 @@ $(document).ready(
       {id: ${tmpl_context.app_id} },
       function(data,stat){
          scenario = data.scenario;
+         scenario.sort(sort_scenario);
          actions = data.actions;
          sounds = data.sounds;
          texts = data.texts;
@@ -402,9 +403,9 @@ function valid_action() {
 
       case 21: // QueueLog
          param = $("#21_queuename").val();
-			param += '::' + $("#21_event").val();
-			param += '::' + $("#21_info").val();
-			param += '::' + $("#21_agent").val();
+         param += '::' + $("#21_event").val();
+         param += '::' + $("#21_info").val();
+         param += '::' + $("#21_agent").val();
          break;
 
       case 22: // Open playback
@@ -444,6 +445,7 @@ function valid_action() {
    }
    display();
    $('#action_form').dialog('close');
+   scenario.sort(sort_scenario);
 }
 
 function cancel_action() { 
@@ -455,52 +457,48 @@ function cancel_action() {
 }
 
 function display(redraw) {
-   var context_re = RegExp('^xxx$'), divs='', row=0;
+   var context_re = RegExp('^xxx$');
    var context_opts = '<option value="-1"> - - - </option>';
    context_opts += '<optgroup label="Blocs">\n';
    var label_opts = '<optgroup label="étiquettes">\n';
+   var blocs = {};
 
    for (let r=0; r<scenario.length; r++) {
       let step=scenario[r], context=step.context, parameters=step.parameters;
-      if (!context_re.test(scenario[r].context)) { // New bloc
-         context_opts += '<option value="c:' + scenario[r].context + '">' + scenario[r].context + '</option>';
-         context_re = RegExp(scenario[r].context + '_*$');
-         row = 0;
-         if(divs!='') divs += '</tbody></table></div>\n';
-         //
-         divs += '<div id="context_' + scenario[r].context + '" title="' + scenario[r].context + '" class="bloc_title"><table><tbody><tr><th id="' + scenario[r].context + '" colspan="4" class="bloc_th">' + scenario[r].context + '</th>\n';
+      if (!context_re.test(context)) {
+         // Different bloc
+         context_opts += '<option value="c:' + context + '">' + context + '</option>';
+         context_re = RegExp(context + '_*$');
+
+         if (! (context in blocs)) {
+            blocs[context] = {};
+            blocs[context]['prio'] = 0;
+            blocs[context]['html'] = '<div id="context_' + context + '" title="' + context + '" class="bloc_title"><table><tbody><tr><th id="' + context + '" colspan="4" class="bloc_th">' + context + '</th>\n';
+         }
       }
 
-      if ((row++)%2) row_style='class="odd"';
-      else row_style='class="even"';
+      blocs[context]['step'] = step;
+      step.priority = blocs[context]['prio']++;
+      row_style = (step.priority%2) ? 'class="odd"':'class="even"';
+      blocs[context]['html'] += '<tr id="row_' + r + '" '+ row_style + '><td>';
 
-      step.priority = row-1;
-      divs += '<tr id="row_' + r + '" '+ row_style + '><td>';
-
-      if (row==1 && context=='Entrant') { // Incoming context -> delete forbidden !
-         divs += ' <a href="#" onclick="add_action(0)"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
+      if (step.priority==0 && context=='Entrant') { // Incoming context -> delete forbidden !
+         blocs[context]['html'] += ' <a href="#" onclick="add_action(0)"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
       } else {
-         divs += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
-         divs += ' <a href="#" onclick="del_action(' + r + ')"><img src="/images/delete.png" border="0" title="Supprimer cette action"></a>';
-         divs += ' <a href="#" onclick="edit_action(' + r + ')"><img src="/images/edit.png" border="0" title="Modifier cette action"></a>';
+         blocs[context]['html'] += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
+         blocs[context]['html'] += ' <a href="#" onclick="del_action(' + r + ')"><img src="/images/delete.png" border="0" title="Supprimer cette action"></a>';
+         blocs[context]['html'] += ' <a href="#" onclick="edit_action(' + r + ')"><img src="/images/edit.png" border="0" title="Modifier cette action"></a>';
       }
 
-      if (r>1 && scenario[r-1].context==context && scenario[r-1].application!='0') {
-         divs += ' <a href="#" onclick="up_action(' + r + ')"><img src="/images/view-sort-ascending.png" border="0" title="Monter cette action"></a>';
-      }
+      if (r>1 && scenario[r-1].context==context && scenario[r-1].application!='0')
+         // Move action up
+         blocs[context]['html'] += ' <a href="#" onclick="up_action(' + r + ')"><img src="/images/view-sort-ascending.png" border="0" title="Monter cette action"></a>';
 
-      if (r>0 && scenario[r-1].context==context) {
-         ctxt = '&nbsp;';
-      } else {
-         ctxt = context;
-      }
+      if (r>0 && r<scenario.length-1 && step.application!='0' && context==scenario[r+1].context)
+         // Move action down
+         blocs[context]['html'] += ' <a href="#" onclick="down_action(' + r + ')"><img src="/images/view-sort-descending.png" border="0" title="Descendre cette action"></a>';
 
-      if (r>0 && r<scenario.length-1 && step.application!='0' 
-            && context==scenario[r+1].context) {
-         divs += ' <a href="#" onclick="down_action(' + r + ')"><img src="/images/view-sort-descending.png" border="0" title="Descendre cette action"></a>';
-      }
-
-      divs += '</td>';
+      blocs[context]['html'] += '</td>';
       var app = parseInt(step.application);
       var act = actions_by_id[app];
       switch (app) {
@@ -614,7 +612,7 @@ function display(redraw) {
             act = actions_by_id[app];
             if (parameters.substr(0,1)=='a')
                if (parameters.substr(2) in applications) 
-	          par = 'Appli: ' + applications[parameters.substr(2)].name;
+                  par = 'Appli: ' + applications[parameters.substr(2)].name;
                else
                   par = '';
             else
@@ -649,8 +647,7 @@ function display(redraw) {
          case 19: // Voicemail
             act = actions_by_id[app];
             var a = parameters.split('::');
-				par = a[0] + ' (' + 
-					['aucun message', 'message indisponible', 'message occupé'][a[1]] + ')';
+            par = a[0] + ' (' + ['aucun message', 'message indisponible', 'message occupé'][a[1]] + ')';
             break;
 
          case 20: // Queue
@@ -710,28 +707,30 @@ function display(redraw) {
       }
       var par2=par;
       if (par2 && par2.length>20) par2 = par2.substr(0,17) + '...';
-      divs += '<td style="padding: 5px">' + act + '</td>';
-      divs += '<td style="padding: 5px" title="'+ par + '">' + par2 + '</td>';
+      blocs[context]['html'] += '<td style="padding: 5px">' + act + '</td>';
+      blocs[context]['html'] += '<td style="padding: 5px" title="'+ par + '">' + par2 + '</td>';
       if (step.comments) {
-         let comments = step.comments;
+         var comments = step.comments;
          if (comments.length>20) comments = comments.substr(0,17) + '...';
-         divs += '<td style="padding: 5px" title="' + comments + '">' + comments + '</td>';
+         blocs[context]['html'] += '<td style="padding: 5px" title="' + step.comments + '">' + comments + '</td>';
       } else
-         divs += '<td style="padding: 5px">&nbsp;</td>';
-      divs += '</tr>\n';
+         blocs[context]['html'] += '<td style="padding: 5px">&nbsp;</td>';
+      blocs[context]['html'] += '</tr>\n';
    }
-   divs += '</tbody></table></div>\n';
+
    context_opts += '</optgroup>';
    $('#9_action').html(context_opts);
    context_opts += label_opts + '</optgroup>';
+   let divs = '';
+   for (let b in blocs)
+      divs += blocs[b]['html'] + '</tbody></table></div>\n';
    $("#scenario").html(divs);
-   var goto_opts = context_opts + '<optgroup label="Application">';
-   for (var a in applications) {
+   let goto_opts = context_opts + '<optgroup label="Application">';
+   for (let a in applications)
       goto_opts += '<option value="a:' + a + '">' +
                                          applications[a].name + ' (' +
                                          applications[a].comment + 
-					 ')</option>';
-   }
+                   ')</option>';
    goto_opts += '</optgroup>';
    $('#14_goto').html(goto_opts);
    context_opts += '<optgroup label="Autre">\n';
@@ -1044,6 +1043,7 @@ function pdf_export() {
 }
 
 function canvas_join(c2d, offset, src, tgt) {
+
    src.offset = src.offset();
    if (!src.offset) return;
    tgt.offset = tgt.offset();
@@ -1154,17 +1154,6 @@ function update_canvas() {
             }
             break;
 
-         case 11: // Time based test
-            var a = scenario[r].parameters.split('::');
-            var if_true=a[5], if_false=a[6];
-            if (if_true!=-2 && if_true!=-1)
-               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
-                     $('#'+if_true.substr(2)) );
-            if (if_false!=-2 && if_true!=-1)
-               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
-                     $('#'+if_false.substr(2)) );
-            break;
-
          case 9: // Loop
             var a = scenario[r].parameters.split('::');
             canvas_join(c2d, $('#canvas').offset(), $('#row_' + r),
@@ -1174,12 +1163,16 @@ function update_canvas() {
          case 11: // Time based test
             var a = scenario[r].parameters.split('::');
             var if_true=a[5], if_false=a[6];
-            if (if_true!=-2 && if_true!=-1)
-               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
-                     $('#'+if_true.substr(2)) );
-            if (if_false!=-2 && if_true!=-1)
-               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), 
-                     $('#'+if_false.substr(2)) );
+            if (if_true!=-2 && if_true!=-1) {
+               let what = if_true.substr(0, 1);
+               let target = (what=='l') ? 'row_' + labels[if_true.substr(2)] : if_true.substr(2);
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), $('#' + target));
+            }
+            if (if_false!=-2 && if_false!=-1) {
+               let what = if_false.substr(0, 1);
+               let target = (what=='l') ? 'row_' + labels[if_false.substr(2)] : if_false.substr(2);
+               canvas_join(c2d, $('#canvas').offset(), $('#row_' + r), $('#' + target));
+            }
             break;
 
          case 7: // Transfer
@@ -1233,20 +1226,30 @@ function update_canvas() {
       }
    }
 }
-	
+
+function sort_scenario(a, b) {
+   /* Sort scenario by context / exten / priority. Needed to check 
+	if step is first or last in context, to allow move yup / down */
+      if (a.context < b.context) return -1;
+      if (a.context > b.context) return 1;
+      if (a.extension < b.extension) return -1;
+      if (a.extension > b.extension) return 1;
+      return a.priority - b.priority;
+}
+
 //]]>
    </script>
 </head>
 
 <body>
-		<h1>${title}</h1>
+      <h1>${title}</h1>
       N'oubliez pas de
       <span style="font-weight: bold;"><a href="#" onclick="submit();">valider</a></span> 
       après modification du scénario. 
       <a href="#" onclick="display(true)">Redessiner</a> l'écran. 
       <a href="#" onclick="pdf_export()">Exporter</a> au format PDF. 
       <br/>
-	   <canvas id="canvas"></canvas>
+      <canvas id="canvas"></canvas>
       <div id="scenario"></div>
 
 <!-- Dialogue nouvelle action -->
@@ -1528,14 +1531,14 @@ function update_canvas() {
    <!-- Voicemail: 19 -->
    <div id="action_params_19" style="display: none">
       <table>
-      	<tr><td>Nom de la boîte vocale:</td>
-	      	<td><input type="text" id="19_mailbox"/></td></tr>
-      	<tr><td>Message d'accueil:</td>
-	      	<td><select id="19_msg">
-						<option value="0">Aucun</option>
-						<option value="1">Indisponible</option>
-						<option value="2">Occupé</option>
-					</select></td></tr>
+         <tr><td>Nom de la boîte vocale:</td>
+            <td><input type="text" id="19_mailbox"/></td></tr>
+         <tr><td>Message d'accueil:</td>
+           <td><select id="19_msg">
+                  <option value="0">Aucun</option>
+                  <option value="1">Indisponible</option>
+                  <option value="2">Occupé</option>
+               </select></td></tr>
       </table>
    </div>
 
@@ -1547,16 +1550,16 @@ function update_canvas() {
 
    <!-- QueueLog: 21 -->
    <div id="action_params_21" style="display: none">
-		<table>
-      	<tr><td>Nom du groupe d'appel:</td>
-      		<td><select id="21_queuename"></select></td></tr>
-			<tr><td>Agent:</td>
-      		<td><input type="text" id="21_agent"/></td></tr>
-			<tr><td>Evénement:</td>
-      		<td><select id="21_event"></select></td></tr>
-			<tr><td>Information:</td>
-      		<td><input type="text" id="21_info"/></td></tr>
-		</table>
+      <table>
+         <tr><td>Nom du groupe d'appel:</td>
+            <td><select id="21_queuename"></select></td></tr>
+         <tr><td>Agent:</td>
+            <td><input type="text" id="21_agent"/></td></tr>
+         <tr><td>Evénement:</td>
+            <td><select id="21_event"></select></td></tr>
+         <tr><td>Information:</td>
+            <td><input type="text" id="21_info"/></td></tr>
+      </table>
    </div>
 
    <!-- Open playback: 22 -->

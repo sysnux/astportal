@@ -403,7 +403,11 @@ class Application_ctrl(RestController):
 
       scenario = []
       positions = {}
-      for x in DBSession.query(Scenario).filter(Scenario.app_id==id).order_by(Scenario.context).order_by(Scenario.step):
+      for x in DBSession.query(Scenario) \
+                        .filter(Scenario.app_id==id) \
+                        .order_by(Scenario.context) \
+                        .order_by(Scenario.extension) \
+                        .order_by(Scenario.step):
          scenario.append({'sce_id': x.sce_id, 'context': x.context, 
          'extension': x.extension, 'priority': x.step, 
          'application': x.action, 'parameters': x.parameters, 
@@ -436,7 +440,7 @@ class Application_ctrl(RestController):
          positions[context] = (int(float(top)), int(float(left)))
 
 
-      log.info('save_scenario %s, type %s' % (id, type(scenario)) )
+      log.info('save_scenario %s', id)
       application = DBSession.query(Application).get(int(id))
 
       # 1. Delete old entries
@@ -454,10 +458,10 @@ class Application_ctrl(RestController):
                sc.parameters) = (c, id, i, e, p, a, m)
             if p==1 :
                i = 'context_%s' % i 
-               log.debug(u'position %s', i)
                if i in positions.keys():
                   sc.top = positions[i][0]
                   sc.left = positions[i][1]
+            log.debug(u'Scenario(%s, %s, %s, %s)', sc.context, sc.extension, sc.step, sc.action)
             DBSession.add(sc)
 
       return dict(result=generate_dialplan())
