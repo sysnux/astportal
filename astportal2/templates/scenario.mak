@@ -460,7 +460,8 @@ function display(redraw) {
    context_opts += '<optgroup label="Blocs">\n';
    var label_opts = '<optgroup label="étiquettes">\n';
 
-   for (var r=0; r<scenario.length; r++) {
+   for (let r=0; r<scenario.length; r++) {
+      let step=scenario[r], context=step.context, parameters=step.parameters;
       if (!context_re.test(scenario[r].context)) { // New bloc
          context_opts += '<option value="c:' + scenario[r].context + '">' + scenario[r].context + '</option>';
          context_re = RegExp(scenario[r].context + '_*$');
@@ -473,10 +474,10 @@ function display(redraw) {
       if ((row++)%2) row_style='class="odd"';
       else row_style='class="even"';
 
-      scenario[r].priority = row-1;
+      step.priority = row-1;
       divs += '<tr id="row_' + r + '" '+ row_style + '><td>';
 
-      if (row==1 && scenario[r].context=='Entrant') { // Incoming context -> delete forbidden !
+      if (row==1 && context=='Entrant') { // Incoming context -> delete forbidden !
          divs += ' <a href="#" onclick="add_action(0)"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
       } else {
          divs += ' <a href="#" onclick="add_action(' + r + ')"><img src="/images/add.png" border="0" title="Ajouter une action"></a>';
@@ -484,23 +485,23 @@ function display(redraw) {
          divs += ' <a href="#" onclick="edit_action(' + r + ')"><img src="/images/edit.png" border="0" title="Modifier cette action"></a>';
       }
 
-      if (r>1 && scenario[r-1].context==scenario[r].context && scenario[r-1].application!='0') {
+      if (r>1 && scenario[r-1].context==context && scenario[r-1].application!='0') {
          divs += ' <a href="#" onclick="up_action(' + r + ')"><img src="/images/view-sort-ascending.png" border="0" title="Monter cette action"></a>';
       }
 
-      if (r>0 && scenario[r-1].context==scenario[r].context) {
+      if (r>0 && scenario[r-1].context==context) {
          ctxt = '&nbsp;';
       } else {
-         ctxt = scenario[r].context;
+         ctxt = context;
       }
 
-      if (r>0 && r<scenario.length-1 && scenario[r].application!='0' 
-            && scenario[r].context==scenario[r+1].context) {
+      if (r>0 && r<scenario.length-1 && step.application!='0' 
+            && context==scenario[r+1].context) {
          divs += ' <a href="#" onclick="down_action(' + r + ')"><img src="/images/view-sort-descending.png" border="0" title="Descendre cette action"></a>';
       }
 
       divs += '</td>';
-      var app = parseInt(scenario[r].application);
+      var app = parseInt(step.application);
       var act = actions_by_id[app];
       switch (app) {
          case 0: // NoOp
@@ -508,18 +509,18 @@ function display(redraw) {
             break;
 
          case 1: // Playback
-            par = play_or_tts_to_text(scenario[r].parameters);
+            par = play_or_tts_to_text(parameters);
             break;
 
          case 2: // Menu
-            p = scenario[r].parameters.split('::');
+            p = parameters.split('::');
             par  = play_or_tts_to_text(p[0]) + ', ';
             par += play_or_tts_to_text(p[1]) + ', ';
             par += play_or_tts_to_text(p[2]) + ', "' + p[3] + '"';
             break;
 
          case 15: // Select
-            p = scenario[r].parameters.split('::');
+            p = parameters.split('::');
             par  = play_or_tts_to_text(p[0]) + ', ';
             par += play_or_tts_to_text(p[1]) + ', ';
             par += play_or_tts_to_text(p[2]) + ', "' + p[3] + '"';
@@ -527,7 +528,7 @@ function display(redraw) {
             break;
 
          case 3: // Input
-            p = scenario[r].parameters.split('::');
+            p = parameters.split('::');
             par  = play_or_tts_to_text(p[0]) + ', ';
             par += play_or_tts_to_text(p[1]) + ', ';
             par += play_or_tts_to_text(p[2]) + ', ';
@@ -550,17 +551,17 @@ function display(redraw) {
             break;
 
          case 5: // TTS
-            par = '"' + scenario[r].parameters + '"';
+            par = '"' + parameters + '"';
             break;
 
          case 6: // Record
-            p = scenario[r].parameters.split('::');
+            p = parameters.split('::');
             par = '"' + play_or_tts_to_text(p[0]) + '", ' + p[1] + ' sec';
             if (p[2]=='true') par += ', bip';
             break;
 
          case 7: // Transfert
-            var a = scenario[r].parameters.split('::');
+            var a = parameters.split('::');
             var number=a[0], timeout=a[1], noanswer=a[2], busy=a[3], error=a[4];
             if (noanswer==-2) noanswer = 'continuer';
             if (error==-2) error = 'continuer';
@@ -569,17 +570,17 @@ function display(redraw) {
             break;
 
          case 8: // Web Service
-            par = scenario[r].parameters.split('::');
+            par = parameters.split('::');
             par = par[0] + ' -> ' + par[1];
             break;
 
          case 9: // Loop
-            par = scenario[r].parameters.split('::');
+            par = parameters.split('::');
             par =  par[1] + ' x ' + par[0].substr(2);
             break;
 
          case 10: // Test
-            var a = scenario[r].parameters.split('::');
+            var a = parameters.split('::');
             var variable=a[0], ope=a[1], value=a[2], if_true=a[3], if_false=a[4];
             var ops = new Object();
             ops['eq'] = ' = ';
@@ -594,7 +595,7 @@ function display(redraw) {
             break;
 
          case 13: // Variable
-            p = scenario[r].parameters.split('::');
+            p = parameters.split('::');
             par = p[0] + ' = ';
             switch (p[1]) {
                case '__1__':
@@ -611,31 +612,30 @@ function display(redraw) {
 
          case 14: // Goto
             act = actions_by_id[app];
-console.log('Goto', scenario[r].parameters);
-            if (scenario[r].parameters.substr(0,1)=='a')
-               if (scenario[r].parameters.substr(2) in applications) 
-	          par = 'Appli: ' + applications[scenario[r].parameters.substr(2)].name;
+            if (parameters.substr(0,1)=='a')
+               if (parameters.substr(2) in applications) 
+	          par = 'Appli: ' + applications[parameters.substr(2)].name;
                else
                   par = '';
             else
-               par = scenario[r].parameters.substr(2);
+               par = parameters.substr(2);
             break;
 
          case 16: // Label
             act = actions_by_id[app];
-            par = scenario[r].parameters;
-            labels[scenario[r].context + ',' + par] = r;
-            label_opts += '<option value="l:' + scenario[r].context + ',' + par + '">' + par + '</option>';
+            par = parameters;
+            labels[context + ',' + par] = r;
+            label_opts += '<option value="l:' + context + ',' + par + '">' + par + '</option>';
             break;
 
          case 17: // Save to database
             act = actions_by_id[app];
-            par = scenario[r].parameters;
+            par = parameters;
             break;
 
          case 18: // Holidays
             act = actions_by_id[app];
-            var a = scenario[r].parameters.split('::');
+            var a = parameters.split('::');
             var if_true = a[0], if_false = a[1];
             if (if_true==-1 || if_false==1) {
                alert('Vérifiez les actions');
@@ -648,45 +648,45 @@ console.log('Goto', scenario[r].parameters);
 
          case 19: // Voicemail
             act = actions_by_id[app];
-            var a = scenario[r].parameters.split('::');
+            var a = parameters.split('::');
 				par = a[0] + ' (' + 
 					['aucun message', 'message indisponible', 'message occupé'][a[1]] + ')';
             break;
 
          case 20: // Queue
             act = actions_by_id[app];
-            par = queues_by_id[scenario[r].parameters];
+            par = queues_by_id[parameters];
             break;
 
          case 21: // QueueLog
             act = actions_by_id[app];
-            var a = scenario[r].parameters.split('::');
+            var a = parameters.split('::');
             par = queues_by_id[a[0]] + ': ' + qe_by_id[a[1]];
             if (a[2]) par += ': ' + a[2];
             break;
 
          case 22: // Open playback
             act = actions_by_id[app];
-            par = scenario[r].parameters;
+            par = parameters;
             break;
 
          case 23: // Conference
             act = actions_by_id[app];
-            par = scenario[r].parameters;
+            par = parameters;
             break;
 
          case 24: // AGI
             act = actions_by_id[app];
-            par = scenario[r].parameters;
+            par = parameters;
             break;
 
          case 25: // Say digits
             act = actions_by_id[app];
-            par = scenario[r].parameters;
+            par = parameters;
             break;
 
          case 11: // Time based test
-            var a = scenario[r].parameters.split('::');
+            var a = parameters.split('::');
             var begin=a[0], end=a[1], dow=a[2], day=a[3], 
                month=a[4], if_true=a[5], if_false=a[6];
             par = '';
@@ -700,7 +700,7 @@ console.log('Goto', scenario[r].parameters);
             break;
 
          case 12: // New context
-            par = '"' + scenario[r].parameters + '"';
+            par = '"' + parameters + '"';
             break;
 
          default:
@@ -712,10 +712,10 @@ console.log('Goto', scenario[r].parameters);
       if (par2 && par2.length>20) par2 = par2.substr(0,17) + '...';
       divs += '<td style="padding: 5px">' + act + '</td>';
       divs += '<td style="padding: 5px" title="'+ par + '">' + par2 + '</td>';
-      if (scenario[r].comments) {
-         var comments = scenario[r].comments;
+      if (step.comments) {
+         let comments = step.comments;
          if (comments.length>20) comments = comments.substr(0,17) + '...';
-         divs += '<td style="padding: 5px" title="' + scenario[r].comments + '">' + comments + '</td>';
+         divs += '<td style="padding: 5px" title="' + comments + '">' + comments + '</td>';
       } else
          divs += '<td style="padding: 5px">&nbsp;</td>';
       divs += '</tr>\n';
