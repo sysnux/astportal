@@ -107,11 +107,11 @@ class Mitel(object):
          if method == 'get':
             log.debug('GET(%s, auth=%s, params=%s)', 
                        self.url + action, self.auth, params)
-            resp = requests.get(self.url + action, auth=self.auth, params=params)
+            resp = requests.get(self.url + action, auth=self.auth, params=params, timeout=30)
          elif method == 'post':
             log.debug('POST(%s, auth=%s, data=%s)', 
                        self.url + action, self.auth, params)
-            resp = requests.post(self.url + action, auth=self.auth, data=params)
+            resp = requests.post(self.url + action, auth=self.auth, data=params, timeout=30)
       except:
          log.warning('Request %s, params %s failed' % (\
                self.url + action, params))

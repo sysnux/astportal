@@ -188,15 +188,17 @@ P2304 = '1', # Transfert sur raccrochement en conférence
       try:
          # Try HTTPS first
          resp = self.session.get('https://' + self.host + '/' + action,
-                             proxies=proxies,
-                             params=params,
-                             verify=False)
+                                 proxies=proxies,
+                                 timeout=30,
+                                 params=params,
+                                 verify=False)
       except:
          try:
             # Then HTTP (brand new phone)
             resp = self.session.get('http://' + self.host + '/' + action, 
-                             proxies=proxies,
-                             params=params)
+                                    proxies=proxies,
+                                    timeout=30,
+                                    params=params)
          except:
             log.warning('GET %s, params %s failed' % (\
                self.host + '/' + action, params))
@@ -217,6 +219,7 @@ P2304 = '1', # Transfert sur raccrochement en conférence
          log.debug('HTTPS POST(%s, %s, %s)', action, params, kw)
          resp = self.session.post('https://' + self.host + '/' + action,
                                   proxies=proxies,
+                                  timeout=30,
                                   data=params,
                                   verify=False,
                                   **kw)
@@ -225,9 +228,10 @@ P2304 = '1', # Transfert sur raccrochement en conférence
          try:
             # Then HTTP (brand new phone)
             resp = self.session.post('http://' + self.host + '/' + action,
-                                    proxies=proxies,
-                                    data=params,
-                                    **kw)
+                                     proxies=proxies,
+                                     timeout=30,
+                                     data=params,
+                                     **kw)
          except:
             log.warning('POST %s, params %s failed', self.host + '/' + action, params)
             return None
@@ -239,9 +243,11 @@ P2304 = '1', # Transfert sur raccrochement en conférence
        try:
            # Try HTTPS first
            resp = self.session.post('https://' + self.host + '/' + action,
-                                  data = json.dumps(params),
-                                  headers = {'Content-Type': 'application/json'},
-                                  verify=False)
+                                    proxies=proxies,
+                                    timeout=30,
+                                    data = json.dumps(params),
+                                    headers = {'Content-Type': 'application/json'},
+                                    verify=False)
        except:
            log.warning('POST JSON %s, params %s failed' % (\
                        self.host + '/' + action, params))
