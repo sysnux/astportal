@@ -284,7 +284,8 @@ def asterisk_update_queue(q):
    position = 'yes' if q.announce_position==1 else 'no'
    actions = [
             ('NewCat', moh_class),
-            ('Append', moh_class, 'timeout', 60),
+            ('Append', moh_class, 'retry', 1),
+            ('Append', moh_class, 'timeout', q.ring),
             ('Append', moh_class, 'strategy', q.strategy),
             ('Append', moh_class, 'wrapuptime', q.wrapuptime),
             ('Append', moh_class, 'announce-frequency', q.announce_frequency),

@@ -59,6 +59,9 @@ common_fields = [
          ('rrmemory', u'Circulaire'),
       ],
       label_text=u'Distribution des appels', help_text=u''),
+   TextField('ring', validator=Int, size=4, default=0,
+      label_text=u'Durée sonnerie', 
+      help_text=u'Durée sonnerie avant appel agent suivant'),
    SingleSelectField('auto_answer',
       options = [ (0, u'Non'), (1, u'Oui')],
       label_text=u'Décroché automatique', help_text=u''),
@@ -271,7 +274,7 @@ class Queue_ctrl(RestController):
             'priority': q.priority, 'monitor': q.monitor,
             'connectdelay': q.connectdelay, 'connecturl': q.connecturl,
             'hangupurl': q.hangupurl, 'auto_answer': q.auto_answer,
-            'timeout': q.timeout}
+            'timeout': q.timeout, 'ring': q.ring}
       tmpl_context.form = edit_queue_form
       return dict(title = u'Modification groupe d\'appels ' + q.name, debug='', values=v)
 
@@ -299,6 +302,7 @@ class Queue_ctrl(RestController):
       q.priority = kw['priority']
       q.monitor = kw['monitor']
       q.auto_answer = True if kw['auto_answer']=='1' else False
+      q.ring = kw['ring']
       flash(u'Groupe d\'appel modifié')
 
       # Update Asterisk queue

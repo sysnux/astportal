@@ -203,7 +203,9 @@ class Queue(DeclarativeBase):
    priority = Column(Integer)
    monitor = Column(Boolean)
    auto_answer = Column(Boolean)
-   timeout = Column(Integer)
+   timeout = Column(Integer) # Queue app timeout before caller leaves the queue
+   ring = Column(Integer) # Conf file timeout before ring other agent
+
    def __repr__(self):
       return '<Queue: name="%s", comment="%s">' % (
             self.name, self.comment)
