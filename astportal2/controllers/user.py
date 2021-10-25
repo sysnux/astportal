@@ -43,6 +43,12 @@ else:
    sip_chan = 'chan_sip'
    mailbox = 'mailbox'
 
+
+def group_options():
+    return [(g.group_id, g.group_name) for g in \
+        DBSession.query(Group.group_id, Group.group_name).order_by(Group.group_name)]
+
+
 # Common fields for user form, used by admin or not
 common_fields = [
 #   TextField('firstname',
@@ -101,8 +107,7 @@ admin_form_fields = [
       validator = StringBoolean,
       help_text = u"Envoyer le message vocal par email"),
    CheckBoxList('groups', validator=Int,
-   options=DBSession.query(Group.group_id, 
-      Group.group_name).order_by(Group.group_name),
+   options=group_options,
    label_text=u'Groupes', 
    help_text=u'Cochez les groupes auxquels appartient l\'utilisateur')
 ]
@@ -151,14 +156,13 @@ user_fields = [
 ]
 user_fields[3:2] = common_fields[:]
 edit_user_form = TableForm(
-   validator = Schema(
-      chained_validators = [FieldsMatch('pwd1', 'pwd2')]
-   ),
+   validator = Schema(chained_validators = [FieldsMatch('pwd1', 'pwd2')]),
    fields = user_fields,
    submit_text = u'Valider...',
    action = '/users/',
 #   hover_help = True
 )
+
 
 def row(u):
    '''Displays a formatted row of the users list

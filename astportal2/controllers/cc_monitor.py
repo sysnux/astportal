@@ -400,22 +400,15 @@ Channel: SIP/pEpSNlcv-000001b9
       return dict(status=status)
 
 
-   @expose()
+   @expose(template="astportal2.templates.test_connect")
    def test_connect(self, **kw):
       ''' Function to test URL load on member answer
       '''
-      data = u''
-      for k in kw:
-         data += u'<li>%s =&gt; %s</li>' % (k, kw[k])
-      return u'<h2>Connect !</h2><ul>%s</ul>' % data
+      return kw
 
 
-   @expose()
+   @expose(template="astportal2.templates.test_hangup")
    def test_hangup(self, **kw):
       ''' Function to test URL load on hangup
       '''
-      data = u''
-      for k in kw:
-         data += u'<li>%s =&gt; %s</li>' % (k, kw[k])
-      return u'<h2>Hangup !</h2><ul>%s</ul>' % data
-
+      return kw

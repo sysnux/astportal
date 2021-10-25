@@ -252,6 +252,7 @@ function member_status(name, now, queue) {
          }
          break;
       case '2': // AST_DEVICE_INUSE
+      case '3': // AST_DEVICE_BUSY
          if (name==my_name && 
              member['PeerChannel']!='' && 
              (my_status==null || my_status!=member['Uniqueid'])) {
@@ -261,6 +262,8 @@ function member_status(name, now, queue) {
                var params = '?uid=' + member['Uniqueid'] +
                             '&member=' + name +
                             '&interface=' + member['Location'] +
+                            '&callerid=' + member['PeerCallerid'] +
+                            '&channel=' + member['PeerChannel'] +
                             '&queue=' + queue +
                             '&holdtime=' + member['HoldTime'] +
                             '&custom1=' + member['Custom1'] +
@@ -269,7 +272,6 @@ function member_status(name, now, queue) {
                   'CRM' + member['Uniqueid'], popup_params);
             }
          }
-      case '3': // AST_DEVICE_BUSY
       case '8': // AST_DEVICE_ONHOLD
          sclass='inuse'; 
          if (member['Outgoing']) {
