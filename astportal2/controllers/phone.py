@@ -449,16 +449,6 @@ class Phone_ctrl(RestController):
       unavailable_only = True if unavailable_only=='true' else False
 
       fetch_contacts()
-#      if Globals.manager is not None:
-#         # Refresh Asterisk peers
-#         if sip_type=='sip':
-#            Globals.manager.sippeers()
-#         Globals.manager.send_action({'Action': 'DeviceStateList'})
-#         Globals.manager.send_action({'Action': 'IAXpeers'})
-#         resp = Globals.manager.send_action({'Action': 'Command', 'Command': 'pjsip show contacts'})
-#         log.debug('PJSIP Contacs returns:\n%s' % resp)
-
-      log.debug('Fetch : Globals.asterisk.peers= %s ' % Globals.asterisk.peers)
 
       # Try and use grid preference
       grid_rows = session.get('grid_rows', None)
