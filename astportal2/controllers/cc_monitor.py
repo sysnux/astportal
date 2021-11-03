@@ -18,6 +18,14 @@ exten => s,1,Noop(uid=${UNIQUEID} mon=${MASTER_CHANNEL(MONITOR)})
    same => n(nomon),UserEvent(AgentWillConnect,Agent: ${MEMBERNAME},HoldTime: ${QEHOLDTIME},PeerChannel: ${MASTER_CHANNEL(CHANNEL)},PeerCallerid: ${MASTER_CHANNEL(CALLERID(all))},PeerUniqueid: ${MASTER_CHANNEL(UNIQUEID)},ConnectURL: ${MASTER_CHANNEL(CONNECTURL)},HangupURL: ${MASTER_CHANNEL(HANGUPURL)},Custom1: ${MASTER_CHANNEL(CUSTOM1)},Custom2: ${MASTER_CHANNEL(CUSTOM2)})
    same => n,Wait(${MASTER_CHANNEL(CONNECTDELAY)})
    same => n,Return
+
+; Call all contacts for queue members
+; EXTEN is PJSIP account name
+; tiare*CLI> queue add member Local/raJnj2VB@MemberContacts to Accueil
+[MemberContacts]
+exten => _[A-Za-z0-9].,1,Verbose(2,Calling member at PJSIP contacts ${EXTEN})
+               same => n,Dial(${PJSIP_DIAL_CONTACTS(${EXTEN})})
+               same => n,Hangup()
 '''
 
 from tg import config, expose, flash, request, redirect
@@ -101,36 +109,30 @@ class CC_Monitor_ctrl(TGController):
       except:
          log.warning('Queue %s not found?' % queue)
 
-      log.debug('Member of queue %s : %s' % (queue, phones))
+      log.debug('Member of queue %s : %s', queue, phones)
       return dict(phones=phones)
 
 
    @expose('json')
-   def add_member(self, queue, member, penality):
+   def add_member(self, queue, member, penality=0):
       ''' Add a member with given priority to a queue
       '''
-      log.info('Adding member "%s" to queue "%s", penality %s' % (member, queue, penality))
+      log.info('Adding phone "%s" to queue "%s", penality %s', member, queue, penality)
       p = DBSession.query(Phone).get(member)
       log.debug('Member phone %s' % (p))
 
-      if p.sip_id is not None:
-         if sip_type  + p.sip_id not in Globals.asterisk.peers and \
-            p.exten is not None and \
-            sip_type + p.exten in Globals.asterisk.peers:
-            iface = p.exten
-         else:
-            iface = p.sip_id
-      else:
-         log.error('User phone unknown, not adding member' % (p))
+      if not p.sip_id:
+         log.error('Phone %s not found, not adding member', p)
          return dict(res='ko')
 
-      user = p.user.ascii_name if p.user else p.exten
-      iface = sip_type + iface
-
-      Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': queue, 
-         'Interface': iface, 'Penalty': penality,
-         'MemberName':
-         user})
+      Globals.manager.send_action({
+         'Action': 'QueueAdd',
+         'Queue': queue, 
+         'Interface': 'LOCAL/' + p.sip_id + '@MemberContacts',
+         'StateInterface': 'PJSIP/' + p.sip_id,
+         'Penalty': penality,
+         'MemberName': p.user.ascii_name if p.user else p.exten
+      })
       return dict(res='ok')
 
 
@@ -152,27 +154,25 @@ class CC_Monitor_ctrl(TGController):
             except:
                continue
 
-            if p.sip_id is not None and sip_type + p.sip_id in Globals.asterisk.peers:
-               iface = p.sip_id
-            elif p.exten is not None and sip_type + p.exten in Globals.asterisk.peers:
-               iface = p.exten
-            else:
-               log.error('%s:%s not registered, not adding member!' % (p.sip_id, p.exten))
+            if not p.sip_id:
+               log.error('Phone %s not found, not adding member %s!', p, m)
                continue
 
             user = p.user.ascii_name if p.user else p.exten
-            iface = sip_type + iface
+            iface = 'LOCAL/' + p.sip_id + '@MemberContacts'
 
             if add_or_remove == 'add':
-#               Globals.manager.send_action({'Action': 'QueueAdd', 'Queue': q.name, 
-#                                            'Interface': iface, 'Penalty': 0,
-#                                            'MemberName': user})
+               Globals.manager.send_action({
+                  'Action': 'QueueAdd',
+                  'Queue': q.name, 
+                  'Interface': iface,
+                  'Penalty': 0,
+                  'MemberName': user})
                log.debug('Member "%s" added to queue "%s" with phone "%s" (%s)',
                          user, q.name, p.sip_id, p.exten)
             else:
-#               Globals.manager.send_action({'Action': 'QueueRemove', 
-#                                            'Queue': q.name,
-#                                            'Interface': iface}
+               Globals.manager.send_action(
+                  {'Action': 'QueueRemove', 'Queue': q.name, 'Interface': iface})
                log.debug('Member "%s" removed from queue "%s" with phone "%s" (%s)',
                          user, q.name, p.sip_id, p.exten)
 
@@ -184,8 +184,7 @@ class CC_Monitor_ctrl(TGController):
       ''' Remove a member from a queue
       '''
       log.info('Removing member "%s (%s)" from queue "%s"', member, iface, queue)
-      Globals.manager.send_action({'Action': 'QueueRemove', 
-         'Queue': queue, 'Interface': iface})
+      Globals.manager.send_action({'Action': 'QueueRemove', 'Queue': queue, 'Interface': iface})
       return dict(res='ok')
 
 
@@ -203,9 +202,10 @@ class CC_Monitor_ctrl(TGController):
          phone = None
       log.debug('User %s, phone_id=%s' % (u, phone))
       for i in xrange(50):
-         last_update = int(Globals.asterisk.last_queue_update)
-         if last_update > last:
-            break
+         if Globals.asterisk:
+             last_update = int(Globals.asterisk.last_queue_update)
+             if last_update > last:
+                break
          sleep(1)
       log.debug('update_queues returns after sleeping %d sec, last=%f' % (i, last_update))
 

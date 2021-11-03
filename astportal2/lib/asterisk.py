@@ -3,6 +3,7 @@
 from astportal2.lib.app_globals import Globals
 from time import time
 from gevent import sleep
+import re
 import json
 import unicodedata
 import logging
@@ -19,7 +20,7 @@ default_dnis = config.get('default_dnis')
 utils_dir = config.get('directory.utils')
 sip_type = config.get('asterisk.sip', 'sip')
 log.info('Asterisk SIP variant: %s', sip_type)
-
+re_local = re.compile(r'LOCAL/(\w{8})@MemberContacts')
 
 def asterisk_string(u, no_space=False):
    '''Convert arbitrary unicode string to a string acceptable by Asterisk
@@ -337,9 +338,81 @@ class Status(object):
    Keeps track of channels, peers, queues...
    '''
 
-   def __init__(self):
-      self.reset()
+   last_update = time()
+   last_queue_update = time() - 600
+   last_peers_update = time() - 600 
+   peers = {}
+   channels = {}
+   bridges = {} # List of bridged channels
+   astp_vars = {}
+   queues = {}
+#     members data structure: (see also app_queue.c)
+#{
+#	"Girard Jean-Denis": {
+#		"Status": "1",
+#		"LastUpdate": 1635879750.875496,
+#		"Outgoing": false,
+#		"PauseBegin": 1635879723.861581,
+#		"ConnBegin": 1635879723.861581,
+#		"CallsOut": 1,
+#		"Queues": {
+#			"test": {
+#				"Penalty": "0",
+#				"InTotal": 0,
+#				"CallsTaken": 0,
+#				"InBegin": 1635879723.86159
+#			}
+#		},
+#		"InBegin": 1635879744.377232,
+#		"Recorded": false,
+#		"Paused": "0",
+#		"LastCall": "0",
+#		"Membership": "dynamic",
+#		"Spied": false,
+#		"Location": "LOCAL/raJnj2VB@MemberContacts",
+#		"StateInterface": "PJSIP/raJnj2VB",
+#		"OutTotal": 4.456829071044922,
+#		"OutBegin": 1635879744.207244,
+#		"InTotal": 0
+#	}
+#}
+   members = {}
+# ExtensionStatus - Numerical value of the extension status. Extension status is determined by the combined device state of all items contained in the hint.
+#    -2 - The extension was removed from the dialplan.
+#    -1 - The extension's hint was removed from the dialplan.
+#    0 - Idle - Related device(s) are in an idle state.
+#    1 - InUse - Related device(s) are in active calls but may take more calls.
+#    2 - Busy - Related device(s) are in active calls and may not take any more calls.
+#    4 - Unavailable - Related device(s) are not reachable.
+#    8 - Ringing - Related device(s) are currently ringing.
+#    9 - InUse&Ringing - Related device(s) are currently ringing and in active calls.
+#    16 - Hold - Related device(s) are currently on hold.
+#    17 - InUse&Hold - Related device(s) are currently on hold and in active calls.
+# DeviceState / QueueMemberStatus - The numeric device state status of the queue member (include/asterisk/devicestate.h)
+#    0 - AST_DEVICE_UNKNOWN
+#    1 - AST_DEVICE_NOT_INUSE
+#    2 - AST_DEVICE_INUSE
+#    3 - AST_DEVICE_BUSY
+#    4 - AST_DEVICE_INVALID
+#    5 - AST_DEVICE_UNAVAILABLE
+#    6 - AST_DEVICE_RINGING
+#    7 - AST_DEVICE_RINGINUSE
+#    8 - AST_DEVICE_ONHOLD
+   exten2member_status = {
+       '-2': '4',
+       '-1': '4',
+       '0': '1',
+       '1': '2',
+       '2': '3',
+       '4': '5',
+       '8': '6',
+       '9': '7',
+       '16': '8',
+       '17': '8',
+   }
 
+
+   @classmethod
    def reset(self):
       self.last_update = time()
       self.last_queue_update = time() - 600
@@ -350,28 +423,15 @@ class Status(object):
       self.astp_vars = {}
       self.queues = {}
       self.members = {}
-#     members data structure: (see also app_queue.c)
-# 'Girard Jean-Denis': 
-#     {'Status': '1', 'LastUpdate': 1322092618.9852581, 'Outgoing': False, 
-#        'InBegin': 1322092618.9852619, 'ConnBegin': 1322092618.9852581, 'CallsOut': 0, 
-#        'Queues': {
-#              'Groupe 2': {'Penalty': '1', 'InTotal': 0, 'CallsTaken': 0, 
-#                    'InBegin': 1322092627.0398171}, 
-#              'Groupe 1': {'Penalty': '0', 'InTotal': 0, 'CallsTaken': 0, 
-#                    'InBegin': 1322092618.985265}}, 
-#        'Recorded': False, 'Paused': '0', 'LastCall': '0', 'Membership': 'dynamic', 
-#        'Location': 'SIP/mtvF81Tx', 'Spied': False, 
-#        'OutTotal': 0, 'OutBegin': 1322092618.9852591, 
-#        'InTotal': 0}}
+
 
    def handle_shutdown(self, event, manager):
       log.warning('Received shutdown event')
       Globals.manager.close()
       # XXX We should analize the event and reconnect here
 
-   def normalize_member(self, member):
-      return member
 
+   @classmethod
    def handle_event(self, event, manager):
 
       if 'Event' not in event.headers:
@@ -399,7 +459,7 @@ class Status(object):
          return
 
       if e=='Newexten':
-         self._Newexten(event.headers)
+         self._handle_NewExten(event.headers)
       elif e=='VarSet':
          self._handle_VarSet(event.headers)
       elif e=='Newchannel':
@@ -491,6 +551,8 @@ class Status(object):
 
       return True
 
+
+   @classmethod
    def _handle_DialBegin(self, data):
       src = data.get('Channel')
       dst = data['DestChannel']
@@ -504,6 +566,8 @@ class Status(object):
          self.channels[dst]['Outgoing'] = False
          self.channels[dst]['LastUpdate'] = self.last_update = time()
 
+
+   @classmethod
    def _handle_PeerStatus(self,data):
       
       peer = data['Peer']
@@ -527,6 +591,7 @@ class Status(object):
       self.last_peers_update = time()
 
 
+   @classmethod
    def _handle_PeerEntry(self,data):
       '''
       '''
@@ -548,6 +613,8 @@ class Status(object):
             }
       self.last_peers_update = time()
 
+
+   @classmethod
    def _handle_ContactStatus(self,data):
       peer = 'PJSIP/' + data['EndpointName'] # or data['AOR'] ?
       status = data['ContactStatus']
@@ -562,23 +629,22 @@ class Status(object):
       self.last_peers_update = time()
 
 
+   @classmethod
    def _handle_DeviceStateChange(self,data):
       peer = data['Device']
-      log.debug('DeviceStateChange %s', data)
       if peer in self.peers:
-         log.debug('Update peer state %s', peer)
+         what = 'update'
          self.peers[peer]['State'] = data['State']
          self.peers[peer]['LastUpdate'] = time()
       else:
-         log.debug('New peer state %s: %s', peer, data)
+         what = 'new'
          self.peers[peer] = {'State': data['State'],
                              'LastUpdate': time()}
+      log.debug('DeviceStateChange (%s) %s -> %s', what, data['Device'], data['State'])
       self.last_peers_update = time()
 
 
-   def _updateQueues(self, data):
-      pass
-
+   @classmethod
    def _handle_QueueParams(self, data):
       # Wait{Uniqueid] = (time, CallerIDName, CallerIDNum)
       self.queues[data['Queue']] = {
@@ -591,35 +657,16 @@ class Status(object):
          'Members': [], 'Wait': {}, 'LastUpdate': time()}
       self.last_queue_update = time()
 
-# Agents' status: from include/asterisk/devicestate.h
-# Device is valid but channel didn't know state #define AST_DEVICE_UNKNOWN	0
-# Device is not used #define AST_DEVICE_NOT_INUSE	1
-# Device is in use #define AST_DEVICE_INUSE	2
-# Device is busy #define AST_DEVICE_BUSY		3
-# Device is invalid #define AST_DEVICE_INVALID	4
-# Device is unavailable #define AST_DEVICE_UNAVAILABLE	5
-# Device is ringing #define AST_DEVICE_RINGING	6
-# Device is ringing *and* in use #define AST_DEVICE_RINGINUSE	7
-# Device is on hold #define AST_DEVICE_ONHOLD	8
-#Event: QueueMemberAdded
-#Privilege: agent,all
-#Queue: test
-#Membership: dynamic
-#MemberName: Girard Michael
-#LastCall: 0
-#Paused: 0
-#Status: 4
-#Interface: SIP/igHJ9CNh
-#StateInterface: SIP/igHJ9CNh
-#Penalty: 0
-#CallsTaken: 0
-#Ringinuse: 0
+
+# Agents' status: same as device state
+# {'Status': '1', 'Penalty': '0', 'CallsTaken': '2', 'Name': 'Girard Jean-Denis', 'LastPause': '0', 'Queue': 'test', 'Membership': 'dynamic', 'InCall': '0', 'Location': 'LOCAL/raJnj2VB@MemberContacts', 'LastCall': '1635883068', 'Paused': '0', 'Wrapuptime': '0', 'PausedReason': '', 'Event': 'QueueMember', 'StateInterface': 'PJSIP/raJnj2VB', 'ActionID': 'tiare.sysnux.pf-357928-00000002'}
+   @classmethod
    def _handle_QueueMember(self, data):
       q = data['Queue']
       if 'Name' in data:
-         m = self.normalize_member(data['Name'])
+         m = data['Name']
       elif 'MemberName' in data:
-         m = self.normalize_member(data['MemberName'])
+         m = data['MemberName']
       else:
          log.error('QueueMember without name %s', data)
          return
@@ -636,48 +683,51 @@ class Status(object):
                'InBegin': time(), 'InTotal': 0, 'Penalty': data['Penalty']}
 
       else: # New member
-         log.debug('New member "%s"', m)
-         loc = data['Location'] if 'Location' in data else data['Interface']
+         log.debug('New member %s', data)
          self.members[m] = {'Status': data['Status'],
-            'Membership': data['Membership'], 'Location': loc,
-            'LastCall': data['LastCall'], 'Paused': data['Paused'],
+            'Membership': data['Membership'],
+            'Location': data.get('Location') or data.get('Interface'),
+            'StateInterface': data['StateInterface'],
+            'LastCall': data['LastCall'],
+            'Paused': data['Paused'],
             'Paused': 'Pause' if data['Paused'] == '1' else '0',
             'PauseBegin': time(),
             'LastUpdate': time(),# 'Queues': [q,],
             'ConnBegin': time(), # Connection time
             # Counters for outgoing calls
-            'Outgoing': False, 'CallsOut': 0, 'OutBegin': time(), 'OutTotal': 0,
+            'Outgoing': False, 'CallsOut': 0,
+            'OutBegin': time(), 'OutTotal': 0,
             # Counters for incoming calls
             'InBegin': time(), 'InTotal': 0,
-            'Spied': False, 'Recorded': False}
-         if 'Queues' not in self.members[m].keys():
+            'Spied': False, 'Recorded': False
+         }
+         if 'Queues' not in self.members[m]:
             self.members[m]['Queues'] = {}
          self.members[m]['Queues'][q] = {
-               'CallsTaken': int(data['CallsTaken']),
-               'InBegin': time(), 'InTotal': 0, 'Penalty': data['Penalty']}
+            'CallsTaken': int(data['CallsTaken']),
+            'InBegin': time(), 'InTotal': 0, 'Penalty': data['Penalty']
+         }
 
       log.debug('handle_QueueMember => %s', self.members)
       self.last_queue_update = time()
 
+   @classmethod
    def _handle_AgentConnect(self, data):
       q = data['Queue']
-      m = self.normalize_member(data['MemberName'])
-      self.members[m]['ConnBegin'] = time()
-      self.members[m]['Queue'] = data['Queue']
-      self.members[m]['Channel'] = data['Channel']
-#      self.members[m]['BridgedChannel'] = data['BridgedChannel']
-      self.members[m]['MemberName'] = data['MemberName']
-      if 'Holdtime' in data:
-         self.members[m]['Holdtime'] = data['Holdtime']
-      else: # Asterisk-13
-         self.members[m]['Holdtime'] = data['HoldTime']
-      self.members[m]['Uniqueid'] = data['Uniqueid']
-      self.members[m]['LastUpdate'] = self.last_queue_update = time()
+      member = self.members[data['MemberName']]
+      member['ConnBegin'] = time()
+      member['Queue'] = data['Queue']
+      member['Channel'] = data['Channel']
+      member['MemberName'] = data['MemberName']
+      member['Holdtime'] = data['HoldTime']
+      member['Uniqueid'] = data['Uniqueid']
+      member['LastUpdate'] = self.last_queue_update = time()
 
+   @classmethod
    def _handle_QueueMemberPaused(self, data):
-      m = self.normalize_member(data['MemberName'])
+      m = data['MemberName']
       log.debug('Paused %s => %s', m, data)
-      if m not in self.members.keys():
+      if m not in self.members:
          log.error('Pause: member "%s" does not exist ?' % m)
          return
 
@@ -690,34 +740,41 @@ class Status(object):
 
       self.last_queue_update = time()
 
+
+   @classmethod
    def _handle_QueueMemberStatus(self, data):
-      m = self.normalize_member(data['MemberName'])
-      if m not in self.members.keys():
+      m = data['MemberName']
+      if m not in self.members:
          log.error('Member "%s" does not exist ?' % m)
          return
+      member = self.members[m]
       s = data['Status']
       log.debug('QueueMemberStatus %s -> %s' % (m, s))
-      if s in ('2', '3', '6'): # AST_DEVICE_INUSE AST_DEVICE_BUSY AST_DEVICE_RINGING
-         self.members[m]['InBegin'] = time()
-      elif s == '6':
-         self.members[m]['Outgoing'] = False
+      if s in ('2', '3'): # AST_DEVICE_INUSE AST_DEVICE_BUSY 
+         member['InBegin'] = time()
+      elif s == '6': # AST_DEVICE_RINGING
+         member['InBegin'] = time()
+         member['Outgoing'] = False
       elif s == '7': # AST_DEVICE_RINGINUSE
-         self.members[m]['Outgoing'] = False
-      self.members[m]['Status'] = s
-      self.members[m]['Queues'][data['Queue']]['CallsTaken'] = int(data['CallsTaken'])
-      self.members[m]['LastCall'] = data['LastCall']
-      self.members[m]['LastUpdate'] = time()
+         member['Outgoing'] = False
+      member['Status'] = s
+      member['Queues'][data['Queue']]['CallsTaken'] = int(data['CallsTaken'])
+      member['LastCall'] = data['LastCall']
+      member['LastUpdate'] = time()
+      log.debug('QueueMemberStatus: member %s is %s ? %s', member, member['Status'], data['Status'])
       self.last_queue_update = time()
 
+
+   @classmethod
    def _handle_QueueMemberRemoved(self, data):
       if data['Queue'] not in self.queues:
          log.error('Queue "%s not found', data['Queue'])
          return
       q = data['Queue']
       if 'Member' in data:
-         m = self.normalize_member(data['Member'])
+         m = data['Member']
       elif 'MemberName' in data:
-         m = self.normalize_member(data['MemberName'])
+         m = data['MemberName']
       else:
          log.error('QueueMemberRemoved %s', data)
          return
@@ -730,27 +787,9 @@ class Status(object):
       log.debug('handle_QueueMemberRemoved => %s', self.members)
       self.last_queue_update = time()
 
+
+   @classmethod
    def _handle_QueueCallerJoin(self, data):
-      '''
-Event: QueueCallerJoin
-Privilege: agent,all
-Channel: PJSIP/DyQmiIIi-0000005f
-ChannelState: 4
-ChannelStateDesc: Ring
-CallerIDNum: DyQmiIIi
-CallerIDName: SysNux
-ConnectedLineNum: <unknown>
-ConnectedLineName: <unknown>
-Language: fr
-AccountCode: 2
-Context: App_2_Entrant
-Exten: s
-Priority: 4
-Uniqueid: 1433865700.163
-Queue: test
-Position: 1
-Count: 1
-      '''
       log.debug('QueueCallerJoin %s', data)
       if data['Queue'] not in self.queues:
          log.error('Queue "%s not found', data['Queue'])
@@ -759,6 +798,8 @@ Count: 1
          time(), data['CallerIDName'], data['CallerIDNum'], data['Position'], data['Count'])
       self.last_queue_update = time()
 
+
+   @classmethod
    def _handle_QueueEntry(self, data):
       log.debug('QueueEntry %s', data)
       if data['Queue'] not in self.queues:
@@ -768,25 +809,20 @@ Count: 1
          data['CallerIDName'], data['CallerIDNum'])
       self.last_queue_update = time()
 
+
+   @classmethod
    def _handle_Join(self, data):
       log.debug('Join %s', data)
       if data['Queue'] not in self.queues:
          log.error('Queue "%s not found', data['Queue'])
          return
       self.queues[data['Queue']]['Calls'] += 1
-      self.queues[data['Queue']]['Wait'][data['Uniqueid']] = (time(),
-         data['CallerIDName'], data['CallerIDNum'])
+      self.queues[data['Queue']]['Wait'][data['Uniqueid']] = (
+         time(), data['CallerIDName'], data['CallerIDNum'])
       self.last_queue_update = time()
 
 
-#-----------------------------------------------------
-#               q = g[i].getAttribute('queue');
-#               p = g[i].getAttribute('position');
-#               o = g[i].getAttribute('originalposition');
-#               for (var j=p+1; j<self.queues[q]['calls']; j++)
-#                  self.queues[q]['wait'][j-1] = self.queues[q]['wait'][j];
-#               display++;
-#               break;
+   @classmethod
    def _handle_QueueCallerAbandon(self, data):
       log.debug('CallerAbandon %s', data)
       pos = -999
@@ -799,6 +835,7 @@ Count: 1
       self.last_queue_update = time()
 
 
+   @classmethod
    def _handle_Leave(self, data):
       log.debug('Leave data %s', data)
       if data['Queue'] not in self.queues:
@@ -812,30 +849,44 @@ Count: 1
                      data['Uniqueid'], self.queues[data['Queue']])
 
       self.last_queue_update = time()
-#-----------------------------------------------------
 
+
+   @classmethod
    def normalize_channel(self, c):
       '''atxfer creates Local/103@ngqckJos-00000017;1 and 
       Local/103@ngqckJos-00000017;2, remove ';x' ?
       '''
-      return c if c[-2]!=';' else c[:-2]
-
-   def _Newexten(self, data):
-      # There are tons of Newexten events, this should be fast!
-      c = self.normalize_channel(data['Channel'])
-      if c not in self.channels: return
-      self.channels[c]['AppData'] = data.get('AppData')
-      self.channels[c]['Context'] = data['Context']
-      self.channels[c]['Extension'] = data['Extension']
-      self.channels[c]['Priority'] = data['Priority']
-      self.channels[c]['Application'] = data.get('Application')
-      self.channels[c]['LastUpdate'] = self.last_update = time()
+      return c if c[-2] != ';' else c[:-2]
 
 
+   @classmethod
+   def get_channel(self, c):
+      channel = self.channels.get(self.normalize_channel(c))
+      if not channel:
+          log.warning('Channel %s not found', c)
+      return channel
+
+
+   @classmethod
+   def _handle_NewExten(self, data):
+      # There are tons of NewExten events, this should be fast!
+      channel = self.get_channel(data['Channel'])
+      if not channel:
+          return
+      channel['Context'] = data['Context']
+      channel['Extension'] = data['Extension']
+      channel['Priority'] = data['Priority']
+      channel['AppData'] = data.get('AppData')
+      channel['Application'] = data.get('Application')
+      channel['LastUpdate'] = self.last_update = time()
+
+
+   @classmethod
    def _updateChannels(self, data):
-      c = self.normalize_channel(data['Channel'])
-      if c not in self.channels: return
-      self.channels[c]['LastUpdate'] = time()
+      channel = self.get_channel(data['Channel'])
+      if not channel:
+          return
+      channel['LastUpdate'] = time()
       # Keys eventually received from event:
       # CallerIDName, CallerIDNum, ChannelState, ConnectedLineName, ConnectedLineNum, 
       # Context, Event, Extension, Priority, Application, AppData,
@@ -844,7 +895,7 @@ Count: 1
          'CallerIDName', 'CallerIDNum',
          'Context', 'Extension', 'Priority', 'LastUpdate'):
          if k in data:
-            self.channels[c][k] = data[k]
+            channel[k] = data[k]
 
       new_state = None
       if 'State' in data:
@@ -854,21 +905,17 @@ Count: 1
          # manager_version=='1.1':
          new_state = data['ChannelStateDesc']
 
-      if new_state and self.channels[c]['State'] != new_state:
-         self.channels[c]['State'] = new_state
+      if new_state and channel['State'] != new_state:
+         channel['State'] = new_state
          if new_state=='Up':
-            self.channels[c]['Begin'] = time()
-
+            channel['Begin'] = time()
          new_state = data.get('ChannelState')
-# 20150613        if new_state == '4':
-#            self.channels[c]['Outgoing'] = False
-#         elif new_state == '5':
-#            self.channels[c]['Outgoing'] = True
 
       self.last_update = time()
 
-   def _handle_Newchannel(self,data):
-      
+   @classmethod
+   def _handle_Newchannel(self, data):
+
       if 'State' in data:
          state = data['State']
       elif 'ChannelStateDesc' in data:
@@ -878,26 +925,31 @@ Count: 1
 
       c = self.normalize_channel(data['Channel'])
 
-      self.channels[c] = {'CallerIDNum': data['CallerIDNum'], 
-            'CallerIDName': data['CallerIDName'], 'Uniqueid': data['Uniqueid'],
-            'Context': None, 'Priority': None,
-            'State': state, 'Begin': time(), 'Link': None}
-      if data['ChannelState'] == '4': # Ring
-         self.channels[c]['Outgoing'] = True
-      else:
-         self.channels[c]['Outgoing'] = False
+      self.channels[c] = {
+          'CallerIDNum': data['CallerIDNum'], 
+          'CallerIDName': data['CallerIDName'],
+          'Uniqueid': data['Uniqueid'],
+          'Context': None,
+          'Priority': None,
+          'State': state,
+          'Outgoing': True if data['ChannelState'] == '4' else False, # 4 = Ring
+          'Begin': time(),
+          'Link': None
+      }
+
       # Check if channel belongs to a queue member
       loc = data['Channel'][:data['Channel'].find('-')] # SIP/100-000000a6 -> SIP/100
-      for m in self.members:
-         if self.members[m]['Location'] == loc:
-            self.members[m]['Outgoing'] = self.channels[c]['Outgoing']
-            self.members[m]['OutBegin'] = time()
+      for value in self.members.values():
+         if value['StateInterface'] == loc:
+            value['Outgoing'] = self.channels[c]['Outgoing']
+            value['OutBegin'] = time()
             self.last_queue_update = time()
             break
 
       self.last_update = time()
 
 
+   @classmethod
    def _handle_Hangup(self, data):
       c = self.normalize_channel(data['Channel'])
 
@@ -917,22 +969,22 @@ Count: 1
                return
 
       # Check if channel belongs to a queue member
-      loc = c[:c.find('-')] # SIP/100-000000a6 -> SIP/100
-      for m in self.members:
-         if self.members[m]['Location'] == loc: # and self.members[m]['Status'] == '2':
-            log.debug('Hangup: member "%s"', self.members[m])
-            if self.members[m]['Outgoing']:
-               self.members[m]['Outgoing'] = False
-               self.members[m]['CallsOut'] += 1
-               self.members[m]['OutTotal'] += time() - self.members[m]['OutBegin']
-            elif self.members[m]['Status'] in ('2', '3'): # AST_DEVICE_INUSE AST_DEVICE_BUSY
+      loc = c[:c.find('-')] # PJSIP/100-000000a6 -> PJSIP/100
+      for value in self.members.values():
+         if value['StateInterface'] == loc: # and value['Status'] == '2':
+            log.debug('Hangup: member "%s"', value)
+            if value['Outgoing']:
+               value['Outgoing'] = False
+               value['CallsOut'] += 1
+               value['OutTotal'] += time() - value['OutBegin']
+            elif value['Status'] in ('2', '3'): # AST_DEVICE_INUSE AST_DEVICE_BUSY
                # XXX attention ne pas compter s'il n'y a pas eu de réponse XXX
-               self.members[m]['InTotal'] += time() - self.members[m]['InBegin']
+               value['InTotal'] += time() - value['InBegin']
 
             # Reset members properties, but not Uniqueid, HangupURL, 
             # Custom... or hangup window will not work
-            self.members[m]['Spied'] = False
-            self.members[m]['Recorded'] = False
+            value['Spied'] = False
+            value['Recorded'] = False
             self.last_queue_update = time()
             break
 
@@ -943,9 +995,11 @@ Count: 1
          del self.channels[c]
       self.last_update = time()
 
+   @classmethod
    def _handle_BridgeCreate(self, data):
       self.bridges[data['BridgeUniqueid']] = []
 
+   @classmethod
    def _handle_BridgeDestroy(self, data):
       log.debug('BridgeDestroy %s', data['BridgeUniqueid'])
       if data['BridgeUniqueid'] in self.bridges:
@@ -954,6 +1008,7 @@ Count: 1
          log.warning('BridgeDestroy %s does not exist', data['BridgeUniqueid'])
 
 
+   @classmethod
    def _handle_BridgeEnter(self, data):
 
       b = data['BridgeUniqueid']
@@ -983,17 +1038,19 @@ Count: 1
 
          # Check if channel belongs to a queue member
          loc = c2[:c2.find('-')] # SIP/100-000000a6 -> SIP/100
-         for m in self.members:
-            if self.members[m]['Location'] == loc:
+         for m, value in self.members.iteritems():
+            if value['StateInterface'] == loc:
                log.debug('Link member "%s" to channel "%s" (%s)',
                   m, data['Channel'], data['Uniqueid'])
-               self.members[m]['Uniqueid'] = data['Uniqueid']
-               self.members[m]['PeerChannel'] = data['Channel']
+               value['Uniqueid'] = data['Uniqueid']
+               value['PeerChannel'] = data['Channel']
                self.last_queue_update = time()
                break
 
       self.last_update = time()
 
+
+   @classmethod
    def _handle_BridgeLeave(self, data):
 
       c = self.normalize_channel(data['Channel'])
@@ -1009,6 +1066,8 @@ Count: 1
 
       self.last_update = time()
 
+
+   @classmethod
    def _handle_Link(self, data):
 
       if data['Bridgestate'] == 'Unlink':
@@ -1029,18 +1088,19 @@ Count: 1
 
       # Check if channel belongs to a queue member
       loc = c2[:c2.find('-')] # SIP/100-000000a6 -> SIP/100
-      for m in self.members:
-         if self.members[m]['Location'] == loc:
+      for m, value in self.members.iteritems():
+         if value['StateInterface'] == loc:
             log.debug('Link member "%s" to channel "%s" (%s)',
                       m, data['Channel1'], data['Uniqueid1'])
-            self.members[m]['Uniqueid'] = data['Uniqueid1']
-            self.members[m]['PeerChannel'] = data['Channel1']
+            value['Uniqueid'] = data['Uniqueid1']
+            value['PeerChannel'] = data['Channel1']
             self.last_queue_update = time()
             break
 
       self.last_update = time()
 
 
+   @classmethod
    def _handle_Unlink(self, data):
       # Event: Unlink
       # Channel1: SIP/dnarotam-3533
@@ -1061,12 +1121,13 @@ Count: 1
       self.last_update = time()
 
 
+   @classmethod
    def _handle_Rename(self, data):
       #  Event: Rename
       #  Oldname: SIP/Doorphone-985e
       #  Newname: SIP/Doorphone-985e<MASQ>
 
-      if 'Oldname' not in data.keys():
+      if 'Oldname' not in data:
          return
       old = data['Oldname']
       new = data['Newname']
@@ -1085,16 +1146,20 @@ Count: 1
          pass
       self.last_update = time()
 
+
+   @classmethod
    def _handle_VarSet(self, data):
       if not data['Variable'].startswith('ASTP_'):
          return
-      if data['Channel'] not in self.astp_vars.keys():
+      if data['Channel'] not in self.astp_vars:
       	self.astp_vars[data['Channel']] = {}
       self.astp_vars[data['Channel']][data['Variable']] = data['Value']
       log.debug('New astp_vars %s', self.astp_vars)
       self.last_update = time() # XXX nécessaire ou non ?
       self.last_queue_update = time()
 
+
+   @classmethod
    def _handle_UserEvent(self, data):
 # data={'ConnectedLineNum': '<unknown>', 'Linkedid': '1479603120.158', 'Uniqueid': '1479603120.158', 'Language': 'fr', 'AccountCode': '', 'ChannelState': '6', 'Exten': '5', 'CallerIDNum': '40501040', 'Priority': '2', 'UserEvent': 'Callback', 'ConnectedLineName': '<unknown>', 'Context': 'vm_or_cb', 'CallerIDName': 'Girard Jean-Denis', 'Privilege': 'user,all', 'Event': 'UserEvent', 'Channel': 'PJSIP/fqygGSWm-0000009c', 'ChannelStateDesc': 'Up'}
 
@@ -1103,16 +1168,17 @@ Count: 1
             # Happens when agent logged off before receiving call
             log.error('_handle_UserEvent: agent "%s" does not exist', data['Agent'])
             return
+         member = self.members[data['Agent']]
          log.debug('Agent "%s" will connect to channel "%s" (%s)',
                    data['Agent'], data['PeerChannel'], data['PeerUniqueid'])
-         self.members[data['Agent']]['PeerChannel'] = data['PeerChannel']
-         self.members[data['Agent']]['PeerCallerid'] = data['PeerCallerid']
-         self.members[data['Agent']]['HoldTime'] = data['HoldTime']
-         self.members[data['Agent']]['Uniqueid'] = data['PeerUniqueid']
-         self.members[data['Agent']]['ConnectURL'] = data.get('ConnectURL', '')
-         self.members[data['Agent']]['HangupURL'] = data.get('HangupURL', '')
-         self.members[data['Agent']]['Custom1'] = data.get('Custom1', '')
-         self.members[data['Agent']]['Custom2'] = data.get('Custom2', '')
+         member['PeerChannel'] = data['PeerChannel']
+         member['PeerCallerid'] = data['PeerCallerid']
+         member['HoldTime'] = data['HoldTime']
+         member['Uniqueid'] = data['PeerUniqueid']
+         member['ConnectURL'] = data.get('ConnectURL', '')
+         member['HangupURL'] = data.get('HangupURL', '')
+         member['Custom1'] = data.get('Custom1', '')
+         member['Custom2'] = data.get('Custom2', '')
          #self.last_update = time() # XXX nécessaire ou non ?
          self.last_queue_update = time()
 
@@ -1183,22 +1249,30 @@ Count: 1
          log.error('Unkown UserEvent <%s>', data)
 
 
+   @classmethod
    def _handle_ParkedCall(self, data):
       log.debug('ParkedCall %s', data)
       self.channels[data['ParkeeChannel']]['Park'] = data['ParkingSpace']
 
+
+   @classmethod
    def _handle_UnParkedCall(self, data):
       log.debug('UnParkedCall %s', data)
       self.channels[data['ParkeeChannel']]['Park'] = None
 
+
+   @classmethod
    def _handle_ParkedCallTimeOut(self, data):
       log.debug('ParkedCallTimeOut %s', data)
       self.channels[data['ParkeeChannel']]['Park'] = None
 
+
+   @classmethod
    def _handle_ParkedCallGiveUp(self, data):
       log.debug('ParkedCallGiveUp %s' % data)
       self.channels[data['ParkeeChannel']]['Park'] = None
 
+
+   @classmethod
    def _handle_Transfer(self, data):
       log.debug('Transfer %s', data)
-

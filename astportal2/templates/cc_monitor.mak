@@ -233,7 +233,7 @@ function member_status(name, now, queue) {
                // Open hangup window
                var params = '?uid=' + member['Uniqueid'] +
                          '&member=' + name +
-                         '&interface=' + member['Location'] +
+                         '&interface=' + member['StateInterface'] +
                          '&queue=' + queue +
                          '&custom1=' + member['Custom1'] +
                			 '&custom2=' + member['Custom2'];
@@ -261,7 +261,7 @@ function member_status(name, now, queue) {
                // Open connect window
                var params = '?uid=' + member['Uniqueid'] +
                             '&member=' + name +
-                            '&interface=' + member['Location'] +
+                            '&interface=' + member['StateInterface'] +
                             '&callerid=' + member['PeerCallerid'] +
                             '&channel=' + member['PeerChannel'] +
                             '&queue=' + queue +
@@ -282,11 +282,11 @@ function member_status(name, now, queue) {
             dur = min_sec(now - member['InBegin']);
          }
          lis = '<input type="checkbox" onclick="spy(\'' + 
-            name + '\',\'' + member['Location'] + '\')"';
+            name + '\',\'' + member['StateInterface'] + '\')"';
          if (member['Spied']) lis += ' checked="checked"';
          lis += '/>';
          rec = '<input type="checkbox" onclick="record(\'' + 
-            name + '\',\'' + member['Location'] + '\', \'' + queue + '\');"';
+            name + '\',\'' + member['StateInterface'] + '\', \'' + queue + '\');"';
          if (member['Recorded']) rec += ' checked="checked"';
          rec += '/>';
          break;
