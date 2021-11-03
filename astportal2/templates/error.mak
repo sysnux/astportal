@@ -6,4 +6,4 @@ A ${code} Error has Occurred
 
 <h1>Error ${code}</h1>
 
-<div>${XML(message)}</div>
+<div>${message |n}</div>
