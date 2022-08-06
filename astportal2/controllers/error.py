@@ -30,8 +30,7 @@ class ErrorController(object):
            code = 500
         default_message = ("<p>We're sorry but we weren't able to process "
                            " this request.</p>")
-        values = dict(title='Erreur :(',
-                      prefix=request.environ.get('SCRIPT_NAME', ''),
-                      code=request.params.get('code', code),
-                      message=request.params.get('message', default_message))
-        return values
+        return dict(title='Erreur :(',
+                    prefix=request.environ.get('SCRIPT_NAME', ''),
+                    code=request.params.get('code', code),
+                    message=request.params.get('message', default_message))

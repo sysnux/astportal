@@ -30,42 +30,45 @@ def fetch_contacts():
     Needed for PJSIP phones, else we don't have model and IP address
     '''
 
-    # Leave the following line here!
-    sip_type = 'SIP' if config.get('asterisk.sip', 'sip').lower()=='sip' \
-       else 'PJSIP'
+    if time() - Globals.last_refresh < 60:
+       return
 
-    if Globals.manager is None:
-       log.warning('fetch_contacts: not connected to AMI!')
+    if not Globals.manager:
+       log.warning('Asterisk Manager not available')
        return
 
     # Refresh status
+    log.info('fetch_contacts: refresh status')
+    Globals.last_refresh = time()
+
     Globals.manager.send_action({'Action': 'DeviceStateList'})
 
     # Fetch contacts from AstDB
-    log.debug('Fetching contacts from AstDB (%s):' % sip_type)
+    log.debug('Fetching contacts from AstDB (PJSIP)')
     man = Globals.manager.command(
        '''database query "select key, value from astdb where key like '/registrar/contact/%'"''')
     names = []
+    peers = Globals.asterisk.peers
     for i, r in enumerate(man.response):
-       log.debug(' . %d: %s' % (i, r))
+       log.debug(' . %d: %s', i, r)
        m = re_contact_value.search(r)
        if m:
           d = json.loads(m.groups()[0])
           name, ip, port = re_uri.match(d['uri']).groups()
-          log.debug('Contact %s @ %s is a "%s"' % (name, ip, d['user_agent']))
-          name = '%s/%s' % (sip_type, name)
-          if name in Globals.asterisk.peers:
-             Globals.asterisk.peers[name]['Address'] = ip
-             Globals.asterisk.peers[name]['UserAgent'] = d['user_agent']
+          log.debug('Contact %s @ %s is a "%s"', name, ip, d['user_agent'])
+          name = 'PJSIP/' + name
+          if name in peers:
+             peers[name]['Address'] = ip
+             peers[name]['UserAgent'] = d['user_agent']
           else:
-             Globals.asterisk.peers[name] = {'Address': ip, 'UserAgent': d['user_agent']}
+             peers[name] = {'Address': ip, 'UserAgent': d['user_agent']}
           names.append(name)
  
     # Remove old entries
-    for name in Globals.asterisk.peers:
+    for name in peers:
        if name not in names:
-          Globals.asterisk.peers[name]['Address'] = None
-          Globals.asterisk.peers[name]['UserAgent'] = None
+          peers[name]['Address'] = None
+          peers[name]['UserAgent'] = None
 
 
 def manager_check():
@@ -106,20 +109,20 @@ def manager_check():
        log.debug('Request status...')
        Globals.manager.status()
        Globals.manager.send_action({'Action': 'QueueStatus'})
-       log.info('Connected to Asterisk manager on "%s"' % man[0][0])
+       log.info('Connected to Asterisk manager on "%s"', man[0][0])
 #       for m in man:
 #          mt = astportal2.manager.manager_thread.manager_thread(m[0], m[1], m[2])
 #          mt.start()
 #          log.info('Connected to Asterisk manager on "%s"' % m[0])
     except manager.ManagerSocketException, (errno, reason):
        Globals.manager = None
-       log.error('Error connecting to the manager: %s' % reason)
+       log.error('Error connecting to the manager: %s', reason)
     except manager.ManagerAuthException, reason:
        Globals.manager = None
-       log.error('Error logging in to the manager: %s' % reason)
+       log.error('Error logging in to the manager: %s', reason)
     except manager.ManagerException, reason:
        Globals.manager = None
-       log.error('Error: %s' % reason)
+       log.error('Error: %s', reason)
     except:
        Globals.manager = None
        log.error('Configuration error, manager thread NOT STARTED (check asterisk.manager)')
@@ -135,6 +138,7 @@ class Globals(object):
 
    """
 
+   last_refresh = 0
    asterisk = None # Asterisk objects (channels, queues, peers...)
    manager = None # AMI object
    ws_clients = {'channels': [], 'queues': []} # List of WebSocket subscriptions
@@ -153,7 +157,7 @@ class Globals(object):
 
       from astportal2.controllers.callback import do
       tgscheduler.add_interval_task(action=do, 
-         taskname='Callback do', interval=13, initialdelay=7)
+         taskname='Callback do', interval=13, initialdelay=37)
 
 #      from astportal2.controllers.grandstream import do
 #      tgscheduler.add_interval_task(action=do, 
@@ -161,5 +165,4 @@ class Globals(object):
 
       from astportal2.lib.grandstream import do_gxp_actions
       tgscheduler.add_interval_task(action=do_gxp_actions, 
-         taskname='GXP actions', interval=3, initialdelay=11)
-
+         taskname='GXP actions', interval=3, initialdelay=41)

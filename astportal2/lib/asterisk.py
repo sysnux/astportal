@@ -2,8 +2,7 @@
 
 from astportal2.lib.app_globals import Globals
 from time import time
-from gevent import sleep
-import re
+from gevent.time import sleep
 import json
 import unicodedata
 import logging
@@ -20,7 +19,7 @@ default_dnis = config.get('default_dnis')
 utils_dir = config.get('directory.utils')
 sip_type = config.get('asterisk.sip', 'sip')
 log.info('Asterisk SIP variant: %s', sip_type)
-re_local = re.compile(r'LOCAL/(\w{8})@MemberContacts')
+
 
 def asterisk_string(u, no_space=False):
    '''Convert arbitrary unicode string to a string acceptable by Asterisk
@@ -545,6 +544,10 @@ class Status(object):
             log.debug('BRIDGE %s, channels: %s', b, self.bridges[b])
 #        for p in self.peers:
 #           log.debug('PEER %s: %s', p, self.peers[p])
+         for q in self.queues:
+            log.debug('QUEUE %s: %s' % (q, self.queues[q]))
+         for m in self.members:
+            log.debug('MEMBER %s: %s' % (m, self.members[m]))
          log.debug('--- END STATE DUMP --------------')
          log.debug('')
          log.debug('')
@@ -869,7 +872,7 @@ class Status(object):
 
    @classmethod
    def _handle_NewExten(self, data):
-      # There are tons of NewExten events, this should be fast!
+      # There are tons of Newexten events, this should be fast!
       channel = self.get_channel(data['Channel'])
       if not channel:
           return
