@@ -21,8 +21,8 @@ exten => s,1,Noop(uid=${UNIQUEID} mon=${MASTER_CHANNEL(MONITOR)})
 
 ; Call all contacts for queue members
 ; EXTEN is PJSIP account name
-; tiare*CLI> queue add member Local/raJnj2VB@MemberContacts to Accueil
-[MemberContacts]
+; tiare*CLI> queue add member Local/abcd1234@member_contacts to test penalty 0 state_interface PJSIP/abcd1234
+[member_contacts]
 exten => _[A-Za-z0-9].,1,Verbose(2,Calling member at PJSIP contacts ${EXTEN})
                same => n,Dial(${PJSIP_DIAL_CONTACTS(${EXTEN})})
                same => n,Hangup()
@@ -128,7 +128,7 @@ class CC_Monitor_ctrl(TGController):
       Globals.manager.send_action({
          'Action': 'QueueAdd',
          'Queue': queue, 
-         'Interface': 'LOCAL/' + p.sip_id + '@MemberContacts',
+         'Interface': 'LOCAL/' + p.sip_id + '@member_contacts',
          'StateInterface': 'PJSIP/' + p.sip_id,
          'Penalty': penality,
          'MemberName': p.user.ascii_name if p.user else p.exten
@@ -159,20 +159,22 @@ class CC_Monitor_ctrl(TGController):
                continue
 
             user = p.user.ascii_name if p.user else p.exten
-            iface = 'LOCAL/' + p.sip_id + '@MemberContacts'
 
             if add_or_remove == 'add':
                Globals.manager.send_action({
                   'Action': 'QueueAdd',
                   'Queue': q.name, 
-                  'Interface': iface,
+                  'Interface': 'LOCAL/' + p.sip_id + '@member_contacts',
+                  'StateInterface': 'PJSIP/' + p.sip_id,
                   'Penalty': 0,
                   'MemberName': user})
                log.debug('Member "%s" added to queue "%s" with phone "%s" (%s)',
                          user, q.name, p.sip_id, p.exten)
             else:
-               Globals.manager.send_action(
-                  {'Action': 'QueueRemove', 'Queue': q.name, 'Interface': iface})
+               Globals.manager.send_action({
+                   'Action': 'QueueRemove',
+                   'Queue': q.name,
+                   'Interface': 'LOCAL/' + p.sip_id + '@member_contacts'})
                log.debug('Member "%s" removed from queue "%s" with phone "%s" (%s)',
                          user, q.name, p.sip_id, p.exten)
 
