@@ -83,6 +83,8 @@ def ringtones():
       a.append((r.sound_id, r.name))
    return a
 
+def pickups():
+    return [(i, n) for (i, n) in DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id)]
 
 # New phone page contains 2 forms, displayed in two tabs:
 # the first form (ip_form) "discovers" the phone
@@ -130,11 +132,11 @@ class New_phone_form(AjaxForm):
          default = ('urgent', 'internal', 'services', 'shortcuts'),
          label_text=u'Droits d\'appels'), # help_text='Autorisations pour les appels sortants'),
       CheckBoxTable('callgroups', validator=Int,
-         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
+         options = pickups,
          label_text=u'Groupes d\'appels', 
          not_empty = False),
       CheckBoxTable('pickupgroups', validator=Int,
-         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
+         options = pickups,
          label_text=u'Groupes d\'interception', 
          not_empty = False),
       SingleSelectField('dptm_id', options = departments,
@@ -220,11 +222,11 @@ class Edit_phone_form(TableForm):
          options = _contexts,
          label_text=u'Droits d\'appels'), # help_text='Autorisations pour les appels sortants'),
       CheckBoxList('callgroups', validator=Int,
-         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
+         options = pickups,
          label_text=u'Groupes d\'appels'), 
 #         help_text=u'Cochez les groupes d\'appel de l\'utilisateur'),
       CheckBoxList('pickupgroups', validator=Int,
-         options = DBSession.query(Pickup.pickup_id,Pickup.name).order_by(Pickup.pickup_id),
+         options = pickups,
          label_text=u'Groupes d\'interception'),
 #         help_text=u'Cochez les groupes d\'interception de l\'utilisateur'),
       SingleSelectField('dptm_id',
