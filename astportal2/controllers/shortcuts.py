@@ -14,13 +14,14 @@ from tw.api import js_callback
 from tw.forms import TableForm, Label, TextField, HiddenField, SingleSelectField
 from tw.forms.validators import NotEmpty, Int
 
-from astportal2.lib.app_globals import Markup
+from astportal2.lib.app_globals import Globals, Markup
 
 from astportal2.model import DBSession, Shortcut, Phone
 from astportal2.lib.myjqgrid import MyJqGrid
 
 import logging
 log = logging.getLogger(__name__)
+directory_asterisk = config.get('directory.asterisk')
 
 def phones():
    phones_list = [(None, u'Raccourci global')]
@@ -42,8 +43,8 @@ class Shortcut_form(TableForm):
       TextField('comment', validator=NotEmpty,
          label_text=u'Descriptif'), # help_text=u'Entrez un descriptif'),
       HiddenField('shortcut_id',validator=Int),
-      SingleSelectField('phone', options = phones,
-         label_text=u'téléphone')
+#      SingleSelectField('phone', options = phones,
+#         label_text=u'téléphone')
    ]
    submit_text = u'Valider...'
 #   hover_help = True
@@ -154,7 +155,7 @@ class Shortcut_ctrl(RestController):
       ''' Display new hostrcut form
       '''
       tmpl_context.form = new_shortcut_form
-      return dict(title = u'Nouveau groupe d\'interception', debug='', values='')
+      return dict(title = u'Nouveau raccourci', debug='', values='')
       
    @validate(new_shortcut_form, error_handler=new)
    @expose()
@@ -162,8 +163,8 @@ class Shortcut_ctrl(RestController):
       ''' Add new shortcut to DB
       '''
 
-      if DBSession.query(Shortcut).filter(Shortcut.exten==kw['exten']).all() or \
-         DBSession.query(Shortcut).filter(Shortcut.number==kw['number']).all():
+      if DBSession.query(Shortcut).filter((Shortcut.exten==kw['exten']) |
+                                          (Shortcut.number==kw['number'])).all():
          flash(u'Erreur : raccourci %s ou numéro %s existe déjà' % (
             kw['exten'], kw['number']), 'error')
          redirect('/shortcuts/')
@@ -172,18 +173,22 @@ class Shortcut_ctrl(RestController):
       s.exten = kw['exten']
       s.number = kw['number']
       s.comment = kw['comment']
-      s.phone = kw['phone']
+#      s.phone = kw['phone']
       DBSession.add(s)
       flash(u'Nouveau raccourci "%s -> %s" créé' % (s.exten, s.number))
 
-      if p.exten is not None:
-         # Create new hint (extensions.conf)
-         res = Globals.manager.update_config(
-            directory_asterisk  + 'extensions.conf', 
-            None, [('Append', 'shortcuts', 'exten', 
-               '>%s,1,%s/%s' % \
-                  (p.exten, 'SIP' if sip_type=='sip' else 'PJSIP', p.sip_id))])
-         log.debug('Update hints extensions.conf returns %s' % res)
+      # Create new shortcut
+      res = Globals.manager.update_config(
+         directory_asterisk  + 'shortcuts.conf', 
+         None,
+         [('Append',
+           'shortcuts', 'exten', 
+           '>%s,1,Goto(${CHANNEL:-17:8},%s,1)' % (s.exten, s.number))])
+      log.debug('Create shortcuts returns %s', res)
+
+      # Reload dialplan
+      Globals.manager.send_action({'Action': 'Command',
+                                   'Command': 'dialplan reload'})
 
       redirect('/shortcuts/')
 
@@ -209,12 +214,34 @@ class Shortcut_ctrl(RestController):
       '''
       log.info('update %d' % shortcut_id)
       s = DBSession.query(Shortcut).get(shortcut_id)
+      # First, delete old shortcut
+      actions = [('Delete',
+                  'shortcuts',
+                  'exten',
+                  None,
+                  '%s,1,Goto(${CHANNEL:-17:8},%s,1)' % (s.exten, s.number))]
+
       s.exten = kw['exten']
       s.number = kw['number']
       s.comment = kw['comment']
-      s.phone = kw['phone']
-      flash(u'Raccourci modifié')
+#      s.phone = kw['phone']
 
+      # Next, create new shortcut
+      actions.append(('Append',
+                      'shortcuts', 'exten', 
+                      '>%s,1,Goto(${CHANNEL:-17:8},%s,1)' % (s.exten, s.number)))
+
+      res = Globals.manager.update_config(
+         directory_asterisk  + 'shortcuts.conf', 
+         None,
+         actions)
+      log.debug('Update shortcuts returns %s', res)
+
+      # Reload dialplan
+      Globals.manager.send_action({'Action': 'Command',
+                                   'Command': 'dialplan reload'})
+
+      flash(u'Raccourci modifié')
       redirect('/shortcuts/%d/edit' % shortcut_id)
 
 
@@ -223,8 +250,23 @@ class Shortcut_ctrl(RestController):
       ''' Delete shortcut from DB
       '''
       log.info('delete ' + kw['_id'])
-      DBSession.delete(DBSession.query(Shortcut).get(kw['_id']))
+      s = DBSession.query(Shortcut).get(kw['_id'])
+      # Delete shortcut
+      res = Globals.manager.update_config(
+         directory_asterisk  + 'shortcuts.conf', 
+         None,
+         [('Delete',
+           'shortcuts',
+           'exten',
+           None,
+           '%s,1,Goto(${CHANNEL:-17:8},%s,1)' % (s.exten, s.number))])
+
+      # Reload dialplan
+      Globals.manager.send_action({'Action': 'Command',
+                                   'Command': 'dialplan reload'})
+
+      DBSession.delete(s)
+      log.debug('Update shortcuts returns %s', res)
       flash(u'Raccourci supprimé', 'notice')
       redirect('/shortcuts/')
-
 
