@@ -216,7 +216,7 @@ P2304 = '1', # Transfert sur raccrochement en conférence
 
       try:
          # Try HTTPS first
-         log.debug('HTTPS POST(%s, %s, %s)', action, params, kw)
+         log.info('HTTPS POST(%s, %s, %s)', action, params, kw)
          resp = self.session.post('https://' + self.host + '/' + action,
                                   proxies=proxies,
                                   timeout=30,
@@ -224,7 +224,7 @@ P2304 = '1', # Transfert sur raccrochement en conférence
                                   verify=False,
                                   **kw)
       except:
-         log.debug('HTTPS POST failed, trying with HTTP')
+         log.info('HTTPS POST failed, trying with HTTP')
          try:
             # Then HTTP (brand new phone)
             resp = self.session.post('http://' + self.host + '/' + action,
@@ -267,39 +267,50 @@ P2304 = '1', # Transfert sur raccrochement en conférence
       try:
          data = resp.json()
       except:
-         return False
-      self.token = data['body'].get('password_token')
-      self.token_ts = data['body'].get('password_token_timestamp')
-      self.model = data['body'].get('phone_model')
-      self.version = data['body'].get('68')
-      log.info('Found %s %s', self.model, self.version)
+         data = None
+         log.info('No JSON found')
 
-      params = {'username': 'admin'}
+      self.token = None
+      if data:
+         token = data['body'].get('password_token')
+         token_ts = data['body'].get('password_token_timestamp')
+         self.model = data['body'].get('phone_model')
+         self.version = data['body'].get('68')
+         log.info('Found %s %s', self.model, self.version)
 
-      if self.model.startswith('GXP16'):
-         self.type = 3 # Needed for self.post
-         r = self.post('cgi-bin/dologin',
-                       params={'username': 'admin', 'password': self.pwd},
-                       headers={'origin': self.host, 'referrer': self.host})
-         if True: #try:
-            ret = r.json()
-            self.sid = ret['body']['sid']
-            log.info('Login correct %s', self.host)
-            return True
-         else: #except:
-            log.warning('ERROR %s, abandon', r.content)
-            return False
+         if self.model.startswith('GXP16') or self.model == 'GXP2135':
+            self.type = 3 # Needed for self.post
+            sha = sha256()
+            sha.update(self.pwd + token)
+            r = self.post('cgi-bin/dologin',
+                          params={'username': 'admin', 'password': sha.hexdigest()},
+                          headers={'Origin': 'http://' + self.host})
+            if True: #try:
+               ret = r.json()
+               log.info('dologin returns %s', ret)
+               if ret['response'] == 'error':
+                  log.error('Login cookies %s', self.session.cookies)
+                  return False
+               else:
+                  self.sid = ret['body']['sid']
+                  log.info('Login correct %s', self.host)
+                  return True
+            else: #except:
+               log.warning('ERROR %s, abandon', r.content)
+               return False
 
       # First, try newer method involving cgi-bin/access
+      params = {'username': 'admin'}
       self.type = 3 # Needed for self.post
       sha = sha256()
       sha.update(params['username'])
-      log.debug('post access')
+      log.info('post access')
       r = self.post('cgi-bin/access',
                     {'access': sha.hexdigest()},
                     headers={'origin': self.host})
       if r.status_code == 200:
           # This is indeed a newer phone / firmware
+          log.info('This is a newer phone / firmware')
           try:
               ret = r.json()
               ok = True
@@ -316,12 +327,23 @@ P2304 = '1', # Transfert sur raccrochement en conférence
               try:
                   ret = r.json()
               except:
-                  log.warning('GRP dologin returns: %s', ret)
+                  log.warning('GRP dologin returns: %s', r.raw)
                   return False
               if ret['response'] != 'success':
                   return False
+              log.info('Login %s', ret)
+# XXX
+              r = self.post('cgi-bin/dorefresh', {'sid': self.sid})
+              try:
+                  ret = r.json()
+              except:
+                  log.warning('dorefresh: %s', r.text)
+              self.sid = ret['body']['sid']
+              log.info('Refresh %s', ret)
+# XXX
               return True
 
+      log.info('Try older methods...')
       # Else, try older methods
       if self.token:
          # Encoded password
@@ -337,13 +359,13 @@ P2304 = '1', # Transfert sur raccrochement en conférence
       # Newer phones
       resp = self.get('cgi-bin/dologin', params=params)
       if resp is not None and resp.status_code==200:
-         log.debug('GXP new firmware: params "%s" returns "%s"', params, resp.content)
+         log.info('GXP new firmware: params "%s" returns "%s"', params, resp.content)
          try:
             data = resp.json()
             if data['response'] == 'success':
                self.sid = data['body']['sid']
                self.type = 3
-               log.debug('Logged in GXP2xxx, new firmware, sid=%s' % self.sid)
+               log.info('Logged in GXP2xxx, new firmware, sid=%s' % self.sid)
                return True
 
          except:
@@ -355,9 +377,9 @@ P2304 = '1', # Transfert sur raccrochement en conférence
       if resp is not None and resp.status_code == 200:
             # GXP-2100
             for c in self.cj:
-               log.debug('Cookie: %s = %s' % (c.name, c.value))
+               log.info('Cookie: %s = %s' % (c.name, c.value))
                if c.name=='session_id':
-                  log.debug('Logged in GXP2xxx, old firmware')
+                  log.info('Logged in GXP2xxx, old firmware')
                   self.type = 2
                   return True
 
@@ -365,9 +387,9 @@ P2304 = '1', # Transfert sur raccrochement en conférence
       resp = self.get('dologin.htm', {'P2': self.pwd})
       if resp is not None and resp.status_code == 200:
          for c in self.cookies:
-            log.debug('Cookie: %s = %s' % (c.name, c.value))
+            log.info('Cookie: %s = %s' % (c.name, c.value))
             if c.name=='SessionId':
-               log.debug('Logged in GXP1xxx')
+               log.info('Logged in GXP1xxx')
                self.type = 1
                return True
 
@@ -433,7 +455,12 @@ P2304 = '1', # Transfert sur raccrochement en conférence
          resp = self.get('cgi-bin/api.values.get',
                         {'request':  '68:phone_model:password_token:password_token_timestamp:67',
                          'sid': self.sid})
-         data = resp.json()
+         try:
+            data = resp.json()
+         except:
+            import json
+            data = json.loads(resp.text.split('\n')[-1])
+         log.info(u'data %s', data)
          model = data['body']['phone_model']
          soft = data['body']['68']
          self.token = data['body'].get('password_token')
@@ -445,20 +472,20 @@ P2304 = '1', # Transfert sur raccrochement en conférence
 
       self.model = model
 
-      log.debug(u'Model <%s>'% model)
-      log.debug(u'Version <%s>'% soft)
+      log.info(u'Model <%s>'% model)
+      log.info(u'Version <%s>'% soft)
 
       return {'model': model.strip(), 'version': soft.strip()}
 
    def update(self, params):
-      log.debug('Update (type %d)...' % self.type)
+      log.info('Update (type %s)...', self.type)
       if self.type == 1:
          resp = self.get('update.htm', params)
       elif self.type == 2:
          resp = self.get('cgi-bin/update', params)
       elif self.type == 3:
          resp = self.post('cgi-bin/api.values.post', params)
-      log.debug('Update returns -> %s', resp.content)
+      log.info('Update returns -> %s', resp.content)
       return resp.content
 
    def reboot(self):
@@ -664,9 +691,41 @@ P2304 = '1', # Transfert sur raccrochement en conférence
          log.error('ERROR: write binary config file')
 
       # Update and reboot phone
-      self.update({'P212': 2, 'P237': config_url, 'sid': self.sid})
-      sleep(6)
-      self.reboot()
+      if self.model == 'GXP2135':
+         del(self.session.cookies['HttpOnly']) # WTF?!?! needed, else config_update fails with session-expired
+         self.session.cookies.set('version', self.version)
+         self.session.cookies.set('device', self.mac.replace(':', '%3A'))
+         r = self.session.put(
+             'http://' + self.host + '/cgi-bin/config_update',
+             json={
+                 'alias': {},
+                 'pvalue': {
+                     '212': '2',
+                     '237': config_url,
+                 }
+             },
+             verify=False,
+             timeout=15,
+         )
+         log.info(u'config_update returns:\n%s\n', r.text)
+         sleep(1)
+         # Reboot !
+         del(self.session.cookies['HttpOnly']) # WTF?!?! needed, else reboot fails with Unauthorized
+         r = self.session.post(
+             'http://' + self.host + '/cgi-bin/api-sys_operation',
+             data={
+                 'request': 'REBOOT',
+                 'sid': self.sid,
+             },
+             headers=dict(Origin='http://' + self.host),
+             verify=False,
+             timeout=15,
+         )
+         log.info(u'Reboot returns:\n%s\n', r.text)
+      else:
+         self.update({'P212': 2, 'P237': config_url, 'sid': self.sid})
+         sleep(6)
+         self.reboot()
 
    def encode(self):
       '''Create a configuration file suitable for phone
