@@ -64,6 +64,33 @@ def play_or_tts(typ, val, brk=None):
    return (app, param)
 
 
+import pygraphviz as pgv
+class AGraph(pgv.AGraph):
+    """Subclass to patch write"""
+
+    def __init__(self, *args, **kwargs):
+        """Call normal initializer"""
+
+        pgv.AGraph.__init__(self, *args, **kwargs)
+
+    def write(self, fh):
+        """Override write to make it a real file handle"""
+
+        import types
+        if not isinstance(fh, types.FileType):
+            import tempfile
+            nfh = tempfile.TemporaryFile('w+b')
+            val = None
+            try:
+                val = pgv.AGraph.write(self, nfh)
+            except:
+                pass
+            nfh.seek(0)
+            fh.write(nfh.read())
+            return val
+        return pgv.AGraph.write(self, fh)
+
+
 # Dynamic select of users(user_id,display_name) of group 'SVI'
 class SVI_user_select_field(SingleSelectField):
    def update_params(self,sf):
@@ -227,7 +254,7 @@ class Application_ctrl(RestController):
       try:
          page = int(page)
          rows = int(rows)
-         offset = (page-1) * int(rp)
+         offset = (page-1) * rows
       except:
          offset = 0
          page = 1
@@ -512,7 +539,6 @@ class Application_ctrl(RestController):
       dot.close()
 
       fn = '%s/%s.pdf' % (dir_tmp, app.name)
-      from pygraphviz import AGraph
       g = AGraph(dir_tmp + '/graphviz.dot')
       log.debug(' * * * AGraph encoding %s' % g.encoding)
       g.layout(prog='dot')
@@ -586,6 +612,7 @@ def generate_dialplan():
       svi_out.write(u'%s,n,Set(CHANNEL(language)=${MASTER_CHANNEL(CHANNEL(language))})\n' % dnis)
       svi_out.write(u'%s,n,Set(CHANNEL(accountcode)=%s)\n' % (dnis, app_id))
       svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
+      svi_out.write(u'%s,n,Set(_SVI=true)\n' % dnis)
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
 
@@ -620,6 +647,7 @@ def generate_dialplan():
       svi_out.write(u'%s,n,Set(CHANNEL(language)=${MASTER_CHANNEL(CHANNEL(language))})\n' % dnis)
       svi_out.write(u'%s,n,Set(CHANNEL(accountcode)=%s)\n' % (dnis, app_id))
       svi_out.write(u'%s,n,Set(CDR(userfield)=SVI)\n' % dnis)
+      svi_out.write(u'%s,n,Set(_SVI=true)\n' % dnis)
       svi_out.write(u'%s,n,Goto(App_%s_Entrant,s,1)\n' % (dnis, app_id))
    svi_out.write(u'\n')
 
@@ -815,6 +843,7 @@ def generate_dialplan():
                (tag, app_id, busy[2:]))
          else:
             svi_out.write(u'exten => s_%d_BUSY,1,Goto(s,%d)\n' % (tag,prio))
+            svi_out.write(u'exten => s_%d_CONGESTION,1,Goto(s,%d)\n' % (tag,prio))
          if error!='-2':
             svi_out.write(u'exten => s_%d_CHANUNAVAIL,1,Goto(App_%d_%s,s,1)\n' % \
                (tag, app_id, error[2:]))
@@ -822,6 +851,8 @@ def generate_dialplan():
                (tag, app_id, error[2:]))
          else:
             svi_out.write(u'exten => s_%d_ERROR,1,Goto(s,%d)\n' % (tag,prio))
+            svi_out.write(u'exten => s_%d_CHANUNAVAIL,1,Goto(s,%d)\n' % (tag,prio))
+            svi_out.write(u'exten => s_%d_INVALIDARGS,1,Goto(s,%d)\n' % (tag,prio))
 #         svi_out.write(u'exten => _s_%d_.,1,Goto(s,%d)\n' % (tag,prio))
          continue
 
@@ -1015,6 +1046,9 @@ def generate_dialplan():
 
             timeout = q.timeout if q.timeout else ''
 
+            # Answer so that anounces work
+            svi_out.write(u"exten => s,%d,Answer()\n" % prio)
+            prio += 1
             svi_out.write(u"exten => s,%d,Queue(%s,%s,,,%s,,,agent_connect)\n" % 
                (prio, q.name, options, timeout) )
          else:
